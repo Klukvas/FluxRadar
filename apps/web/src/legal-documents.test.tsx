@@ -107,7 +107,7 @@ describe('public legal documents', () => {
     );
     expect(policy).toHaveTextContent(/Google OAuth tokens are never sent to an AI provider/i);
     expect(policy).toHaveTextContent(/Disconnecting Google deletes the stored tokens/i);
-    expect(policy).toHaveTextContent(/Effective 26 October 2026/);
+    expect(policy).toHaveTextContent(/Effective 27 October 2026/);
     // The merchant of record is Creem, and the policy says what FluxRadar sends
     // it before the buyer ever sees Creem's page — the account email, product
     // and checkout reference — as well as what comes back by webhook.
@@ -139,7 +139,8 @@ describe('public legal documents', () => {
     expect(policy).toHaveTextContent(
       /Google Signals, ads personalization and remarketing are disabled.*2 months/is,
     );
-    expect(policy).toHaveTextContent(/uses no advertising trackers/i);
+    expect(policy).toHaveTextContent(/loads no Google Ads tag and no other advertising tracker/i);
+    expect(policy).not.toHaveTextContent(/uses no advertising trackers/i);
     expect(policy).not.toHaveTextContent(/does not currently load Google Analytics 4/i);
     expect(
       screen.getByRole('link', { name: /Google API Services User Data Policy/i }),
@@ -258,7 +259,7 @@ describe('public legal documents', () => {
       'https://creem.io/privacy',
     );
     expect(document.body).not.toHaveTextContent(/FastSpring/i);
-    expect(policy).toHaveTextContent(/Effective 19 October 2026/);
+    expect(policy).toHaveTextContent(/Effective 27 October 2026/);
     const sections = screen.getByRole('navigation', { name: 'Document sections' });
     expect(sections).toHaveTextContent('Storage inventory');
     expect(sections).toHaveTextContent('Google Analytics');
@@ -359,6 +360,43 @@ describe('public legal documents', () => {
     }
   });
 
+  // Allowing analytics now also allows Google Ads measurement, so neither
+  // document may still promise "no advertising", and both have to say what the
+  // click identifier is for and what is still not done with it.
+  it('discloses the Google Ads click measurement in both documents and languages', () => {
+    const disclosure = {
+      en: {
+        claim: /click identifier \(gclid\)/i,
+        shared:
+          /shares the measurement with Google Ads|reports that to Google Ads|passes to our Google Ads account/i,
+        limits: /no remarketing and no ad personalisation|no Google Ads tag/i,
+      },
+      // Pinned as the phrase that says the measurement leaves for Google Ads,
+      // not as the words "Google Ads": the sentence that promises no Google Ads
+      // tag names the platform too, and would satisfy a looser pattern while
+      // the disclosure itself was missing.
+      uk: {
+        claim: /ідентифікатор кліку \(gclid\)|ідентифікатор кліку Google \(gclid\)/i,
+        shared: /передає це вимірювання в Google Ads|повідомляє Google Ads, що цей візит/,
+        limits:
+          /не ведемо remarketing|рекламного тега Google Ads та інших рекламних trackers FluxRadar не завантажує/,
+      },
+    };
+    for (const language of ['en', 'uk'] as const) {
+      for (const kind of ['cookies', 'privacy'] as const) {
+        render(<LegalDocumentScreen kind={kind} language={language} onLanguageChange={() => {}} />);
+        const text = screen.getByRole('article');
+        expect(text, `${kind} ${language}`).toHaveTextContent(disclosure[language].claim);
+        expect(text, `${kind} ${language}`).toHaveTextContent(disclosure[language].shared);
+        expect(text, `${kind} ${language}`).toHaveTextContent(disclosure[language].limits);
+        expect(text, `${kind} ${language}`).not.toHaveTextContent(
+          /uses no advertising trackers|не використовує рекламні trackers|Рекламних trackers FluxRadar не використовує/i,
+        );
+        cleanup();
+      }
+    }
+  });
+
   // The Ukrainian text is the controlling one, so the analytics disclosure is
   // pinned there as well as in the translation.
   it('discloses consent-based Google Analytics in the controlling Ukrainian text', () => {
@@ -372,7 +410,7 @@ describe('public legal documents', () => {
     expect(cookies).toHaveTextContent(
       /На сторінках FluxRadar Creem не завантажує скриптів і не встановлює cookies/,
     );
-    expect(cookies).toHaveTextContent(/Чинна з 19 жовтня 2026 року/);
+    expect(cookies).toHaveTextContent(/Чинна з 27 жовтня 2026 року/);
     expect(screen.getByRole('navigation', { name: 'Розділи документа' })).toHaveTextContent(
       'Checkout Creem',
     );
@@ -383,7 +421,7 @@ describe('public legal documents', () => {
     const privacy = screen.getByRole('article');
     expect(privacy).toHaveTextContent(/Аналітика сайту — лише з вашого дозволу/);
     expect(privacy).toHaveTextContent(/Google \(Google Analytics 4\).*як наш обробник/s);
-    expect(privacy).toHaveTextContent(/Чинна з 26 жовтня 2026 року/);
+    expect(privacy).toHaveTextContent(/Чинна з 27 жовтня 2026 року/);
     expect(privacy).toHaveTextContent(
       /Creem \(Armitage Labs OÜ, Rotermanni 14, Tallinn 10111, Естонія\) — merchant of record і checkout provider/,
     );

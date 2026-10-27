@@ -8,14 +8,16 @@
 // What reaches Google is shaped here rather than left to gtag's defaults:
 // - Page views are sent by the app, not by GA's history listener, so each one
 //   carries a cleaned location: no query string (password-reset and
-//   email-verification links put one-time tokens there) and no scan ids.
+//   email-verification links put one-time tokens there) and no scan ids. The
+//   one exception is the Google Ads click id on the hit that opens the visit —
+//   see `landingLocation`.
 // - Every hit carries a cleaned title too. The printable report puts the
 //   customer's audited domain in `document.title`, and gtag would otherwise
 //   attach it to every scroll or engagement event on that page.
 // - Signals and ad personalisation are off in the tag as well as in the
 //   property, and the `_ga` cookies end with the consent that allowed them.
 
-import { approvedAttribution } from './analytics-attribution';
+import { approvedAttribution, approvedClickId } from './analytics-attribution';
 import { ANALYTICS_HOSTNAME, GA_MEASUREMENT_ID, GA_SCRIPT_ORIGIN } from './analytics-config';
 import {
   COOKIE_CONSENT_CHANGE_EVENT,
@@ -45,6 +47,9 @@ declare global {
 let started = false;
 let active = false;
 let tagLoaded = false;
+let landingReported = false;
+let landingClickId: string | null = null;
+let landingCampaign: ReturnType<typeof approvedAttribution> = null;
 let lastPathname: string | null = null;
 let lastLocation: string | null = null;
 
@@ -81,6 +86,45 @@ function analyticsTitle(pathname: string): string {
   return SCAN_PATH.test(pathname) ? SCAN_PAGE_TITLE : document.title;
 }
 
+/** The cleaned page, as every hit but the first one of a visit reports it. */
+function cleanLocation(): string {
+  const { origin, pathname } = window.location;
+  return `${origin}${analyticsPath(pathname)}`;
+}
+
+/**
+ * What the address said when this visit opened: the Google Ads click id and the
+ * approved campaign pair, read there and not when the hit that carries each one
+ * is sent. An ad landing on a route the app no longer serves rewrites its own
+ * address first — `/plans` lands on the home page (HomeScreen.tsx) — and that
+ * effect runs before the first page view, and before a first-time visitor has
+ * answered the banner, so a send-time read would drop the campaign and the id
+ * of the very click that brought the visitor here. A visit ends with the
+ * consent that allowed it, so the next one takes both from wherever the visitor
+ * stands by then, or carries neither.
+ */
+function captureLandingAttribution(): void {
+  const { search } = window.location;
+  landingClickId = approvedClickId(search);
+  landingCampaign = approvedAttribution(search);
+}
+
+/**
+ * The same page, plus the Google Ads click id when this is the hit that opens
+ * the visit. GA4 attributes a session from the location of its first hit, so
+ * the id has to ride along there — and only there. It is therefore passed as a
+ * parameter of that one `page_view` event, never to `config` or `set`: gtag
+ * reads an event's own parameters ahead of both, so a click id left in either
+ * would ride every later hit of the page too, including gtag's own automatic
+ * events. The validated id needs no escaping; `approvedClickId` accepts
+ * URL-safe characters only.
+ */
+function landingLocation(): string {
+  const clean = cleanLocation();
+  if (landingReported || landingClickId === null) return clean;
+  return `${clean}?gclid=${landingClickId}`;
+}
+
 function setDisabled(disabled: boolean): void {
   (window as unknown as Record<string, unknown>)[DISABLE_FLAG] = disabled;
 }
@@ -107,8 +151,8 @@ function loadTag(): void {
   gtag('js', new Date());
   gtag('config', GA_MEASUREMENT_ID, {
     send_page_view: false,
-    ...approvedAttribution(window.location.search),
-    page_location: `${window.location.origin}${analyticsPath(window.location.pathname)}`,
+    ...landingCampaign,
+    page_location: cleanLocation(),
     page_referrer: analyticsReferrer(document.referrer, window.location.origin) ?? '',
     allow_google_signals: false,
     allow_ad_personalization_signals: false,
@@ -123,8 +167,29 @@ function loadTag(): void {
   document.head.appendChild(script);
 }
 
+/**
+ * Ends measurement, and sets up the visit that may follow. A withdrawal takes
+ * the `_ga` cookies with it, so the next allowance is a new client with a visit
+ * of its own, and that visit needs a landing hit or the ad click behind it goes
+ * unreported. A withdraw-and-allow cycle on the landing page therefore reports
+ * the click once more: the deliberate choice of the lesser error — one extra
+ * visit credited to a click that really happened, against losing a real click
+ * altogether. The address is read again there, so a visitor who has meanwhile
+ * moved on carries no id into the next visit.
+ *
+ * Only a visit that was running is re-opened that way. Calls that end nothing —
+ * a refusal answered before analytics ever started, or a consent event from
+ * another tab — leave the captured address alone, because by then the app may
+ * have rewritten the one it was read from (`/plans` lands on the home page) and
+ * a second read would drop the click of a visitor who has not yet said no for
+ * good.
+ */
 function stop(): void {
-  if (active) setDisabled(true);
+  if (active) {
+    setDisabled(true);
+    landingReported = false;
+    captureLandingAttribution();
+  }
   active = false;
   lastPathname = null;
   lastLocation = null;
@@ -163,8 +228,7 @@ function measuring(): boolean {
 
 /** Points every later hit — page views and gtag's automatic events — at the cleaned page. */
 function describeCurrentPage(): { readonly location: string; readonly title: string } {
-  const { origin, pathname } = window.location;
-  const page = { location: `${origin}${analyticsPath(pathname)}`, title: analyticsTitle(pathname) };
+  const page = { location: cleanLocation(), title: analyticsTitle(window.location.pathname) };
   gtag('set', { page_location: page.location, page_title: page.title });
   return page;
 }
@@ -175,12 +239,14 @@ export function trackPageView(): void {
   const { pathname, origin } = window.location;
   if (pathname === lastPathname) return;
   const referrer = lastLocation ?? analyticsReferrer(document.referrer, origin);
+  const hitLocation = landingLocation();
   const page = describeCurrentPage();
   gtag('event', 'page_view', {
-    page_location: page.location,
+    page_location: hitLocation,
     page_title: page.title,
     ...(referrer === undefined ? {} : { page_referrer: referrer }),
   });
+  landingReported = true;
   lastPathname = pathname;
   lastLocation = page.location;
 }
@@ -216,6 +282,7 @@ export function trackEvent(
 export function startAnalytics(): void {
   if (started) return;
   started = true;
+  captureLandingAttribution();
   window.addEventListener(COOKIE_CONSENT_CHANGE_EVENT, onConsentChange);
   window.addEventListener('storage', onStorage);
   sync(false);
@@ -228,6 +295,9 @@ export function resetAnalyticsForTests(): void {
   started = false;
   active = false;
   tagLoaded = false;
+  landingReported = false;
+  landingClickId = null;
+  landingCampaign = null;
   lastPathname = null;
   lastLocation = null;
   delete window.dataLayer;

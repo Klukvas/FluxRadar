@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ANALYTICS_HOSTNAME, GA_MEASUREMENT_ID, GA_SCRIPT_ORIGIN } from './analytics-config';
+import { cookieCopy } from './cookie-copy';
 import { copy } from './i18n';
 import { COOKIE_CONSENT_TTL_MS, saveCookieConsent } from './browser-consent';
 
@@ -580,10 +581,10 @@ describe('blog cookie choices', () => {
     readFileSync(resolve(BLOG_ROOT, 'attribution.js'), 'utf8') +
     readFileSync(resolve(BLOG_ROOT, 'blog.js'), 'utf8');
 
-  function bootIndex(): void {
+  function bootIndex(search = ''): void {
     const html = readPage('index.html');
     const body = /<body[^>]*>([\s\S]*)<\/body>/.exec(html)?.[1] ?? '';
-    window.history.replaceState(null, '', '/blog');
+    window.history.replaceState(null, '', `/blog${search}`);
     document.documentElement.setAttribute('data-blog-lang', 'en');
     document.documentElement.lang = 'en';
     document.body.setAttribute('data-blog-page', 'index');
@@ -618,12 +619,38 @@ describe('blog cookie choices', () => {
     return JSON.parse(window.localStorage.getItem('fluxradar.cookieConsent') ?? 'null');
   }
 
+  /** Each gtag call as a plain array — dataLayer holds `arguments` objects. */
+  function calls(): unknown[][] {
+    return (window.dataLayer ?? []).map((entry) => Array.from(entry as ArrayLike<unknown>));
+  }
+
   function pageViews(): unknown[] {
-    return (window.dataLayer ?? [])
-      .map((entry) => Array.from(entry as ArrayLike<unknown>))
+    return calls()
       .filter((call) => call[0] === 'event' && call[1] === 'page_view')
       .map((call) => call[2]);
   }
+
+  function reportedPages(): unknown[] {
+    return pageViews().map((params) => (params as { page_location: unknown }).page_location);
+  }
+
+  // The static banner carries its own copy of the app's wording, and the
+  // analytics hint is the one line that has to match word for word: it names the
+  // permission the banner asks for, and this banner saves the same v3 consent
+  // and reports the same Google Ads click id as the app. A hint left behind
+  // would ask for less than the choice actually grants.
+  it.each(['en', 'uk'] as const)(
+    'repeats the analytics permission the app asks for, word for word, in %s',
+    (language) => {
+      if (language !== 'en') {
+        document.querySelector<HTMLElement>(`[data-language-filter="${language}"]`)?.click();
+      }
+
+      expect(document.getElementById('blog-cookie-analytics-hint')?.textContent).toBe(
+        cookieCopy[language].analyticsHint,
+      );
+    },
+  );
 
   it('offers equally direct choices with nothing optional ticked on a first blog visit', () => {
     const region = document.querySelector('[data-cookie-consent]');
@@ -644,7 +671,7 @@ describe('blog cookie choices', () => {
     document.querySelector<HTMLElement>('[data-language-filter="uk"]')?.click();
     choose('all');
 
-    expect(storedConsent()).toMatchObject({ version: 'v2', preferences: true, analytics: true });
+    expect(storedConsent()).toMatchObject({ version: 'v3', preferences: true, analytics: true });
     expect(window.localStorage.getItem('fluxradar.language')).toBe('uk');
     expect(document.querySelector('[data-cookie-consent]')).toBeNull();
 
@@ -653,41 +680,54 @@ describe('blog cookie choices', () => {
     choose('necessary');
     expect(window.localStorage.getItem('fluxradar.language')).toBeNull();
     expect(window.localStorage.getItem('fluxradar.pendingCheckout')).toBe('pending-test');
-    expect(storedConsent()).toMatchObject({ version: 'v2', preferences: false, analytics: false });
+    expect(storedConsent()).toMatchObject({ version: 'v3', preferences: false, analytics: false });
   });
 
   it('saves only the categories that were ticked', () => {
     document.querySelector<HTMLElement>('[data-cookie-option="analytics"]')?.click();
     choose('save');
 
-    expect(storedConsent()).toMatchObject({ version: 'v2', preferences: false, analytics: true });
+    expect(storedConsent()).toMatchObject({ version: 'v3', preferences: false, analytics: true });
     expect(window.localStorage.getItem('fluxradar.language')).toBeNull();
   });
 
-  it('keeps the language a v1 visitor allowed while asking about analytics', () => {
-    // One reading of the clock: the record is only valid when the lifetime is exact.
-    const updatedAt = Date.now() - 1000;
-    window.localStorage.setItem(
-      'fluxradar.cookieConsent',
-      JSON.stringify({
-        version: 'v1',
-        preferences: true,
-        updatedAt,
-        expiresAt: updatedAt + COOKIE_CONSENT_TTL_MS,
-      }),
-    );
-    window.localStorage.setItem('fluxradar.language', 'uk');
-    document.body.innerHTML = '';
-    bootIndex();
+  // v1 predates the analytics category and v2 predates the Google Ads click
+  // measurement inside it, so neither is an answer to what this banner asks —
+  // and a v2 visitor who allowed analytics is asked again with the box empty.
+  // The language permission each gave still stands; browser-consent.test.ts
+  // pins the same two steps for the app.
+  it.each([
+    ['v1', {}],
+    ['v2', { analytics: true }],
+  ])(
+    'keeps the language a %s visitor allowed while asking about analytics again',
+    (version, answered) => {
+      // One reading of the clock: the record is only valid when the lifetime is exact.
+      const updatedAt = Date.now() - 1000;
+      window.localStorage.setItem(
+        'fluxradar.cookieConsent',
+        JSON.stringify({
+          version,
+          preferences: true,
+          ...answered,
+          updatedAt,
+          expiresAt: updatedAt + COOKIE_CONSENT_TTL_MS,
+        }),
+      );
+      window.localStorage.setItem('fluxradar.language', 'uk');
+      document.body.innerHTML = '';
+      bootIndex();
 
-    expect(document.documentElement.getAttribute('data-blog-lang')).toBe('uk');
-    expect(
-      document.querySelector<HTMLInputElement>('[data-cookie-option="preferences"]')?.checked,
-    ).toBe(true);
-    expect(
-      document.querySelector<HTMLInputElement>('[data-cookie-option="analytics"]')?.checked,
-    ).toBe(false);
-  });
+      expect(document.documentElement.getAttribute('data-blog-lang')).toBe('uk');
+      expect(document.querySelector('[data-cookie-consent]')).not.toBeNull();
+      expect(
+        document.querySelector<HTMLInputElement>('[data-cookie-option="preferences"]')?.checked,
+      ).toBe(true);
+      expect(
+        document.querySelector<HTMLInputElement>('[data-cookie-option="analytics"]')?.checked,
+      ).toBe(false);
+    },
+  );
 
   it('requests nothing from Google until analytics is allowed, then reports the page', () => {
     document.body.innerHTML = '';
@@ -706,6 +746,112 @@ describe('blog cookie choices', () => {
     // The page view carries the path only: no ?lang=, and nothing a query could hold.
     expect(pageViews()).toEqual([
       expect.objectContaining({ page_location: 'https://fluxradar.net/blog' }),
+    ]);
+  });
+
+  // The static pages carry the Google Ads click id exactly as the app does: in
+  // the parameters of the page view that opens the visit, and only when the
+  // query holds one well-formed id. config and set keep the cleaned address,
+  // because gtag reads those for every later hit of the page as well.
+  it.each([
+    ['?gclid=AbC-123_xyz', 'https://fluxradar.net/blog?gclid=AbC-123_xyz'],
+    ['?gclid=one&gclid=two', 'https://fluxradar.net/blog'],
+    ['?gclid=not%20a%20click%20id', 'https://fluxradar.net/blog'],
+    ['?lang=uk&reset_token=secret', 'https://fluxradar.net/blog'],
+  ])('reports %s as %s', (search, expected) => {
+    document.body.innerHTML = '';
+    visit(`https://fluxradar.net/blog${search}`);
+    bootIndex(search);
+    choose('all');
+
+    expect(pageViews()).toEqual([expect.objectContaining({ page_location: expected })]);
+    const persistent = calls().filter((call) => call[0] === 'config' || call[0] === 'set');
+    expect(persistent).toHaveLength(2);
+    expect(persistent.find((call) => call[0] === 'config')?.[2]).toMatchObject({
+      page_location: 'https://fluxradar.net/blog',
+    });
+    expect(persistent.find((call) => call[0] === 'set')?.[1]).toMatchObject({
+      page_location: 'https://fluxradar.net/blog',
+    });
+    // Nothing but that one page view ever names the id.
+    expect(calls().filter((call) => JSON.stringify(call).includes('gclid'))).toEqual(
+      expected.includes('gclid')
+        ? [['event', 'page_view', expect.objectContaining({ page_location: expected })]]
+        : [],
+    );
+    expect(JSON.stringify(calls())).not.toContain('secret');
+  });
+
+  // The reader may use the language filter before answering the banner, and
+  // that filter rewrites the address: applyLanguage() replaces /blog?gclid=...
+  // with /blog?lang=uk. The id is therefore captured when the script starts,
+  // not when the hit is sent — a send-time read would lose precisely the clicks
+  // the ad was paid for.
+  it('reports the click after the language filter has rewritten the address', () => {
+    document.body.innerHTML = '';
+    visit('https://fluxradar.net/blog?gclid=AbC-123_xyz');
+    bootIndex('?gclid=AbC-123_xyz');
+
+    document.querySelector<HTMLElement>('[data-language-filter="uk"]')?.click();
+    expect(window.location.search).toBe('?lang=uk');
+    choose('all');
+
+    expect(reportedPages()).toEqual(['https://fluxradar.net/blog?gclid=AbC-123_xyz']);
+  });
+
+  // The campaign pair outlives that rewrite for the same reason, and it matters
+  // for the same money: the filter drops ?utm_source= along with the click id,
+  // and a pair read when the tag is configured would report the paid visit as
+  // an organic one. It travels in config, never in a page_location.
+  it('reports the campaign after the language filter has rewritten the address', () => {
+    document.body.innerHTML = '';
+    const search = '?utm_source=google&utm_medium=cpc';
+    visit(`https://fluxradar.net/blog${search}`);
+    bootIndex(search);
+
+    document.querySelector<HTMLElement>('[data-language-filter="uk"]')?.click();
+    expect(window.location.search).toBe('?lang=uk');
+    choose('all');
+
+    expect(calls().find((call) => call[0] === 'config')?.[2]).toMatchObject({
+      campaign_source: 'google',
+      campaign_medium: 'cpc',
+      page_location: 'https://fluxradar.net/blog',
+    });
+    expect(reportedPages()).toEqual(['https://fluxradar.net/blog']);
+    expect(JSON.stringify(calls())).not.toMatch(/utm_/);
+  });
+
+  // Coming back to the tab syncs analytics while the banner is still open, and
+  // that sync must not re-read the address the filter has rewritten: the reader
+  // has not answered yet, so the click is still theirs to report.
+  it('keeps the click through a focus with the banner still unanswered', () => {
+    document.body.innerHTML = '';
+    visit('https://fluxradar.net/blog?gclid=AbC-123_xyz');
+    bootIndex('?gclid=AbC-123_xyz');
+
+    document.querySelector<HTMLElement>('[data-language-filter="uk"]')?.click();
+    window.dispatchEvent(new Event('focus'));
+    choose('all');
+
+    expect(reportedPages()).toEqual(['https://fluxradar.net/blog?gclid=AbC-123_xyz']);
+  });
+
+  // Re-allowing analytics opens a new visit in GA's eyes, so the landing hit is
+  // reported again: without that the ad click behind the visit would be lost.
+  it('reports the click again when analytics is allowed a second time', () => {
+    document.body.innerHTML = '';
+    visit('https://fluxradar.net/blog?gclid=AbC-123_xyz');
+    bootIndex('?gclid=AbC-123_xyz');
+    choose('all');
+    document.querySelector<HTMLElement>('[data-cookie-settings]')?.click();
+    choose('necessary');
+    document.querySelector<HTMLElement>('[data-cookie-settings]')?.click();
+    choose('all');
+
+    expect(reportedPages()).toEqual([
+      'https://fluxradar.net/blog?gclid=AbC-123_xyz',
+      'https://fluxradar.net/blog?gclid=AbC-123_xyz',
     ]);
   });
 

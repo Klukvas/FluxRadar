@@ -128,6 +128,94 @@ describe('consent-gated Google Analytics', () => {
     expect(JSON.stringify(window.dataLayer)).not.toContain('one-time-secret');
   });
 
+  // The click id belongs to one hit: the page view that opens the visit. gtag
+  // reads an event's own parameters ahead of `config` and of `set`, so a click
+  // id left in either would ride every later hit of the page as well — the next
+  // screens' page views and gtag's own automatic events (user_engagement,
+  // scroll, form_start, click, file_download) among them.
+  it('carries the Google Ads click id in the landing page view alone, never in config or set', () => {
+    const landing = 'https://fluxradar.net/?gclid=AbC-123_xyz';
+    visit(`${landing}&reset_token=secret`);
+    saveCookieConsent(EVERYTHING_ALLOWED);
+    startAnalytics();
+    trackPageView();
+    trackEvent('sign_up', { method: 'email' });
+    visit('https://fluxradar.net/faq?gclid=AbC-123_xyz');
+    trackPageView();
+    trackEvent('scroll', { percent_scrolled: 90 });
+
+    // One call in the whole dataLayer names the click id, and it is the landing
+    // page view's own parameters.
+    expect(gtagCalls().filter((call) => JSON.stringify(call).includes('gclid'))).toEqual([
+      ['event', 'page_view', expect.objectContaining({ page_location: landing })],
+    ]);
+    // Said the other way round, so a regression names the culprit: the tag is
+    // configured with, and every later hit is pointed at, the cleaned page.
+    const configured = gtagCalls().filter((call) => call[0] === 'config');
+    const pointed = gtagCalls().filter((call) => call[0] === 'set');
+    expect(configured).toHaveLength(1);
+    expect(configured[0]?.[2]).toMatchObject({ page_location: 'https://fluxradar.net/' });
+    expect(pointed.length).toBeGreaterThan(1);
+    for (const call of [...configured, ...pointed]) {
+      expect(JSON.stringify(call)).not.toContain('gclid');
+    }
+    expect(sentEvents('page_view').map((params) => params.page_location)).toEqual([
+      landing,
+      'https://fluxradar.net/faq',
+    ]);
+    expect(JSON.stringify(gtagCalls())).not.toContain('secret');
+  });
+
+  // A withdrawal ends the visit as GA sees it, and a new allowance opens the
+  // next one — which needs a landing hit of its own, or the ad click that
+  // brought the visitor here goes unreported.
+  it('reports the click again when analytics is allowed a second time on the landing page', () => {
+    const landing = 'https://fluxradar.net/?gclid=AbC-123_xyz';
+    visit(landing);
+    saveCookieConsent(EVERYTHING_ALLOWED);
+    startAnalytics();
+    trackPageView();
+    saveCookieConsent(NECESSARY_ONLY);
+    saveCookieConsent(EVERYTHING_ALLOWED);
+
+    expect(sentEvents('page_view').map((params) => params.page_location)).toEqual([
+      landing,
+      landing,
+    ]);
+  });
+
+  // A refusal ends no visit, so it must not re-read the address: by then the
+  // app has rewritten it (an ad landing on /plans lands on the home page), and
+  // a visitor who says no and then changes their mind on the same page is still
+  // the first visit of that click.
+  it('reports the click when a refusal is reconsidered on a rewritten landing page', () => {
+    visit('https://fluxradar.net/plans?gclid=AbC-123_xyz');
+    startAnalytics();
+    visit('https://fluxradar.net/');
+    saveCookieConsent(NECESSARY_ONLY);
+    saveCookieConsent(EVERYTHING_ALLOWED);
+
+    expect(sentEvents('page_view').map((params) => params.page_location)).toEqual([
+      'https://fluxradar.net/?gclid=AbC-123_xyz',
+    ]);
+  });
+
+  // The flag only re-opens the chance to report a click; the address decides.
+  it('adds nothing on a re-allowance once the visitor has left the ad landing page', () => {
+    visit('https://fluxradar.net/?gclid=AbC-123_xyz');
+    saveCookieConsent(EVERYTHING_ALLOWED);
+    startAnalytics();
+    trackPageView();
+    visit('https://fluxradar.net/faq');
+    saveCookieConsent(NECESSARY_ONLY);
+    saveCookieConsent(EVERYTHING_ALLOWED);
+
+    expect(sentEvents('page_view').map((params) => params.page_location)).toEqual([
+      'https://fluxradar.net/?gclid=AbC-123_xyz',
+      'https://fluxradar.net/faq',
+    ]);
+  });
+
   // The printable report puts the audited domain in document.title; neither the
   // scan id nor that domain belongs in the visitor statistics.
   it('reports scan screens by their shape, never by scan id or audited domain', () => {

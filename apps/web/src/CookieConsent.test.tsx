@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CookieConsent, CookieSettingsButton } from './CookieConsent';
 import {
   COOKIE_CONSENT_TTL_MS,
+  COOKIE_CONSENT_VERSION,
   analyticsAllowed,
   preferencesAllowed,
   saveCookieConsent,
@@ -367,7 +368,7 @@ describe('cookie choices', () => {
       window.localStorage.setItem(
         'fluxradar.cookieConsent',
         JSON.stringify({
-          version: 'v2',
+          version: COOKIE_CONSENT_VERSION,
           preferences: false,
           analytics: false,
           updatedAt,
