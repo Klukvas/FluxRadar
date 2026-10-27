@@ -208,7 +208,7 @@ describe('the blog header without a signed-in reader', () => {
 
     document.querySelector<HTMLElement>('[data-cookie-choice="necessary"]')?.click();
     expect(document.querySelector('[data-cookie-consent]')).toBeNull();
-    expect(window.localStorage.getItem('fluxradar.cookieConsent')).toContain('"version":"v2"');
+    expect(window.localStorage.getItem('fluxradar.cookieConsent')).toContain('"version":"v3"');
 
     document.querySelector<HTMLElement>('[data-menu-toggle]')?.click();
     expect(document.getElementById('menubar-links')).toHaveClass('is-open');

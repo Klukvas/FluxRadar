@@ -1,8 +1,11 @@
 export const COOKIE_CONSENT_KEY = 'fluxradar.cookieConsent';
-// v2 added the analytics category. A v1 record never answered that question, so
-// it no longer counts as a choice and the banner asks again.
-export const COOKIE_CONSENT_VERSION = 'v2';
-const LEGACY_CONSENT_VERSION = 'v1';
+// Each version is one question. v2 added the analytics category; v3 widened it,
+// because allowing analytics now also lets Google Analytics measure whether the
+// visit came from a Google Ads click and report that back to Google Ads. An
+// earlier record answered a narrower question — the v2 banner said "no
+// advertising" — so it no longer counts as a choice and the banner asks again.
+export const COOKIE_CONSENT_VERSION = 'v3';
+const SUPERSEDED_CONSENT_VERSIONS: readonly string[] = ['v1', 'v2'];
 export const COOKIE_CONSENT_CHANGE_EVENT = 'fluxradar:cookie-consent-change';
 export const COOKIE_CONSENT_TTL_MS = 180 * 24 * 60 * 60 * 1000;
 let saveFailed = false;
@@ -77,16 +80,17 @@ export function readCookieConsent(): CookieConsentRecord | null {
 }
 
 /**
- * A visitor who allowed preferences under v1 did so before analytics existed.
- * That permission still stands for the rest of its 180 days, so their language
- * survives the banner coming back to ask about the new category.
+ * A visitor who allowed preferences under an earlier version answered a
+ * narrower analytics question, but the language permission they did give still
+ * stands for the rest of its 180 days, so it survives the banner coming back.
  */
 function legacyPreferencesAllowed(): boolean {
   try {
     const record = readStoredRecord();
     return (
       record !== null &&
-      record.version === LEGACY_CONSENT_VERSION &&
+      typeof record.version === 'string' &&
+      SUPERSEDED_CONSENT_VERSIONS.includes(record.version) &&
       record.preferences === true &&
       hasLiveWindow(record, Date.now())
     );

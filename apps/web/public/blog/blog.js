@@ -20,10 +20,11 @@
   // from /blog back to the product and the other way round.
   var STORAGE_KEY = 'fluxradar.language';
   var CONSENT_KEY = 'fluxradar.cookieConsent';
-  var CONSENT_VERSION = 'v2';
-  // v1 predates the analytics category. It is no longer an answer, but the
-  // language permission it gave still stands for the rest of its 180 days.
-  var LEGACY_CONSENT_VERSION = 'v1';
+  var CONSENT_VERSION = 'v3';
+  // v1 predates the analytics category and v2 predates the Google Ads click
+  // measurement inside it. Neither is an answer any more, but the language
+  // permission each gave still stands for the rest of its 180 days.
+  var SUPERSEDED_CONSENT_VERSIONS = ['v1', 'v2'];
   var CONSENT_TTL_MS = 180 * 24 * 60 * 60 * 1000;
   var MAX_TIMEOUT_MS = 2147483647;
   var cookieSaveFailed = false;
@@ -102,6 +103,11 @@
 
   var LANGUAGE_LABELS = { en: 'English', uk: 'Українська' };
 
+  // The banner's own wording, because a static page cannot import the app's.
+  // The analytics hint is the one line that has to be the app's word for word:
+  // it is the permission this banner asks for, and the blog now saves the same
+  // consent and reports the same Google Ads click id. blog-page.test.ts pins it
+  // against src/cookie-copy.ts so the two cannot drift apart again.
   var COOKIE_TEXT = {
     en: {
       title: 'Cookies & storage',
@@ -114,7 +120,7 @@
       preferencesHint: 'Remember your interface language on this device.',
       analytics: 'Analytics',
       analyticsHint:
-        'Count visits with Google Analytics 4 so we can see which pages help. No advertising and no Google Signals.',
+        'Count visits with Google Analytics 4 so we can see which pages help, and measure whether a visit came from a Google Ads click so ads can be credited for sign-ups and purchases. No remarketing, no ad personalisation, no Google Signals.',
       necessary: 'Only necessary',
       save: 'Save choice',
       allow: 'Allow all',
@@ -136,7 +142,7 @@
       preferencesHint: 'Запам’ятовувати мову інтерфейсу на цьому пристрої.',
       analytics: 'Аналітика',
       analyticsHint:
-        'Рахувати відвідування через Google Analytics 4, щоб ми бачили, які сторінки корисні. Без реклами та Google Signals.',
+        'Рахувати відвідування через Google Analytics 4, щоб ми бачили, які сторінки корисні, і визначати, чи прийшов візит з реклами Google, щоб приписати рекламі реєстрації та покупки. Без ремаркетингу, без персоналізації реклами, без Google Signals.',
       necessary: 'Лише необхідні',
       save: 'Зберегти вибір',
       allow: 'Дозволити все',
@@ -221,7 +227,7 @@
       var record = readStoredRecord();
       return (
         record !== null &&
-        record.version === LEGACY_CONSENT_VERSION &&
+        SUPERSEDED_CONSENT_VERSIONS.indexOf(record.version) !== -1 &&
         record.preferences === true &&
         hasLiveWindow(record)
       );
@@ -540,9 +546,14 @@
 
   // ── Analytics ───────────────────────────────────────────────────────────
   // The blog's half of src/analytics.ts: the same consent-gated GA4 tag, and a
-  // page view without the query (the blog only ever carries ?lang= there).
+  // page view without the query (the blog only ever carries ?lang= there). The
+  // one query value that does travel is the Google Ads click id, on the hit
+  // that opens the visit — see landingLocation().
   var analyticsActive = false;
   var analyticsLoaded = false;
+  var landingReported = false;
+  var landingClickId = null;
+  var landingCampaign = null;
 
   function gtag() {
     // gtag.js reads dataLayer entries only as `arguments` objects.
@@ -578,10 +589,10 @@
           allow_ad_personalization_signals: false,
           cookie_expires: CONSENT_TTL_MS / 1000,
           cookie_flags: 'SameSite=Lax;Secure',
-          page_location: window.location.origin + window.location.pathname,
+          page_location: cleanLocation(),
           page_referrer: cleanReferrer(document.referrer) || '',
         },
-        window.fluxradarApprovedAttribution?.(window.location.search),
+        landingCampaign,
       ),
     );
     var script = document.createElement('script');
@@ -597,24 +608,74 @@
       return null;
     };
 
+  function cleanLocation() {
+    return window.location.origin + window.location.pathname;
+  }
+
+  /**
+   * What the address said when this visit opened: the Google Ads click id and
+   * the approved campaign pair, read there rather than when the hit that
+   * carries each one is sent. The language filter rewrites the address before
+   * the reader has answered the banner — applyLanguage() replaces
+   * /blog?gclid=...&utm_source=... with /blog?lang=uk — so a send-time read
+   * would drop the campaign and the id of the very click that brought the
+   * reader here. src/analytics.ts captures both at start-up for the same kind
+   * of reason.
+   */
+  function captureLandingAttribution() {
+    var search = window.location.search;
+    landingClickId = window.fluxradarApprovedClickId?.(search) ?? null;
+    landingCampaign = window.fluxradarApprovedAttribution?.(search) ?? null;
+  }
+
+  /**
+   * The cleaned page, plus the Google Ads click id while this is still the hit
+   * that opens the visit: GA4 attributes a session from the location of its
+   * first hit, and every hit after it reports the page alone. It therefore goes
+   * into the parameters of that one page_view event and never into config or
+   * set, which gtag reads for every later hit of the page as well.
+   */
+  function landingLocation() {
+    var clean = cleanLocation();
+    if (landingReported || landingClickId === null) return clean;
+    return clean + '?gclid=' + landingClickId;
+  }
+
   function sendPageView() {
-    var page = {
-      page_location: window.location.origin + window.location.pathname,
-      page_title: document.title,
-    };
+    var page = { page_location: cleanLocation(), page_title: document.title };
     gtag('set', page);
+    var hit = Object.assign({}, page, { page_location: landingLocation() });
+    landingReported = true;
     var referrer = cleanReferrer(document.referrer);
     gtag(
       'event',
       'page_view',
-      referrer === null ? page : Object.assign({ page_referrer: referrer }, page),
+      referrer === null ? hit : Object.assign({ page_referrer: referrer }, hit),
     );
   }
 
   function syncAnalytics() {
     var onProduction = window.location.hostname === ANALYTICS_HOSTNAME;
     if (!onProduction || !analyticsAllowed()) {
-      if (analyticsActive) setAnalyticsDisabled(true);
+      // A withdrawal ends the visit as GA sees it, and takes the _ga cookies
+      // with it: a new allowance is a new client, whose visit needs a landing
+      // hit of its own or the ad click behind it goes unreported. On the landing
+      // page a withdraw-and-allow cycle therefore reports the click once more.
+      // That is the deliberate choice of the lesser error — one extra visit
+      // credited to a click that really happened, against losing a real click
+      // altogether. The address is read again there, so an id the reader has
+      // meanwhile navigated away from is not resent.
+      //
+      // Only a running visit is re-opened that way: a sync that ends nothing —
+      // the first one of the page, a focus with the banner still unanswered, a
+      // refusal from another tab — must not re-read an address the language
+      // filter may have rewritten by then, or the click is lost before the
+      // reader has even answered. src/analytics.ts stop() keeps the same rule.
+      if (analyticsActive) {
+        setAnalyticsDisabled(true);
+        landingReported = false;
+        captureLandingAttribution();
+      }
       analyticsActive = false;
       if (onProduction) clearAnalyticsCookies();
       return;
@@ -779,6 +840,7 @@
     })(filterButtons[filterIndex]);
   }
 
+  captureLandingAttribution();
   applyLanguage(currentLanguage, { pushUrl: false });
   syncLanguageControls(currentLanguage);
   syncAnalytics();

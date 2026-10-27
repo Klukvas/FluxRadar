@@ -33,7 +33,7 @@ export const cookieCopy: Record<Language, CookieCopy> = {
     preferencesHint: 'Remember your interface language on this device.',
     analytics: 'Analytics',
     analyticsHint:
-      'Count visits with Google Analytics 4 so we can see which pages help. No advertising and no Google Signals.',
+      'Count visits with Google Analytics 4 so we can see which pages help, and measure whether a visit came from a Google Ads click so ads can be credited for sign-ups and purchases. No remarketing, no ad personalisation, no Google Signals.',
     save: 'Save choice',
     details: 'Cookie details',
     settings: 'Cookie settings',
@@ -56,7 +56,7 @@ export const cookieCopy: Record<Language, CookieCopy> = {
     preferencesHint: 'Запам’ятовувати мову інтерфейсу на цьому пристрої.',
     analytics: 'Аналітика',
     analyticsHint:
-      'Рахувати відвідування через Google Analytics 4, щоб ми бачили, які сторінки корисні. Без реклами та Google Signals.',
+      'Рахувати відвідування через Google Analytics 4, щоб ми бачили, які сторінки корисні, і визначати, чи прийшов візит з реклами Google, щоб приписати рекламі реєстрації та покупки. Без ремаркетингу, без персоналізації реклами, без Google Signals.',
     save: 'Зберегти вибір',
     details: 'Докладніше про cookies',
     settings: 'Налаштування cookies',

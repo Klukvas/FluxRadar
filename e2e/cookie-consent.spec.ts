@@ -37,7 +37,7 @@ test.describe('cookie choices on public legal pages', () => {
       await page.evaluate(() =>
         JSON.parse(localStorage.getItem('fluxradar.cookieConsent') ?? 'null'),
       ),
-    ).toMatchObject({ version: 'v2', preferences: false, analytics: false });
+    ).toMatchObject({ version: 'v3', preferences: false, analytics: false });
     await page.reload();
     await expect(banner).toBeHidden();
     await page.getByRole('button', { name: 'Cookie settings' }).first().click();
@@ -176,7 +176,7 @@ test.describe('cookie choices on public legal pages', () => {
       })),
     ).toMatchObject({
       language: 'uk',
-      consent: { version: 'v2', preferences: true, analytics: true },
+      consent: { version: 'v3', preferences: true, analytics: true },
     });
   });
 });

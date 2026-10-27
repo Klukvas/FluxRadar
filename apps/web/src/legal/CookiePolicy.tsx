@@ -6,14 +6,18 @@ import type { Language } from '../i18n';
 import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } from './SharedLegal';
 
 /**
- * Changed when the measured product steps grew to the GA4 funnel: starting a
- * check (free or paid), a finished check, viewing a report and choosing or
- * changing a plan joined sign-up, checkout and purchase. The previous date,
- * 28 September 2026, made the third-party checkout Creem's hosted redirect
- * page, which loads no provider script on fluxradar.net; before that,
- * 21 September 2026, added the analytics category and Google Analytics 4.
+ * Changed when the analytics category grew to cover Google Ads: the address of
+ * the page a visit lands on now carries the Google Ads click identifier when
+ * the visit came from an ad, and Google Analytics reports to Google Ads which
+ * visits and which sign-ups and purchases the ad produced. The previous date,
+ * 19 October 2026, grew the measured product steps to the GA4 funnel: starting
+ * a check (free or paid), a finished check, viewing a report and choosing or
+ * changing a plan joined sign-up, checkout and purchase. Before that,
+ * 28 September 2026 made the third-party checkout Creem's hosted redirect
+ * page, which loads no provider script on fluxradar.net, and
+ * 21 September 2026 added the analytics category and Google Analytics 4.
  */
-const COOKIES_EFFECTIVE: EffectiveDate = { uk: '19 жовтня 2026 року', en: '19 October 2026' };
+const COOKIES_EFFECTIVE: EffectiveDate = { uk: '27 жовтня 2026 року', en: '27 October 2026' };
 
 /** The second cookie gtag sets is named after the stream, so the inventory names it exactly. */
 const GA_SESSION_COOKIE = `_ga_${GA_MEASUREMENT_ID.replace(/^G-/, '')}`;
@@ -52,8 +56,9 @@ function UkrainianCookiePolicy(): JSX.Element {
           Дві інші категорії необов’язкові. «Прийняти все» дозволяє обидві, а «Лише необхідне»
           вимикає їх одним натисканням. «Налаштувати» відкриває окремі параметри та кнопку «Зберегти
           вибір». До вашого рішення необов’язкове сховище й аналітика не діють. Preferences
-          запам’ятовують мову інтерфейсу. Аналітика завантажує Google Analytics 4, див. розділ 04.
-          FluxRadar не використовує рекламні trackers, remarketing або Google Signals.
+          запам’ятовують мову інтерфейсу. Аналітика завантажує Google Analytics 4, див. розділ 04;
+          сюди входить і вимірювання того, чи прийшов ваш візит з реклами Google. FluxRadar не веде
+          remarketing, не персоналізує рекламу й не вмикає Google Signals.
         </p>
       </section>
       <section id="cookies-inventory" className="legal-section">
@@ -154,10 +159,21 @@ function UkrainianCookiePolicy(): JSX.Element {
           завершена покупка (тариф і ціна, без даних картки).
         </p>
         <p>
-          Адреси сторінок передаються без query string та ідентифікаторів перевірок, тож посилання
-          для підтвердження email чи відновлення пароля й домени, які ви перевіряєте, до Google не
-          потрапляють. Google Signals, ads personalization і remarketing вимкнені, а user та event
-          data зберігаються 2 місяці. Google обробляє ці дані як наш обробник; див.{' '}
+          Ми запускаємо пошукову рекламу Google. Коли ви переходите з оголошення, Google додає до
+          посилання свій ідентифікатор кліку (gclid), і Google Analytics 4 зчитує його з адреси
+          сторінки, на яку ви потрапили. Саме так візит розпізнається як рекламний, і Google
+          Analytics передає це вимірювання в Google Ads, щоб приписати кампанії реєстрації та
+          покупки, які вона принесла. Ідентифікатор є лише в адресі цієї першої сторінки, а наступні
+          сторінки передаються без нього. Ми не ведемо remarketing і не персоналізуємо рекламу,
+          Google Signals лишається вимкненим, рекламний тег Google Ads на сайт не завантажується, і
+          нічого з цього нікому не продається.
+        </p>
+        <p>
+          Окрім цього ідентифікатора, адреси сторінок передаються без query string та
+          ідентифікаторів перевірок, тож посилання для підтвердження email чи відновлення пароля й
+          домени, які ви перевіряєте, до Google не потрапляють. Google Signals, ads personalization
+          і remarketing вимкнені, а user та event data зберігаються 2 місяці. Google обробляє ці
+          дані як наш обробник; див.{' '}
           <a href="https://policies.google.com/technologies/partner-sites">
             як Google використовує дані сайтів, що користуються його сервісами
           </a>
@@ -230,8 +246,9 @@ function EnglishCookiePolicy(): JSX.Element {
           The two other categories are optional. “Accept all” allows both, and “Only necessary”
           turns both off in one press. “Customize” opens the individual options and “Save choice”.
           Optional storage and analytics stay off until you decide. Preferences remember the
-          interface language. Analytics loads Google Analytics 4, see section 04. FluxRadar uses no
-          advertising trackers, remarketing or Google Signals.
+          interface language. Analytics loads Google Analytics 4, see section 04, and that includes
+          measuring whether your visit came from a Google Ads click. FluxRadar runs no remarketing,
+          no ad personalisation and no Google Signals.
         </p>
       </section>
       <section id="cookies-inventory" className="legal-section">
@@ -339,10 +356,21 @@ function EnglishCookiePolicy(): JSX.Element {
           completed purchase (plan and price, never card details).
         </p>
         <p>
-          Page addresses are reported without query strings or check identifiers, so email
-          verification and password-reset links and the domains you audit never reach Google. Google
-          Signals, ads personalization and remarketing are disabled, and user and event data are
-          kept for 2 months. Google processes this data as our processor; see{' '}
+          We run Google search ads. When you arrive from an ad, Google appends its click identifier
+          (gclid) to the link, and Google Analytics 4 reads it from the address of the page you land
+          on. That is how a visit is recognised as coming from an ad, and Google Analytics shares
+          the measurement with Google Ads so the campaign can be credited for the sign-ups and
+          purchases it brought. The identifier travels in that first page address only; every later
+          page is reported without it. We run no remarketing and no ad personalisation, Google
+          Signals stays off, no Google Ads tag is loaded on the site, and none of this is sold to
+          anyone.
+        </p>
+        <p>
+          Apart from that identifier, page addresses are reported without query strings or check
+          identifiers, so email verification and password-reset links and the domains you audit
+          never reach Google. Google Signals, ads personalization and remarketing are disabled, and
+          user and event data are kept for 2 months. Google processes this data as our processor;
+          see{' '}
           <a href="https://policies.google.com/technologies/partner-sites">
             how Google uses information from sites that use its services
           </a>

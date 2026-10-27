@@ -4,6 +4,14 @@ import type { Language } from '../i18n';
 import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } from './SharedLegal';
 
 /**
+ * 27 October 2026: allowing analytics now also allows Google Ads measurement.
+ * A visit arriving from a Google search ad carries Google's click identifier
+ * (gclid) in the address of the page it lands on, Google Analytics 4 reads it
+ * there, and the measurement reaches Google Ads so the campaign is credited
+ * with the sign-ups and purchases it produced. Nothing else about the ads
+ * changed: no Google Ads tag on the site, no remarketing, no ad
+ * personalisation, Google Signals still off.
+ *
  * 23 October 2026: Sentry (Functional Software, Inc.) joined the providers as
  * error monitoring for the site and the service, stored in its EU region. What
  * the policy says it receives is what apps/api/src/observability/ and
@@ -33,7 +41,7 @@ import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } fro
  * Anthropic, Google and Perplexity becoming opt-in recipients, the AI Action
  * Plan as an AI purpose, and consent-based Google Analytics 4.
  */
-const PRIVACY_EFFECTIVE: EffectiveDate = { uk: '26 жовтня 2026 року', en: '26 October 2026' };
+const PRIVACY_EFFECTIVE: EffectiveDate = { uk: '27 жовтня 2026 року', en: '27 October 2026' };
 
 export function PrivacyPolicy({ language }: { readonly language: Language }): JSX.Element {
   return language === 'uk' ? <UkrainianPrivacy /> : <EnglishPrivacy />;
@@ -101,7 +109,9 @@ function UkrainianPrivacy(): JSX.Element {
             браузера та кроки в продукті — реєстрація та вхід, запуск перевірки, завершена
             перевірка, перегляд звіту, вибір або зміна тарифу, початок оплати, завершена покупка
             (тариф і ціна). Google Analytics зберігає випадковий ідентифікатор у cookies{' '}
-            <code>_ga</code>.
+            <code>_ga</code>. Якщо ви прийшли з пошукової реклами Google, адреса сторінки, на яку ви
+            потрапили, несе ще й ідентифікатор кліку Google (<code>gclid</code>), і Google Analytics
+            повідомляє Google Ads, що цей візит і виконані в ньому кроки прийшли з тієї реклами.
           </li>
         </ul>
         <p>
@@ -235,9 +245,11 @@ function UkrainianPrivacy(): JSX.Element {
           експорту JSON чи CSV він не входить.
         </p>
         <p>
-          Ми не продаємо персональні дані й не передаємо їх рекламним партнерам. Дозволено
-          використовувати лише знеособлені й агреговані результати аудитів для покращення правил і
-          якості сервісу без публікації окремого сайту або звіту.
+          Ми не продаємо персональні дані. До рекламної платформи потрапляє лише вимірювання
+          переходу з реклами Google, описане в розділі 02, і лише якщо ви дозволили аналітику;
+          аудити, звіти та їхні докази рекламним партнерам не передаються. Дозволено використовувати
+          лише знеособлені й агреговані результати аудитів для покращення правил і якості сервісу
+          без публікації окремого сайту або звіту.
         </p>
       </section>
       <section id="privacy-providers" className="legal-section">
@@ -300,8 +312,10 @@ function UkrainianPrivacy(): JSX.Element {
           </li>
           <li>
             <strong>Google (Google Analytics 4)</strong> — лише після вашого дозволу аналітики
-            обробляє описані вище дані аналітики сайту як наш обробник. Google Signals, ads
-            personalization і remarketing вимкнені; user та event data зберігаються 2 місяці. Див.{' '}
+            обробляє описані вище дані аналітики сайту як наш обробник. Якщо ви прийшли з реклами
+            Google, Google Analytics передає в наш акаунт Google Ads вимірювання того, що візит і
+            виконані в ньому кроки належать рекламній кампанії. Google Signals, ads personalization
+            і remarketing вимкнені; user та event data зберігаються 2 місяці. Див.{' '}
             <a href="https://policies.google.com/technologies/partner-sites">
               як Google використовує дані сайтів, що користуються його сервісами
             </a>
@@ -364,8 +378,10 @@ function UkrainianPrivacy(): JSX.Element {
           preference storage запам’ятовує мову лише після дозволу. З вашого дозволу FluxRadar також
           завантажує Google Analytics 4. До дозволу вона не запускається, а відкликання зупиняє її й
           видаляє її cookies. Google Signals, ads personalization і remarketing вимкнені, а user та
-          event data зберігаються 2 місяці. Рекламних trackers FluxRadar не використовує. Повний
-          перелік, строки й керування наведено в <a href="/uk/cookies">Політиці cookies</a>.
+          event data зберігаються 2 місяці. Google Analytics також вимірює, чи прийшов візит з
+          реклами Google, і повідомляє про це Google Ads; рекламного тега Google Ads та інших
+          рекламних trackers FluxRadar не завантажує. Повний перелік, строки й керування наведено в{' '}
+          <a href="/uk/cookies">Політиці cookies</a>.
         </p>
       </section>
       <section id="privacy-rights" className="legal-section">
@@ -449,7 +465,10 @@ function EnglishPrivacy(): JSX.Element {
             location Google derives from your IP address, device and browser type, and product steps
             — sign-up and sign-in, starting a check, a finished check, viewing a report, choosing or
             changing a plan, starting checkout and a completed purchase (plan and price). Google
-            Analytics keeps a random identifier in the <code>_ga</code> cookies.
+            Analytics keeps a random identifier in the <code>_ga</code> cookies. If you arrived from
+            a Google search ad, the address of the page you landed on also carries Google’s click
+            identifier (<code>gclid</code>), and Google Analytics reports to Google Ads that the
+            visit and the steps in it came from that ad.
           </li>
         </ul>
         <p>
@@ -583,8 +602,10 @@ function EnglishPrivacy(): JSX.Element {
           JSON or CSV export.
         </p>
         <p>
-          We do not sell personal data or share it with advertising partners. We may use only
-          anonymized and aggregated audit results to improve service rules and quality, without
+          We do not sell personal data. The only thing that reaches an advertising platform is the
+          Google Ads click measurement described in section 02, and only if you allow analytics;
+          audits, reports and their evidence are never shared with advertising partners. We may use
+          only anonymized and aggregated audit results to improve service rules and quality, without
           publishing an individual site or report.
         </p>
       </section>
@@ -649,8 +670,10 @@ function EnglishPrivacy(): JSX.Element {
           </li>
           <li>
             <strong>Google (Google Analytics 4)</strong>, only after you allow analytics, processes
-            the site-analytics data above as our processor. Google Signals, ads personalization and
-            remarketing are disabled; user and event data are kept for 2 months. See{' '}
+            the site-analytics data above as our processor. If you arrived from a Google ad, Google
+            Analytics passes to our Google Ads account the measurement that the visit and the steps
+            in it belong to the ad campaign. Google Signals, ads personalization and remarketing are
+            disabled; user and event data are kept for 2 months. See{' '}
             <a href="https://policies.google.com/technologies/partner-sites">
               how Google uses information from sites that use its services
             </a>
@@ -711,8 +734,10 @@ function EnglishPrivacy(): JSX.Element {
           storage remembers language only after permission. With your permission FluxRadar also
           loads Google Analytics 4. It does not start before you allow it, and withdrawing stops it
           and deletes its cookies. Google Signals, ads personalization and remarketing are disabled,
-          and user and event data are kept for 2 months. FluxRadar uses no advertising trackers. See
-          the full inventory, durations and controls in the <a href="/cookies">Cookie Policy</a>.
+          and user and event data are kept for 2 months. Google Analytics also measures whether a
+          visit came from a Google Ads click and reports that to Google Ads; FluxRadar loads no
+          Google Ads tag and no other advertising tracker. See the full inventory, durations and
+          controls in the <a href="/cookies">Cookie Policy</a>.
         </p>
       </section>
       <section id="privacy-rights" className="legal-section">

@@ -52,7 +52,7 @@ describe('browser storage consent', () => {
 
     expect(saveCookieConsent({ preferences: true, analytics: false })).toBe(true);
     expect(readCookieConsent()).toEqual({
-      version: 'v2',
+      version: 'v3',
       preferences: true,
       analytics: false,
       updatedAt: Date.parse('2026-09-10T12:00:00Z'),
@@ -72,25 +72,34 @@ describe('browser storage consent', () => {
     expect(preferencesAllowed()).toBe(true);
   });
 
-  // v1 was saved before the analytics category existed, so it is not an answer
-  // to it — but the language permission it did give still stands.
-  it('asks a v1 visitor again while honouring the preference they already allowed', () => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date('2026-09-10T12:00:00Z'));
-    window.localStorage.setItem(
-      'fluxradar.cookieConsent',
-      JSON.stringify({
-        version: 'v1',
-        preferences: true,
-        updatedAt: Date.parse('2026-08-01T12:00:00Z'),
-        expiresAt: Date.parse('2026-08-01T12:00:00Z') + 180 * 24 * 60 * 60 * 1000,
-      }),
-    );
+  // v1 was saved before the analytics category existed, and v2 before allowing
+  // analytics also allowed Google Ads measurement. Neither answers the question
+  // the banner asks now — but the language permission each gave still stands.
+  it.each([
+    ['v1', {}],
+    ['v2', { analytics: true }],
+    ['v2', { analytics: false }],
+  ])(
+    'asks a %s visitor again while honouring the preference they already allowed',
+    (version, answered) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2026-09-10T12:00:00Z'));
+      window.localStorage.setItem(
+        'fluxradar.cookieConsent',
+        JSON.stringify({
+          version,
+          preferences: true,
+          ...answered,
+          updatedAt: Date.parse('2026-08-01T12:00:00Z'),
+          expiresAt: Date.parse('2026-08-01T12:00:00Z') + 180 * 24 * 60 * 60 * 1000,
+        }),
+      );
 
-    expect(readCookieConsent()).toBeNull();
-    expect(preferencesAllowed()).toBe(true);
-    expect(analyticsAllowed()).toBe(false);
-  });
+      expect(readCookieConsent()).toBeNull();
+      expect(preferencesAllowed()).toBe(true);
+      expect(analyticsAllowed()).toBe(false);
+    },
+  );
 
   it('removes an earlier allowance before writing an analytics refusal', () => {
     saveCookieConsent({ preferences: true, analytics: true });
@@ -179,13 +188,13 @@ describe('browser storage consent', () => {
       expiresAt: 1804593600000,
     }),
     JSON.stringify({
-      version: 'v2',
+      version: 'v3',
       preferences: true,
       updatedAt: 1789041600000,
       expiresAt: 1804593600000,
     }),
     JSON.stringify({
-      version: 'v2',
+      version: 'v3',
       preferences: true,
       analytics: 'true',
       updatedAt: 1789041600000,
