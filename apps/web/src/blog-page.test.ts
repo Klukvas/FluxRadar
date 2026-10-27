@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ANALYTICS_HOSTNAME, GA_MEASUREMENT_ID, GA_SCRIPT_ORIGIN } from './analytics-config';
 import { copy } from './i18n';
 import { COOKIE_CONSENT_TTL_MS, saveCookieConsent } from './browser-consent';
+import { renderStaticChrome } from './static-chrome-render';
 
 // The blog is static HTML served straight from `public/`, so it has no
 // component to render in a test. These tests read the shipped files instead:
@@ -39,7 +40,10 @@ const PAGES = [
 ];
 
 function readPage(name: string): string {
-  return readFileSync(resolve(BLOG_ROOT, name), 'utf8');
+  return renderStaticChrome(
+    readFileSync(resolve(BLOG_ROOT, name), 'utf8'),
+    '/assets/static-chrome.js',
+  );
 }
 
 // blog.js asks the API who is reading as soon as it runs. Every page here is a

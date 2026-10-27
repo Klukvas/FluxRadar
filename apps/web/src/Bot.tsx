@@ -1,7 +1,8 @@
+import { SiteFooter } from './site-chrome';
 import { publicPagePath } from './public-page-routing';
 import { type ReactNode } from 'react';
 
-import { MenuBar, CreatedByFluxLab } from './components';
+import { MenuBar } from './components';
 import type { BotBullet, BotSection } from './bot-copy';
 import { copy, type Language } from './i18n';
 
@@ -83,19 +84,7 @@ export function BotScreen(props: {
           </article>
         </div>
 
-        <footer className="legal-footer">
-          <span>{t.footerBrand}</span>
-          <span>
-            <a href={publicPagePath('home', props.language)}>{t.footerHome}</a> ·{' '}
-            <a href={publicPagePath('privacy', props.language)}>{t.footerPrivacy}</a> ·{' '}
-            <a href={publicPagePath('terms', props.language)}>{t.footerTerms}</a> ·{' '}
-            <a href={publicPagePath('cookies', props.language)}>
-              {copy[props.language].legal.cookies.title}
-            </a>
-          </span>
-          <CreatedByFluxLab language={props.language} />
-        </footer>
-      </main>
+        <SiteFooter language={props.language} />      </main>
     </div>
   );
 }

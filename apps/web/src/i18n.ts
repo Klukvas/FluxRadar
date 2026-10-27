@@ -1,4 +1,5 @@
 import { hasPrivateEntry, publicPageRoute } from './public-page-routing';
+import { chromeCopy } from './chrome-copy';
 import { botCopyEn, botCopyUk } from './bot-copy';
 import { checksCopyEn, checksCopyUk } from './checks-copy';
 import { preferencesAllowed } from './browser-consent';
@@ -149,25 +150,7 @@ const ukThings = (count: number): string => ukCountForm(count, 'річ', 'реч
 
 export const copy = {
   en: {
-    nav: {
-      home: 'Home',
-      profiles: 'My sites',
-      scan: 'Scan',
-      reports: 'Reports',
-      integrations: 'Integrations',
-      faq: 'FAQ',
-      blog: 'Blog',
-      language: 'Language',
-      navigateGroup: 'Navigate',
-      systemGroup: 'System',
-      descriptions: {
-        profiles: 'Your saved sites and their check history.',
-        scan: 'Set up and start a new audit.',
-        reports: 'Completed and in-progress audit results.',
-        integrations: 'Optional data connections. The public-site scan works without them.',
-        faq: 'Plain answers about every check and the limits of a report.',
-      },
-    },
+    nav: chromeCopy.en.nav,
     legal: {
       kicker: 'FLUXLAB / PUBLIC DOCUMENT',
       meta: ['FLUXRADAR.NET', 'REV. 2026.09', 'READ BEFORE CONNECTING'],
@@ -613,16 +596,7 @@ export const copy = {
         titleEm: 'you already have.',
         cta: 'Check your site',
       },
-      footer: {
-        brand: 'FLUXRADAR / BY FLUXLAB',
-        coverageLink: 'Audit coverage',
-        exampleLink: 'Example report',
-        privacyLink: 'Privacy policy',
-        termsLink: 'Terms of service',
-        refundLink: 'Refund policy',
-        fieldNotes: 'Field notes',
-        crawlerLink: 'Our crawler',
-      },
+      footer: chromeCopy.en.footer,
     },
     tour: {
       label: 'WORKSPACE TOUR',
@@ -2246,25 +2220,7 @@ export const copy = {
     },
   },
   uk: {
-    nav: {
-      home: 'Головна',
-      profiles: 'Мої сайти',
-      scan: 'Перевірка',
-      reports: 'Звіти',
-      integrations: 'Інтеграції',
-      faq: 'FAQ',
-      blog: 'Блог',
-      language: 'Мова',
-      navigateGroup: 'Навігація',
-      systemGroup: 'Система',
-      descriptions: {
-        profiles: 'Ваші збережені сайти та історія їхніх перевірок.',
-        scan: 'Налаштуйте та запустіть нову перевірку.',
-        reports: 'Готові та поточні результати перевірок.',
-        integrations: 'Необовʼязкові підключення даних. Публічна перевірка працює без них.',
-        faq: 'Прості відповіді про кожну перевірку та межі звіту.',
-      },
-    },
+    nav: chromeCopy.uk.nav,
     legal: {
       kicker: 'FLUXLAB / ПУБЛІЧНИЙ ДОКУМЕНТ',
       meta: ['FLUXRADAR.NET', 'РЕД. 2026.09', 'ПРОЧИТАЙТЕ ПЕРЕД ПІДКЛЮЧЕННЯМ'],
@@ -2673,16 +2629,7 @@ export const copy = {
         titleEm: 'який у вас уже є.',
         cta: 'Перевірте свій сайт',
       },
-      footer: {
-        brand: 'FLUXRADAR / ВІД FLUXLAB',
-        coverageLink: 'Покриття аудиту',
-        exampleLink: 'Приклад звіту',
-        privacyLink: 'Політика приватності',
-        termsLink: 'Умови використання',
-        refundLink: 'Політика повернень',
-        fieldNotes: 'Нотатки з практики',
-        crawlerLink: 'Наш краулер',
-      },
+      footer: chromeCopy.uk.footer,
     },
     tour: {
       label: 'ОГЛЯД РОБОЧОГО ПРОСТОРУ',

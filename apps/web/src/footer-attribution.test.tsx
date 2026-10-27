@@ -22,7 +22,10 @@ import { FLUXLAB_URL, SUPPORT_EMAIL, createdByFluxLab } from './brand';
 
 // Vitest runs with `apps/web` as its working directory (see blog-page.test.ts).
 const SRC = join(resolve(process.cwd()), 'src');
-const BASE_CSS = readFileSync(join(SRC, 'styles', 'base.css'), 'utf8');
+const BASE_CSS =
+  readFileSync(join(SRC, 'styles', 'base.css'), 'utf8') +
+  '\n' +
+  readFileSync(join(SRC, '../public/site-chrome.css'), 'utf8');
 const TOKENS_CSS = readFileSync(join(SRC, 'styles', 'tokens.css'), 'utf8');
 
 /** The personal address that preceded the shared product support mailbox. */
@@ -265,7 +268,10 @@ describe('the site footer on a report', () => {
       ['Field notes', '/blog'],
     ] as const;
     for (const [label, href] of links) {
-      expect(footer.getByRole('link', { name: label })).toHaveAttribute('href', href);
+      expect(footer.getByRole('link', { name: label })).toHaveAttribute(
+        'href',
+        href.includes('#') ? href.replace('#', '?lang=en#') : `${href}?lang=en`,
+      );
     }
     // The brand line, and the attribution the footer already carried.
     expect(footer.getByText('FLUXRADAR / BY FLUXLAB')).toBeTruthy();
@@ -278,7 +284,7 @@ describe('the site footer on a report', () => {
 
     expect(document.querySelectorAll('footer')).toHaveLength(1);
     // The shell's, not the report window's: it sits outside the report content.
-    expect(document.querySelector('footer')).toHaveClass('desktop__footer');
+    expect(document.querySelector('footer')).toHaveClass('site-footer');
   });
 
   it('is translated with the rest of the workspace', async () => {
@@ -290,11 +296,11 @@ describe('the site footer on a report', () => {
     const footer = within(document.querySelector('footer') as HTMLElement);
     expect(footer.getByRole('link', { name: 'Покриття аудиту' })).toHaveAttribute(
       'href',
-      '/checks',
+      '/checks?lang=uk',
     );
     expect(footer.getByRole('link', { name: 'Нотатки з практики' })).toHaveAttribute(
       'href',
-      '/blog',
+      '/blog?lang=uk',
     );
   });
 });
@@ -309,7 +315,7 @@ describe('workspace footer sits on the floor of a short page', () => {
   });
 
   it('sinks it the same way the public document footer is sunk', () => {
-    const footer = rule('.desktop__footer');
+    const footer = rule('.site-footer');
     expect(footer).toMatch(/position: sticky;/);
     expect(footer).toMatch(/top: 100vh;/);
     // It has to be able to wrap, or the links crowd the attribution row.
@@ -342,7 +348,7 @@ describe('workspace footer sits on the floor of a short page', () => {
 
     expect(document.querySelectorAll('footer')).toHaveLength(1);
     const footer = document.querySelector('footer') as HTMLElement;
-    expect(footer).toHaveClass('desktop__footer');
+    expect(footer).toHaveClass('site-footer');
     // The chain the sticky floor depends on, from the inside out: the sunk
     // footer sits in the column that takes the slack, in the flex shell that
     // gives it slack to take.
@@ -352,8 +358,8 @@ describe('workspace footer sits on the floor of a short page', () => {
 
   it('stacks brand, links and attribution on a phone', () => {
     const mobile = BASE_CSS.slice(BASE_CSS.indexOf('@media (max-width: 699px)'));
-    expect(mobile).toMatch(/\.desktop__footer \{\s*display: grid;/);
-    expect(mobile).toMatch(/\.desktop__footer-links \{\s*justify-content: start;/);
+    expect(mobile).toMatch(/\.site-footer \{\s*display: grid;/);
+    expect(mobile).toMatch(/\.site-footer__links \{\s*justify-content: start;/);
   });
 });
 
@@ -361,12 +367,12 @@ describe('attribution styling', () => {
   it('takes a row of its own so the footer above it keeps its layout', () => {
     expect(rule('.powered-by')).toMatch(/flex: 0 0 100%;/);
     // A full-width flex item only drops to a new line if the footer wraps.
-    expect(rule('.legal-footer')).toMatch(/flex-wrap: wrap;/);
-    expect(rule('.home__footer')).toMatch(/flex-wrap: wrap;/);
+    expect(rule('.site-footer')).toMatch(/flex-wrap: wrap;/);
+    expect(rule('.site-footer')).toMatch(/flex-wrap: wrap;/);
   });
 
   it('gives the workspace footer the same rule and type as the public ones', () => {
-    const workspace = rule('.desktop__footer');
+    const workspace = rule('.site-footer');
     expect(workspace).toMatch(/border-top: 1px solid #8c9bb3;/);
     expect(workspace).toMatch(/font: 10px var\(--mono-font\);/);
   });
@@ -375,8 +381,8 @@ describe('attribution styling', () => {
   // their own: no rule gives a bare `a` one, so they fell back to whatever the
   // browser draws while `.legal-shell a` and `.powered-by__link` drew green.
   it('rings the workspace footer links the way the public footers are rung', () => {
-    const workspace = rule('.desktop__footer a:focus-visible');
-    expect(workspace).toMatch(/outline: 2px dotted var\(--term-green\);/);
+    const workspace = rule('.site-footer a:focus-visible');
+    expect(workspace).toMatch(/outline: 2px dotted var\(--plat-900\);/);
     expect(workspace).toMatch(/outline-offset: 3px;/);
     // The same ring, not a second look: this is what the public documents draw.
     expect(rule('.legal-shell a:focus-visible')).toMatch(
@@ -389,7 +395,7 @@ describe('attribution styling', () => {
     expect(declared).toBeDefined();
 
     const surface = token('desktop');
-    // #d5deeb is what `.legal-footer`/`.home__footer` paint their own text in.
+    // #d5deeb is what `.site-footer`/`.site-footer` paint their own text in.
     expect(contrast(declared as string, surface)).toBeGreaterThanOrEqual(
       contrast('#d5deeb', surface),
     );
@@ -471,7 +477,7 @@ describe('home footer sits on the floor of a short page', () => {
   });
 
   it('sinks the footer the same way every other footer on the site is sunk', () => {
-    const footer = rule('.home__footer');
+    const footer = rule('.site-footer');
     expect(footer).toMatch(/position: sticky;/);
     expect(footer).toMatch(/top: 100vh;/);
   });
@@ -480,9 +486,9 @@ describe('home footer sits on the floor of a short page', () => {
   // so a new page cannot be added with a footer that floats.
   it('leaves no footer-bearing shell without a floor', () => {
     for (const [shell, main, footer] of [
-      ['.home-shell', '.home-shell > .home', '.home__footer'],
-      ['.legal-shell', '.legal-main', '.legal-footer'],
-      ['.workspace-shell', '.workspace-shell > .desktop', '.desktop__footer'],
+      ['.home-shell', '.home-shell > .home', '.site-footer'],
+      ['.legal-shell', '.legal-main', '.site-footer'],
+      ['.workspace-shell', '.workspace-shell > .desktop', '.site-footer'],
     ] as const) {
       expect(rule(shell)).toMatch(/flex-direction: column;/);
       expect(rule(main)).toMatch(/flex: 1 0 auto;/);
@@ -512,7 +518,7 @@ describe('the workspace footer survives the report’s loading and error states'
     await screen.findByText('Report dashboard');
     expect(document.querySelector('.loading')).not.toBeNull();
     const footer = document.querySelector('footer') as HTMLElement;
-    expect(footer).toHaveClass('desktop__footer');
+    expect(footer).toHaveClass('site-footer');
     expect(footer.parentElement?.parentElement).toHaveClass('workspace-shell');
   });
 
@@ -524,7 +530,7 @@ describe('the workspace footer survives the report’s loading and error states'
     await screen.findByText('This report could not be opened');
     expect(document.querySelectorAll('footer')).toHaveLength(1);
     const footer = document.querySelector('footer') as HTMLElement;
-    expect(footer).toHaveClass('desktop__footer');
+    expect(footer).toHaveClass('site-footer');
     expect(footer.parentElement?.parentElement).toHaveClass('workspace-shell');
   });
 });
@@ -543,9 +549,9 @@ describe('public document footer sits on the floor of a short page', () => {
   // element clamps it back to its own bottom edge, which is the floor of a short
   // page and the end of the flow on a long one. Geometry is checked in a browser.
   it('sinks the footer without moving it on a document that already scrolls', () => {
-    const footer = rule('.legal-footer');
+    const footer = rule('.site-footer');
     expect(footer).toMatch(/position: sticky;/);
     expect(footer).toMatch(/top: 100vh;/);
-    expect(footer).toMatch(/margin-top: 42px;/);
+    expect(footer).toMatch(/margin-top: 32px;/);
   });
 });

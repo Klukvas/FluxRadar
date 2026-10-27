@@ -1,6 +1,6 @@
+import { SiteFooter } from './site-chrome';
 import { publicPagePath } from './public-page-routing';
-import { MenuBar, CreatedByFluxLab } from './components';
-import { copy, type Language } from './i18n';
+import { MenuBar } from './components';import { copy, type Language } from './i18n';
 
 // Public FAQ page (/faq). It reuses the document shell of the other public
 // pages, so the reading layout, the sticky index and the responsive rules stay
@@ -91,26 +91,7 @@ export function FaqScreen(props: {
           </article>
         </div>
 
-        <footer className="legal-footer">
-          <span>{t.footerBrand}</span>
-          <span>
-            <a href="/knowledge-base">
-              {props.language === 'uk'
-                ? 'База знань: як працювати зі звітом'
-                : 'Knowledge base: use your report (Ukrainian)'}
-            </a>{' '}
-            ·{' '}
-            <a href={publicPagePath('checks', props.language) + '#methodology'}>
-              {props.language === 'uk' ? 'Методика' : 'Methodology'}
-            </a>{' '}
-            · <a href={publicPagePath('home', props.language)}>{t.footerHome}</a> ·{' '}
-            <a href={publicPagePath('checks', props.language)}>{t.footerCoverage}</a> ·{' '}
-            <a href={publicPagePath('privacy', props.language)}>{t.footerPrivacy}</a> ·{' '}
-            <a href={publicPagePath('terms', props.language)}>{t.footerTerms}</a>
-          </span>
-          <CreatedByFluxLab language={props.language} />
-        </footer>
-      </main>
+        <SiteFooter language={props.language} />      </main>
     </div>
   );
 }

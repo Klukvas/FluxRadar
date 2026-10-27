@@ -79,171 +79,6 @@ button:focus-visible,
   border: 0;
 }
 
-/* ── Header ─────────────────────────────────────────────────────────────── */
-
-.menubar {
-  min-height: 22px;
-  display: flex;
-  align-items: center;
-  padding: 0 8px;
-  background: var(--plat-100);
-  border-bottom: 1px solid var(--plat-900);
-  box-shadow: inset 0 1px 0 #fff;
-  font: 13px/1.45 var(--ui-font);
-  overflow: visible;
-}
-.menubar__nav {
-  display: flex;
-  align-items: center;
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow-x: auto;
-  white-space: nowrap;
-}
-.menubar__meta {
-  display: inline-flex;
-  align-items: center;
-  flex: 0 0 auto;
-  margin-left: auto;
-}
-.menubar button,
-.menubar__item {
-  border: 0;
-  background: transparent;
-  min-height: 22px;
-  cursor: pointer;
-  padding: 0 10px;
-}
-.menubar button:hover:not(:disabled),
-.menubar__item:hover,
-.menubar .is-active {
-  background: var(--selection);
-  color: #fff;
-}
-/* A visitor's workspace tabs are inert until blog.js finds a session, so they
-   render here the way the product renders them for a reader with no session. */
-.menubar button:disabled {
-  color: var(--plat-400);
-  cursor: not-allowed;
-}
-.menubar__apple {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-weight: 700;
-  padding: 0 10px 0 4px;
-  color: inherit;
-  text-decoration: none;
-  min-height: 22px;
-}
-.menubar__item {
-  display: inline-flex;
-  align-items: center;
-  color: inherit;
-  font: inherit;
-  text-decoration: none;
-}
-.menubar__apple svg,
-.menubar__sheet-brand svg {
-  width: 12px;
-  height: 12px;
-  fill: currentColor;
-}
-.menubar__spacer {
-  flex: 1;
-  min-width: 16px;
-}
-.menubar__system {
-  font: 11px var(--mono-font);
-  color: var(--plat-600);
-  padding: 0 8px;
-}
-.menubar__toggle {
-  display: none;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  margin-left: auto;
-}
-.menubar__toggle svg {
-  width: 16px;
-  height: 16px;
-}
-.menubar__links {
-  display: contents;
-}
-.menubar__close,
-.menubar__sheet-head,
-.menubar__group-label {
-  display: none;
-}
-
-.menubar__language {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 22px;
-  padding: 0 8px;
-  color: var(--plat-600);
-  font: 10px var(--mono-font);
-  text-transform: uppercase;
-}
-.menubar__language-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-height: 18px;
-  padding: 0 6px;
-  border: 1px solid var(--plat-400);
-  background: var(--plat-50);
-  color: var(--plat-900);
-  font: 11px var(--ui-font);
-  text-transform: none;
-  cursor: pointer;
-}
-.menubar__language-button:hover {
-  background: var(--plat-100);
-}
-.menubar__language-caret {
-  width: 8px;
-  height: 5px;
-  color: var(--plat-600);
-}
-.menubar__language-listbox {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  z-index: 20;
-  min-width: 140px;
-  margin: 2px 0 0;
-  padding: 2px 0;
-  list-style: none;
-  border: 1px solid var(--plat-400);
-  background: var(--plat-50);
-  box-shadow: 0 4px 10px rgb(0 0 0 / 25%);
-}
-.menubar__language-listbox[hidden] {
-  display: none;
-}
-.menubar__language-option {
-  padding: 4px 10px;
-  color: var(--plat-900);
-  font: 11px var(--ui-font);
-  text-transform: none;
-  cursor: pointer;
-}
-.menubar__language-option:hover,
-.menubar__language-option.is-active {
-  background: var(--selection);
-  color: var(--plat-50);
-}
-.menubar__language-option[aria-selected='true']::after {
-  content: '✓';
-  float: right;
-}
-
 /* ── Page body ──────────────────────────────────────────────────────────── */
 
 .blog-page {
@@ -386,67 +221,6 @@ article p {
 }
 .blog-empty[hidden] {
   display: none;
-}
-
-/* Every blog footer — index and article alike — is this one shape. `position:
-   sticky` with a `top` of a whole viewport is what puts it on the floor of a
-   short page: the offset asks for a position below the fold, and the sticky
-   rectangle — the card, stretched by `flex: 1 0 auto` — clamps it back to its
-   own bottom edge. A long article never has that free space, so the footer
-   stays exactly where it fell in the flow and nothing overlaps. */
-.site-footer {
-  position: sticky;
-  top: 100vh;
-  border-top: 1px solid var(--plat-400);
-  margin-top: 40px;
-  padding-top: 20px;
-  display: flex;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-  color: var(--plat-600);
-  font: 11px var(--mono-font);
-}
-.site-footer a {
-  color: var(--selection);
-}
-
-/* Attribution to the studio behind FluxRadar, appended to every blog footer.
-   Index and article now share one `.site-footer`, but the row still claims its
-   width with `width: 100%` rather than `flex-basis: 100%`: the basis would
-   resolve against the height wherever a footer is laid out as a column. */
-.powered-by {
-  flex: 0 0 auto;
-  width: 100%;
-  margin-top: var(--sp-2);
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-}
-/* Its own type size rather than the footer's: the three footers set three
-   different ones, and the attribution should read the same on all of them.
-   Written with the wrapper in front so it outranks `.site-footer a` on
-   specificity rather than on where it happens to sit in the file. */
-.powered-by .powered-by__link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 24px;
-  color: var(--selection);
-  font: 11px/1.5 var(--mono-font);
-  text-decoration: none;
-}
-.powered-by .powered-by__link:hover {
-  text-decoration: underline;
-}
-/* Spelled out rather than left to the generic `a:focus-visible` above, because
-   this link also renders under the article pages' own inline stylesheets. */
-.powered-by .powered-by__link:focus-visible {
-  outline: 2px dotted var(--selection);
-  outline-offset: 3px;
-}
-.powered-by__mark {
-  color: var(--plat-600);
 }
 
 /* The static blog offers the same choice as the React shell: necessary storage,
@@ -592,175 +366,6 @@ html[data-blog-lang='uk'] [data-article-lang='en'] {
   }
 }
 
-/* The header switches to the burger at the React header's width, below 1000px,
-   not with the page rules above: the full row does not fit the bar until then. */
-@media (max-width: 999px) {
-  .menubar__system {
-    display: none;
-  }
-  .menubar__toggle {
-    display: inline-flex;
-  }
-  .menubar__links {
-    display: none;
-  }
-  .menubar__links.is-open {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    position: fixed;
-    inset: 0;
-    z-index: 50;
-    background: var(--plat-100);
-    padding: 0 0 var(--sp-4);
-    overflow-y: auto;
-    /* One left edge for the whole sheet, as on the React header: the group
-       labels, the navigation items, the brand and the language control each
-       used to compute their own inset, so their text started in three
-       different columns. The 3px active rail is subtracted from the padding
-       rather than added in front of it, so a selected row's label stays on
-       the line as the others. */
-    --sheet-inset: var(--sp-4);
-    --sheet-rail: 3px;
-  }
-  .menubar__sheet-head {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-2);
-    min-height: 44px;
-    padding: 0 var(--sheet-inset);
-    background: var(--term-bg);
-    color: var(--plat-50);
-    border-bottom: 2px solid var(--plat-900);
-  }
-  .menubar__sheet-brand {
-    display: inline-flex;
-    flex: 0 0 auto;
-    align-items: center;
-    gap: 6px;
-    font: 700 13px var(--mono-font);
-    letter-spacing: 0.02em;
-  }
-  .menubar__sheet-brand svg {
-    fill: var(--term-green);
-  }
-  /* The Ukrainian station name is long enough to wrap and push the head to two
-     rows, which broke the alignment of the brand and the close box against the
-     44px strip. It is a subtitle, so it gives way with an ellipsis instead. */
-  .menubar__sheet-status {
-    min-width: 0;
-    overflow: hidden;
-    font: 10px var(--mono-font);
-    color: var(--term-green);
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    margin-left: var(--sp-2);
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .menubar__group-label {
-    display: block;
-    font: 700 10px var(--mono-font);
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: var(--plat-600);
-    padding: var(--sp-3) var(--sheet-inset) var(--sp-1);
-  }
-  .menubar__nav {
-    flex: none;
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    overflow: visible;
-    white-space: normal;
-    border-bottom: 1px solid var(--plat-300);
-    padding-bottom: var(--sp-2);
-  }
-  .menubar__meta {
-    flex: none;
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    margin-left: 0;
-    padding: var(--sp-1) 0 0;
-  }
-  .menubar__links.is-open .menubar__language {
-    min-height: 44px;
-    padding: 0 calc(var(--sheet-inset) - var(--sp-2));
-    align-self: stretch;
-    justify-content: flex-start;
-  }
-  /* The same 40px minimum tap target the rest of the sheet offers, so the
-     language control is not a 22px exception in a column of 44px rows. */
-  .menubar__links.is-open .menubar__language-button {
-    min-height: 40px;
-    padding: 0 var(--sp-2);
-    font-size: 14px;
-  }
-  .menubar__language-listbox {
-    left: calc(var(--sheet-inset) - var(--sp-2));
-    right: auto;
-    top: calc(100% + 2px);
-  }
-  /* The word "Language" is what names the combobox for a screen reader, so it
-     is hidden from the sheet rather than removed — the React header hides it
-     the same way, and a visible label was the one row the two sheets differed
-     on. */
-  .menubar__language > span {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    padding: 0;
-    margin: -1px;
-    overflow: hidden;
-    clip: rect(0, 0, 0, 0);
-    white-space: nowrap;
-    border: 0;
-  }
-  .menubar__links.is-open .menubar__item {
-    min-height: 44px;
-    justify-content: flex-start;
-    padding: 0 var(--sheet-inset) 0 calc(var(--sheet-inset) - var(--sheet-rail));
-    margin: 0;
-    font-size: 16px;
-    border-left: var(--sheet-rail) solid transparent;
-  }
-  .menubar__links.is-open .menubar__item:hover:not(:disabled) {
-    background: var(--plat-200);
-    color: inherit;
-    border-left-color: var(--plat-300);
-  }
-  .menubar__links.is-open .is-active {
-    background: var(--selection);
-    color: #fff;
-    border-left-color: var(--term-green);
-    font-weight: 700;
-  }
-  .menubar__links.is-open .menubar__spacer {
-    display: none;
-  }
-  .menubar__sheet-head .menubar__close {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    align-self: center;
-    margin-left: auto;
-    width: 32px;
-    height: 32px;
-    border: 1px solid var(--plat-300);
-    background: var(--plat-900);
-    color: var(--plat-50);
-  }
-  .menubar__sheet-head .menubar__close:hover {
-    background: var(--term-red);
-    border-color: var(--term-red);
-  }
-  .menubar__close svg {
-    width: 12px;
-    height: 12px;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -769,3 +374,60 @@ html[data-blog-lang='uk'] [data-article-lang='en'] {
     transition-duration: 1ms !important;
   }
 }
+
+/* Resource catalogs use the station's existing Platinum palette and reading rhythm. */
+.content-page { width: 100%; max-width: 1060px; margin-inline: auto; }
+.content-search {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
+  padding: 20px;
+  margin: 28px 0;
+  border: 1px solid var(--plat-300);
+  background: var(--plat-100);
+}
+.content-search[hidden], [data-content-card][hidden], [data-content-category][hidden] {
+  display: none;
+}
+.content-search input, .content-search select {
+  grid-row: 2;
+  min-width: 0;
+  min-height: 44px;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--plat-600);
+  background: #fff;
+  color: var(--plat-900);
+  font: inherit;
+}
+.content-search [role='status'] { grid-column: 1 / -1; margin: 4px 0 0; }
+.content-search input:focus-visible, .content-search select:focus-visible {
+  outline: 2px solid var(--selection);
+  outline-offset: 2px;
+}
+.content-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.content-grid article { min-width: 0; padding: 20px 0; margin: 0; border-bottom: 1px solid var(--plat-300); }
+.content-grid h3 { font-size: 21px; line-height: 1.3; margin: 8px 0; }
+.content-grid p { margin: 10px 0; }
+.content-grid time, .content-date { color: var(--plat-600); font-size: 13px; }
+.resource-switch { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 24px 0; }
+.resource-switch a { min-height: 44px; display: inline-flex; align-items: center; }
+.breadcrumbs { margin: 0 0 24px; color: var(--plat-600); font-size: 14px; overflow-wrap: anywhere; }
+.content-article { max-width: 760px; }
+.content-article section { margin: 32px 0; scroll-margin-top: 24px; }
+.content-article p, .content-article li { overflow-wrap: anywhere; }
+.content-article h2 { line-height: 1.3; }
+.content-article li { margin: 10px 0; }
+.article-toc, .related-reading { border-left: 3px solid var(--selection); padding: 8px 24px; margin: 28px 0; background: var(--plat-100); }
+.article-toc h2, .related-reading h2 { font-size: 19px; margin: 8px 0; }
+.article-sources { border-top: 1px solid var(--plat-300); padding-top: 16px; font-size: 14px; }
+.content-cta { padding-top: 20px; border-top: 1px solid var(--plat-300); }
+@media (max-width: 699px) {
+  .content-grid, .content-search { grid-template-columns: 1fr; }
+  .content-search input, .content-search select { grid-row: auto; }
+  .content-search label[for='content-category'] { grid-row: 3; }
+  .article-toc, .related-reading { padding: 8px 16px; }
+}
+
+.content-search button { min-height: 44px; justify-self: start; padding: 8px 16px; cursor: pointer; }
+

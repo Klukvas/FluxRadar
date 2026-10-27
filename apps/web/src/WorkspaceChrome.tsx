@@ -1,3 +1,4 @@
+import { SiteFooter } from './site-chrome';
 // What surrounds the workspace screens: the frame with the menu bar, the header
 // with the owner's address, the banner asking for that address to be confirmed,
 // and the footer.
@@ -7,9 +8,7 @@ import type { ReactNode } from 'react';
 import { apiRequest, type Account } from './api';
 import { accountCopy } from './account-copy';
 import type { AppModel } from './app-model';
-import { EXAMPLE_REPORT_PATH } from './app-routes';
-import { Button, CreatedByFluxLab, MenuBar } from './components';
-import { copy, type Language } from './i18n';
+import { Button, MenuBar } from './components';import { copy, type Language } from './i18n';
 
 /**
  * The menu bar over the desktop, which the boot screen and the workspace share.
@@ -168,21 +167,4 @@ export function VerifyBanner({
  * report does not get a second copy of its own.
  */
 export function WorkspaceFooter({ language }: { readonly language: Language }) {
-  return (
-    <footer className="desktop__footer">
-      <span>{copy[language].home.footer.brand}</span>
-      <span className="desktop__footer-links">
-        <a href="/checks">{copy[language].home.footer.coverageLink}</a>
-        <a href={EXAMPLE_REPORT_PATH}>{copy[language].home.footer.exampleLink}</a>
-        <a href="/faq">{copy[language].nav.faq}</a>
-        <a href="/privacy">{copy[language].home.footer.privacyLink}</a>
-        <a href="/terms">{copy[language].home.footer.termsLink}</a>
-        <a href="/terms#terms-paid">{copy[language].home.footer.refundLink}</a>
-        <a href="/cookies">{copy[language].legal.cookies.title}</a>
-        <a href="/bot">{copy[language].home.footer.crawlerLink}</a>
-        <a href="/blog">{copy[language].home.footer.fieldNotes}</a>
-      </span>
-      <CreatedByFluxLab language={language} />
-    </footer>
-  );
-}
+  return <SiteFooter language={language} />;}

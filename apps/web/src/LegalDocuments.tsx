@@ -1,11 +1,11 @@
+import { SiteFooter } from './site-chrome';
 import { publicPagePath } from './public-page-routing';
 import { useEffect } from 'react';
 import type { JSX, MouseEvent } from 'react';
 
-import { CreatedByFluxLab, MenuBar } from './components';
+import { MenuBar } from './components';
 import { CookiePolicy } from './legal/CookiePolicy';
 import { PrivacyPolicy } from './legal/PrivacyPolicy';
-import { SupportLink } from './legal/SharedLegal';
 import { TermsOfService } from './legal/TermsOfService';
 import { copy, type Language } from './i18n';
 
@@ -115,13 +115,7 @@ export function LegalDocumentScreen(props: LegalDocumentScreenProps): JSX.Elemen
             <LegalBody kind={props.kind} language={props.language} />
           </div>
         </div>
-        <footer className="legal-footer">
-          <span>{t.footerBrand}</span>
-          <span>
-            {t.questions} <SupportLink />
-          </span>
-          <CreatedByFluxLab language={props.language} />
-        </footer>
+        <SiteFooter language={props.language} />
       </main>
     </div>
   );
