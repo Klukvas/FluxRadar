@@ -25,6 +25,12 @@ traffic-reports/
 # next report is one filename away from escaping.
 docs/
 
+# Marketing working material: video and carousel compositions, storyboards,
+# covers, captions and the posted-status README. The editable sources live
+# outside the repo (~/Desktop/Projects/FluxRadar-video), so this directory is
+# local-only and must never ship or be cleaned away.
+marketing/
+
 # Scratch space for automated agent runs: a PostgreSQL data directory, run logs
 # and rendered artifacts. Hundreds of megabytes, none of it shipped, and one
 # `git add -A` from the same fate as the DMG above.
