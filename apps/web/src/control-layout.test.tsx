@@ -641,3 +641,16 @@ describe('home hero layout', () => {
     ).toEqual(['699px']);
   });
 });
+
+describe('cookie quick choices', () => {
+  it('gives acceptance and refusal equal columns and the same button rule', () => {
+    const css = stylesheet('cookie-consent.css');
+    expect(css).toMatch(
+      /\.cookie-consent__quick-actions \{\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/,
+    );
+    expect(css).toMatch(
+      /\.cookie-consent__quick-actions \.button,\s*\.cookie-consent__actions \.button \{\s*min-height: 44px;/,
+    );
+    expect(css).not.toMatch(/cookie-consent__master/);
+  });
+});

@@ -1,3 +1,7 @@
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { createElement } from 'react';
+
+import { CookieConsent } from './CookieConsent';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import {
@@ -41,6 +45,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  cleanup();
   resetAnalyticsForTests();
   window.localStorage.clear();
   document.cookie = '_ga=; Max-Age=0; path=/';
@@ -48,6 +53,27 @@ afterEach(() => {
 });
 
 describe('consent-gated Google Analytics', () => {
+  it.each([
+    ['Accept all', true],
+    ['Only necessary', false],
+  ] as const)('%s gates analytics through the banner action', (action, allowed) => {
+    startAnalytics();
+    render(createElement(CookieConsent, { language: 'en' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Customize' }));
+    expect(document.getElementById(GA_SCRIPT_ID)).toBeNull();
+    expect(window.dataLayer).toBeUndefined();
+    expect(window.localStorage.getItem('fluxradar.cookieConsent')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: action }));
+    expect(
+      JSON.parse(window.localStorage.getItem('fluxradar.cookieConsent') ?? 'null'),
+    ).toMatchObject({
+      preferences: allowed,
+      analytics: allowed,
+    });
+    expect(document.getElementById(GA_SCRIPT_ID) !== null).toBe(allowed);
+    expect(sentEvents('page_view')).toHaveLength(allowed ? 1 : 0);
+  });
+
   it('requests nothing from Google before the visitor allows analytics', () => {
     saveCookieConsent({ preferences: true, analytics: false });
     startAnalytics();

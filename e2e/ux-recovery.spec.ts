@@ -68,9 +68,7 @@ async function baseApi(route: Route, reportReady = true): Promise<void> {
 async function dismissCookies(page: Page): Promise<void> {
   const consent = page.getByRole('region', { name: 'Cookies & storage' });
   if (await consent.isVisible()) {
-    // Optional storage is suggested on, so refusing it is a switch and a save.
-    await consent.getByRole('checkbox', { name: 'All optional storage' }).click();
-    await consent.getByRole('button', { name: 'Save choice' }).click();
+    await consent.getByRole('button', { name: 'Only necessary' }).click();
   }
 }
 

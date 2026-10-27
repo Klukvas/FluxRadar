@@ -274,6 +274,16 @@ describe('public legal documents', () => {
     expect(screen.getByRole('button', { name: 'Налаштування cookies' })).toBeInTheDocument();
   });
 
+  it.each([
+    ['en', 'Accept all', 'Only necessary', 'Customize', 'Save choice'],
+    ['uk', 'Прийняти все', 'Лише необхідне', 'Налаштувати', 'Зберегти вибір'],
+  ] as const)('describes the current cookie controls in %s', (language, ...controls) => {
+    render(<LegalDocumentScreen kind="cookies" language={language} onLanguageChange={() => {}} />);
+    const policy = screen.getByRole('article');
+    for (const control of controls) expect(policy).toHaveTextContent(control);
+    expect(policy).not.toHaveTextContent(/All optional storage|Усе необов’язкове сховище/);
+  });
+
   // Error monitoring is a recipient like any other: who it is, where the data
   // sits, what a report carries — scrubbed as error-monitoring-scrub.ts and the
   // API's report-scrub.ts scrub it — and that it stores nothing in the browser.
