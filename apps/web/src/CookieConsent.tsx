@@ -5,6 +5,7 @@ import {
   COOKIE_CONSENT_CHANGE_EVENT,
   COOKIE_CONSENT_KEY,
   EVERYTHING_ALLOWED,
+  NECESSARY_ONLY,
   preferencesAllowed,
   readCookieConsent,
   saveCookieConsent,
@@ -32,8 +33,7 @@ const MAX_TIMEOUT_MS = 2_147_483_647;
  *     answered on their behalf.
  *   - Nobody has chosen yet, so the form opens on the suggested answer: both
  *     categories ticked. This is a *draft* and nothing else — no storage is
- *     written and no analytics loaded until Save is pressed, which is the only
- *     thing that turns the form into a record.
+ *     written and no analytics loaded until a quick choice or Save is pressed.
  */
 function standingChoice(): CookieConsentChoice {
   const consent = readCookieConsent();
@@ -70,7 +70,7 @@ export function CookieSettingsButton({ language }: CookieConsentProps): React.JS
 
 export function CookieConsent({ language }: CookieConsentProps): React.JSX.Element {
   const titleId = useId();
-  const allOptionalHintId = useId();
+  const customizationId = useId();
   const preferencesHintId = useId();
   const analyticsHintId = useId();
   const text = cookieCopy[language];
@@ -80,6 +80,7 @@ export function CookieConsent({ language }: CookieConsentProps): React.JSX.Eleme
   // stays one click away on the cookie policy page every footer links to.
   const [isEverythingAllowed, setIsEverythingAllowed] = useState(allowsEverything);
   const [draft, setDraft] = useState<CookieConsentChoice>(standingChoice);
+  const [isCustomizing, setIsCustomizing] = useState(false);
   const [error, setError] = useState<'saveError' | 'languageError' | null>(null);
 
   useEffect(() => {
@@ -88,6 +89,7 @@ export function CookieConsent({ language }: CookieConsentProps): React.JSX.Eleme
       window.clearTimeout(expiryTimer);
       const consent = readCookieConsent();
       setIsOpen(consent === null);
+      setIsCustomizing(false);
       setIsEverythingAllowed(allowsEverything());
       setDraft(standingChoice());
       setError(null);
@@ -103,6 +105,7 @@ export function CookieConsent({ language }: CookieConsentProps): React.JSX.Eleme
     };
     const open = () => {
       setDraft(standingChoice());
+      setIsCustomizing(true);
       setIsOpen(true);
     };
     const checkExpiry = () => {
@@ -128,6 +131,7 @@ export function CookieConsent({ language }: CookieConsentProps): React.JSX.Eleme
     if (!saveCookieConsent(choice)) {
       setIsOpen(true);
       setError('saveError');
+      setIsCustomizing(isCustomizing);
       // A failed save fires the change event too, and the `sync` it runs would
       // reset the form to "nothing chosen yet" — which is the suggested
       // everything-on draft. Someone whose refusal could not be written must
@@ -141,6 +145,7 @@ export function CookieConsent({ language }: CookieConsentProps): React.JSX.Eleme
       saveCookieConsent({ ...choice, preferences: false });
       setIsOpen(true);
       setError('languageError');
+      setIsCustomizing(isCustomizing);
       return;
     }
     setError(null);
@@ -148,8 +153,6 @@ export function CookieConsent({ language }: CookieConsentProps): React.JSX.Eleme
   }
 
   const showsLauncher = !isOpen && !isEverythingAllowed;
-  const allOptional = draft.preferences && draft.analytics;
-  const someOptional = draft.preferences || draft.analytics;
 
   return (
     <>
@@ -164,67 +167,79 @@ export function CookieConsent({ language }: CookieConsentProps): React.JSX.Eleme
         </div>
       )}
       {isOpen && (
-        // Centred on the viewport rather than tucked into a corner: this asks
-        // for a decision, and in the corner it read as a dismissible badge. The
-        // layer stays click-through so it is still a nonmodal region — nothing
-        // is trapped behind it and focus is not moved.
+        // A full-width bar along the bottom edge rather than a centred or
+        // corner panel: the intro sits on the left and the decisions on the
+        // right, so the platform behind it stays usable. The layer stays
+        // click-through so it is still a nonmodal region — nothing is trapped
+        // behind it and focus is not moved.
         <div className="cookie-consent-layer">
           <section className="cookie-consent" aria-labelledby={titleId}>
-            <div className="cookie-consent__titlebar">
-              <h2 id={titleId}>{text.title}</h2>
-            </div>
             <div className="cookie-consent__body">
-              <p>{text.description}</p>
-              <fieldset className="cookie-consent__options">
-                <legend>{text.optionalLegend}</legend>
-                {/* One switch over both categories, in place of the
-                    "only necessary" and "allow all" buttons that used to do the
-                    same job from the action row. A button pair decided and
-                    saved in one press; this states what is about to be saved
-                    and leaves the saving to Save — and the two boxes under it
-                    stay, so either category can still be chosen on its own. */}
-                <Checkbox
-                  className="cookie-consent__master"
-                  label={text.allOptional}
-                  checked={allOptional}
-                  indeterminate={someOptional && !allOptional}
-                  describedBy={allOptionalHintId}
-                  onChange={(enabled) => setDraft({ preferences: enabled, analytics: enabled })}
-                />
-                <p id={allOptionalHintId} className="cookie-consent__hint">
-                  {text.allOptionalHint}
-                </p>
-                <Checkbox
-                  label={text.preferences}
-                  checked={draft.preferences}
-                  describedBy={preferencesHintId}
-                  onChange={(preferences) => setDraft({ ...draft, preferences })}
-                />
-                <p id={preferencesHintId} className="cookie-consent__hint">
-                  {text.preferencesHint}
-                </p>
-                <Checkbox
-                  label={text.analytics}
-                  checked={draft.analytics}
-                  describedBy={analyticsHintId}
-                  onChange={(analytics) => setDraft({ ...draft, analytics })}
-                />
-                <p id={analyticsHintId} className="cookie-consent__hint">
-                  {text.analyticsHint}
-                </p>
-              </fieldset>
-              <p>{text.duration}</p>
-              <a href={publicPagePath('cookies', language)}>{text.details}</a>
+              <div className="cookie-consent__row">
+                <div className="cookie-consent__intro">
+                  <h2 id={titleId}>{text.title}</h2>
+                  <p>{text.description}</p>
+                  <p className="cookie-consent__meta">
+                    {text.duration} <a href={publicPagePath('cookies', language)}>{text.details}</a>{' · '}
+                    <button
+                      className="cookie-consent__customize"
+                      type="button"
+                      aria-expanded={isCustomizing}
+                      aria-controls={customizationId}
+                      onClick={() => setIsCustomizing(!isCustomizing)}
+                    >
+                      {text.customize}
+                    </button>
+                  </p>
+                </div>
+                <div className="cookie-consent__controls">
+                  <div className="cookie-consent__quick-actions">
+                    <button
+                      className="button cookie-consent__accept-all"
+                      type="button"
+                      onClick={() => choose(EVERYTHING_ALLOWED)}
+                    >
+                      {text.acceptAll}
+                    </button>
+                    <button className="button" type="button" onClick={() => choose(NECESSARY_ONLY)}>
+                      {text.onlyNecessary}
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div id={customizationId} hidden={!isCustomizing}>
+                <fieldset className="cookie-consent__options">
+                  <legend>{text.optionalLegend}</legend>
+                  <Checkbox
+                    label={text.preferences}
+                    checked={draft.preferences}
+                    describedBy={preferencesHintId}
+                    onChange={(preferences) => setDraft({ ...draft, preferences })}
+                  />
+                  <p id={preferencesHintId} className="cookie-consent__hint">
+                    {text.preferencesHint}
+                  </p>
+                  <Checkbox
+                    label={text.analytics}
+                    checked={draft.analytics}
+                    describedBy={analyticsHintId}
+                    onChange={(analytics) => setDraft({ ...draft, analytics })}
+                  />
+                  <p id={analyticsHintId} className="cookie-consent__hint">
+                    {text.analyticsHint}
+                  </p>
+                </fieldset>
+                <div className="cookie-consent__actions">
+                  <button className="button" type="button" onClick={() => choose(draft)}>
+                    {text.save}
+                  </button>
+                </div>
+              </div>
               {error !== null && (
                 <p className="cookie-consent__error" role="alert">
                   {text[error]}
                 </p>
               )}
-              <div className="cookie-consent__actions">
-                <button className="button" type="button" onClick={() => choose(draft)}>
-                  {text.save}
-                </button>
-              </div>
             </div>
           </section>
         </div>

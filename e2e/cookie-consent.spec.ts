@@ -1,102 +1,147 @@
 import { expect, test } from '@playwright/test';
 
 test.describe('cookie choices on public legal pages', () => {
-  test('opens centred on a suggested choice, stores nothing until saved, and reopens settings', async ({
+  test('opens compact and centred, stores a refusal in one press, and reopens it expanded', async ({
     page,
   }) => {
-    await page.goto('/terms?lang=en');
-
+    await page.goto('/terms');
     const banner = page.getByRole('region', { name: 'Cookies & storage' });
-    const master = banner.getByRole('checkbox', { name: 'All optional storage' });
-    const save = banner.getByRole('button', { name: 'Save choice' });
     await expect(banner).toBeVisible();
-    await expect(master).toBeChecked();
-    await expect(banner.getByRole('checkbox', { name: 'Preferences' })).toBeChecked();
-    await expect(banner.getByRole('checkbox', { name: 'Analytics' })).toBeChecked();
-    await expect(save).toBeVisible();
+    await expect(banner.getByRole('checkbox')).toHaveCount(0);
+    await expect(banner.getByRole('button', { name: 'Customize' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
     await expect(banner.getByRole('link', { name: 'Cookie details' })).toHaveAttribute(
       'href',
-      '/cookies?lang=en',
+      '/cookies',
     );
-    // Suggested, not applied: nothing is in storage before Save is pressed.
     expect(await page.evaluate(() => localStorage.getItem('fluxradar.cookieConsent'))).toBeNull();
 
-    // Centred on the viewport, within a few pixels of both axes: the panel used
-    // to sit in the bottom-right corner, where it read as a badge.
-    const [box, viewport] = await Promise.all([
-      banner.boundingBox(),
-      page.evaluate(() => ({
-        width: document.documentElement.clientWidth,
-        height: document.documentElement.clientHeight,
-      })),
-    ]);
+    const box = await banner.boundingBox();
+    const viewport = page.viewportSize();
     expect(box).not.toBeNull();
-    const centre = {
-      x: (box?.x ?? 0) + (box?.width ?? 0) / 2,
-      y: (box?.y ?? 0) + (box?.height ?? 0) / 2,
-    };
-    expect(Math.abs(centre.x - viewport.width / 2)).toBeLessThanOrEqual(2);
-    expect(Math.abs(centre.y - viewport.height / 2)).toBeLessThanOrEqual(2);
+    expect(
+      Math.abs((box?.x ?? 0) + (box?.width ?? 0) / 2 - (viewport?.width ?? 0) / 2),
+    ).toBeLessThanOrEqual(2);
+    expect(
+      Math.abs((box?.y ?? 0) + (box?.height ?? 0) / 2 - (viewport?.height ?? 0) / 2),
+    ).toBeLessThanOrEqual(2);
 
-    // The banner floats: at this desktop width choosing does not change the
-    // length of the page. Desktop only — at 600px and below the lone settings
-    // launcher joins the page flow under the footer, so the document grows by
-    // its height.
     const heightWithBanner = await page.evaluate(() => document.documentElement.scrollHeight);
-    await master.click();
-    await save.click();
+    await banner.getByRole('button', { name: 'Only necessary' }).click();
     await expect(banner).toBeHidden();
     await expect(page.getByRole('button', { name: 'Cookie settings' }).first()).toBeVisible();
-    const heightAfterChoice = await page.evaluate(() => document.documentElement.scrollHeight);
-    expect(heightAfterChoice).toBe(heightWithBanner);
+    expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBe(heightWithBanner);
     expect(
       await page.evaluate(() =>
         JSON.parse(localStorage.getItem('fluxradar.cookieConsent') ?? 'null'),
       ),
     ).toMatchObject({ version: 'v2', preferences: false, analytics: false });
-
     await page.reload();
     await expect(banner).toBeHidden();
     await page.getByRole('button', { name: 'Cookie settings' }).first().click();
-    await expect(banner).toBeVisible();
-    // The refusal comes back as a refusal, not as the suggestion again.
-    await expect(banner.getByRole('checkbox', { name: 'All optional storage' })).not.toBeChecked();
+    await expect(banner.getByRole('button', { name: 'Customize' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+    await expect(banner.getByRole('checkbox', { name: 'Preferences' })).not.toBeChecked();
+    await expect(banner.getByRole('checkbox', { name: 'Analytics' })).not.toBeChecked();
   });
 
-  test('stays usable on a narrow viewport without horizontal overflow', async ({ page }) => {
-    await page.setViewportSize({ width: 360, height: 740 });
-    await page.goto('/privacy?lang=en');
+  for (const language of ['en', 'uk'] as const) {
+    for (const viewport of [
+      { width: 1440, height: 900 },
+      { width: 360, height: 740 },
+      { width: 320, height: 568 },
+    ]) {
+      test(`keeps equal quick choices and granular saving usable in ${language} at ${viewport.width}px`, async ({
+        page,
+      }) => {
+        await page.setViewportSize(viewport);
+        await page.goto(language === 'uk' ? '/uk/privacy' : '/privacy');
+        const copy =
+          language === 'uk'
+            ? {
+                title: 'Cookies і сховище',
+                accept: 'Прийняти все',
+                necessary: 'Лише необхідне',
+                customize: 'Налаштувати',
+                preferences: 'Налаштування',
+                analytics: 'Аналітика',
+                save: 'Зберегти вибір',
+                settings: 'Налаштування cookies',
+              }
+            : {
+                title: 'Cookies & storage',
+                accept: 'Accept all',
+                necessary: 'Only necessary',
+                customize: 'Customize',
+                preferences: 'Preferences',
+                analytics: 'Analytics',
+                save: 'Save choice',
+                settings: 'Cookie settings',
+              };
+        const banner = page.getByRole('region', { name: copy.title });
+        const accept = banner.getByRole('button', { name: copy.accept });
+        const necessary = banner.getByRole('button', { name: copy.necessary });
+        await expect(banner).toBeVisible();
+        const [acceptBox, necessaryBox] = await Promise.all([
+          accept.boundingBox(),
+          necessary.boundingBox(),
+        ]);
+        expect(acceptBox?.width).toBe(necessaryBox?.width);
+        expect(acceptBox?.height).toBe(necessaryBox?.height);
+        expect(acceptBox?.height ?? 0).toBeGreaterThanOrEqual(44);
+        expect((necessaryBox?.y ?? 0) + (necessaryBox?.height ?? 0)).toBeLessThanOrEqual(
+          viewport.height,
+        );
+        expect(await banner.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(
+          false,
+        );
+        expect((acceptBox?.x ?? 0) + (acceptBox?.width ?? 0)).toBeLessThanOrEqual(viewport.width);
+        expect((necessaryBox?.x ?? 0) + (necessaryBox?.width ?? 0)).toBeLessThanOrEqual(
+          viewport.width,
+        );
+        // The Ukrainian legal page already overflows by 1px at 320px on origin/main.
+        // Keep the page-level regression check at every other size and the banner check above at all sizes.
+        if (language !== 'uk' || viewport.width !== 320) {
+          expect(
+            await page.evaluate(
+              () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+            ),
+          ).toBe(false);
+        }
 
-    const banner = page.getByRole('region', { name: 'Cookies & storage' });
-    const master = banner.getByRole('checkbox', { name: 'All optional storage' });
-    const save = banner.getByRole('button', { name: 'Save choice' });
-    await expect(banner).toBeVisible();
-    await expect(master).toBeVisible();
-    await expect(save).toBeVisible();
-
-    const [bannerBox, saveBox, overflow] = await Promise.all([
-      banner.boundingBox(),
-      save.boundingBox(),
-      page.evaluate(() => ({
-        horizontal: document.documentElement.scrollWidth > document.documentElement.clientWidth,
-        height: document.documentElement.clientHeight,
-      })),
-    ]);
-    expect(bannerBox).not.toBeNull();
-    expect(saveBox).not.toBeNull();
-    expect(overflow.horizontal).toBe(false);
-    // The panel fits the phone it is centred on, and the one control that
-    // commits the choice is on screen without scrolling the page.
-    expect((bannerBox?.height ?? 0) <= overflow.height).toBe(true);
-    expect((saveBox?.y ?? 0) + (saveBox?.height ?? 0)).toBeLessThanOrEqual(overflow.height);
-    // A 44px tap target, the size every other control on a phone keeps here.
-    expect(saveBox?.height ?? 0).toBeGreaterThanOrEqual(44);
-
-    // The individual categories are still reachable on the small screen.
-    await banner.getByRole('checkbox', { name: 'Analytics' }).click();
-    await expect(banner.getByRole('checkbox', { name: 'Preferences' })).toBeChecked();
-    await expect(master).not.toBeChecked();
-  });
+        await banner.getByRole('button', { name: copy.customize }).click();
+        await expect(
+          banner.getByRole('checkbox', { name: copy.preferences, exact: true }),
+        ).toBeChecked();
+        await expect(banner.getByRole('checkbox', { name: copy.analytics })).toBeChecked();
+        expect(
+          await page.evaluate(() => localStorage.getItem('fluxradar.cookieConsent')),
+        ).toBeNull();
+        await banner.getByRole('checkbox', { name: copy.analytics }).click();
+        await banner.getByRole('button', { name: copy.save }).click();
+        await expect(banner).toBeHidden();
+        expect(
+          await page.evaluate(() =>
+            JSON.parse(localStorage.getItem('fluxradar.cookieConsent') ?? 'null'),
+          ),
+        ).toMatchObject({ preferences: true, analytics: false });
+        await page.getByRole('button', { name: copy.settings }).click();
+        await expect(banner.getByRole('checkbox', { name: copy.analytics })).not.toBeChecked();
+        await accept.click();
+        await expect(banner).toBeHidden();
+        await expect(page.getByRole('button', { name: copy.settings })).toHaveCount(0);
+        expect(
+          await page.evaluate(() =>
+            JSON.parse(localStorage.getItem('fluxradar.cookieConsent') ?? 'null'),
+          ),
+        ).toMatchObject({ preferences: true, analytics: true });
+      });
+    }
+  }
 
   test('uses the same localized, mobile-safe choices on the static blog', async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 740 });
@@ -108,7 +153,7 @@ test.describe('cookie choices on public legal pages', () => {
     await expect(banner).toBeVisible();
     await expect(banner.getByRole('link', { name: 'Докладніше про cookies' })).toHaveAttribute(
       'href',
-      '/cookies?lang=uk',
+      '/uk/cookies',
     );
 
     const [necessaryBox, preferencesBox, hasHorizontalOverflow] = await Promise.all([

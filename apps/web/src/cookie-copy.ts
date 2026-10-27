@@ -5,9 +5,9 @@ type CookieCopy = {
   readonly description: string;
   readonly duration: string;
   readonly optionalLegend: string;
-  /** The master switch over both optional categories. */
-  readonly allOptional: string;
-  readonly allOptionalHint: string;
+  readonly acceptAll: string;
+  readonly onlyNecessary: string;
+  readonly customize: string;
   readonly preferences: string;
   readonly preferencesHint: string;
   readonly analytics: string;
@@ -23,12 +23,12 @@ export const cookieCopy: Record<Language, CookieCopy> = {
   en: {
     title: 'Cookies & storage',
     description:
-      'Necessary storage keeps sign-in, checkout and this choice working. The two options below are suggested, not applied: nothing optional is stored or measured until you choose Save.',
+      'Necessary storage supports sign-in, checkout and this choice. Optional storage remembers your language and measures visits only after you agree.',
     duration: 'We remember your choice for 180 days. You can change it anytime in Cookie settings.',
     optionalLegend: 'Optional storage',
-    allOptional: 'All optional storage',
-    allOptionalHint:
-      'One switch for both options below. Turn it off to keep only what is necessary.',
+    acceptAll: 'Accept all',
+    onlyNecessary: 'Only necessary',
+    customize: 'Customize',
     preferences: 'Preferences',
     preferencesHint: 'Remember your interface language on this device.',
     analytics: 'Analytics',
@@ -45,13 +45,13 @@ export const cookieCopy: Record<Language, CookieCopy> = {
   uk: {
     title: 'Cookies і сховище',
     description:
-      'Необхідне сховище забезпечує вхід, оплату та збереження цього вибору. Два параметри нижче — лише пропозиція: нічого необов’язкового не зберігається й не вимірюється, доки ви не натиснете «Зберегти вибір».',
+      'Необхідне сховище забезпечує вхід, оплату та збереження цього вибору. Необов’язкове запам’ятовує мову й вимірює відвідування лише після вашої згоди.',
     duration:
       'Ми зберігаємо ваш вибір 180 днів. Його можна змінити будь-коли в налаштуваннях cookies.',
     optionalLegend: 'Необов’язкове сховище',
-    allOptional: 'Усе необов’язкове сховище',
-    allOptionalHint:
-      'Один перемикач для двох параметрів нижче. Вимкніть його, щоб залишити тільки необхідне.',
+    acceptAll: 'Прийняти все',
+    onlyNecessary: 'Лише необхідне',
+    customize: 'Налаштувати',
     preferences: 'Налаштування',
     preferencesHint: 'Запам’ятовувати мову інтерфейсу на цьому пристрої.',
     analytics: 'Аналітика',

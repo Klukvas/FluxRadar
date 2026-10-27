@@ -49,11 +49,11 @@ function UkrainianCookiePolicy(): JSX.Element {
           може працювати належно.
         </p>
         <p>
-          Дві інші категорії необов’язкові й не діють, доки ви не натиснете «Зберегти вибір». У
-          формі їх запропоновано ввімкненими, але це лише пропозиція: вимкніть перемикач «Усе
-          необов’язкове сховище» або будь-який окремий параметр, а потім збережіть вибір.
-          Preferences запам’ятовують мову інтерфейсу. Аналітика завантажує Google Analytics 4 — див.
-          розділ 04. FluxRadar не використовує рекламні trackers, remarketing або Google Signals.
+          Дві інші категорії необов’язкові. «Прийняти все» дозволяє обидві, а «Лише необхідне»
+          вимикає їх одним натисканням. «Налаштувати» відкриває окремі параметри та кнопку «Зберегти
+          вибір». До вашого рішення необов’язкове сховище й аналітика не діють. Preferences
+          запам’ятовують мову інтерфейсу. Аналітика завантажує Google Analytics 4, див. розділ 04.
+          FluxRadar не використовує рекламні trackers, remarketing або Google Signals.
         </p>
       </section>
       <section id="cookies-inventory" className="legal-section">
@@ -227,11 +227,11 @@ function EnglishCookiePolicy(): JSX.Element {
           work properly without them.
         </p>
         <p>
-          The two other categories are optional and take effect only when you choose “Save choice”.
-          The form suggests them switched on, and a suggestion is all it is: turn off the “All
-          optional storage” switch, or either option on its own, and then save. Preferences remember
-          the interface language. Analytics loads Google Analytics 4 — see section 04. FluxRadar
-          uses no advertising trackers, remarketing or Google Signals.
+          The two other categories are optional. “Accept all” allows both, and “Only necessary”
+          turns both off in one press. “Customize” opens the individual options and “Save choice”.
+          Optional storage and analytics stay off until you decide. Preferences remember the
+          interface language. Analytics loads Google Analytics 4, see section 04. FluxRadar uses no
+          advertising trackers, remarketing or Google Signals.
         </p>
       </section>
       <section id="cookies-inventory" className="legal-section">

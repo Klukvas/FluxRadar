@@ -274,6 +274,16 @@ describe('public legal documents', () => {
     expect(screen.getByRole('button', { name: 'Налаштування cookies' })).toBeInTheDocument();
   });
 
+  it.each([
+    ['en', 'Accept all', 'Only necessary', 'Customize', 'Save choice'],
+    ['uk', 'Прийняти все', 'Лише необхідне', 'Налаштувати', 'Зберегти вибір'],
+  ] as const)('describes the current cookie controls in %s', (language, ...controls) => {
+    render(<LegalDocumentScreen kind="cookies" language={language} onLanguageChange={() => {}} />);
+    const policy = screen.getByRole('article');
+    for (const control of controls) expect(policy).toHaveTextContent(control);
+    expect(policy).not.toHaveTextContent(/All optional storage|Усе необов’язкове сховище/);
+  });
+
   // The measured steps are a closed list, and it has to match what the app
   // sends to GA4 (funnel-analytics.ts, checkout-analytics.ts, AuthScreen,
   // ScanProgress): a step sent but not named here is undisclosed measuring.
