@@ -180,9 +180,15 @@ describe('DEPLOY-020 reclaim server disk', () => {
     const job = (name: string): string =>
       workflow.match(new RegExp(`^  ${name}:\\n(?:(?:    .*)?\\n)+`, 'm'))?.[0] ?? '';
 
+    const prerequisites = (name: string): readonly string[] =>
+      (job(name).match(/^ {4}needs: (.+)$/m)?.[1] ?? '')
+        .replace(/^\[|\]$/g, '')
+        .split(',')
+        .map((dependency) => dependency.trim());
+
     expect(job('reclaim')).toContain('needs: preflight');
     expect(job('reclaim')).toContain('deploy/reclaim-disk.sh');
-    expect(job('image')).toContain('needs: reclaim');
+    expect(prerequisites('image')).toEqual(expect.arrayContaining(['reclaim', 'package']));
     expect(job('package')).toContain('needs: reclaim');
   });
 });
