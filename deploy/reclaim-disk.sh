@@ -13,17 +13,26 @@
 # turned into "4 GB free, 5.6 GB needed" and a refused upload.
 #
 # What it removes, and ONLY this:
-#   1. fluxradar-api / fluxradar-web images whose tag is a release id (strict
+#   1. STOPPED containers (state exited, created or dead) whose image is a
+#      fluxradar-api / fluxradar-web release tag that has no directory under
+#      APP_DIR/releases. Such a container can never be rolled back to — the
+#      release it belongs to is gone — but it holds its image down, so every
+#      `docker image rm` below used to fail and the layers stayed for good.
+#      That is how the 38 GB disk reached "8.5 GB free, 12.9 GB required".
+#   2. fluxradar-api / fluxradar-web images whose tag is a release id (strict
 #      hex, like the tags the deploy writes) that has no directory under
 #      APP_DIR/releases and that no container — running or stopped — uses.
-#   2. Dangling images (untagged layers nothing references).
-#   3. Build cache untouched for more than a day.
+#   3. Dangling images (untagged layers nothing references).
+#   4. Build cache untouched for more than a day.
 #
-# What it never touches: containers, volumes (PostgreSQL lives in one), networks,
-# tagged images of any other project, APP_DIR/releases, APP_DIR/current, the
-# runtime directory. There is no `system prune` and no `volume prune` here, on
-# purpose. Every removal is best-effort and logged; the free-space gate in
-# .github/actions/remote-upload stays the judge of whether there is now enough.
+# What it never touches: a RUNNING (or paused, restarting, removing) container,
+# whatever its release; any container of a release that still has a directory,
+# because those are the rollback candidates; volumes (PostgreSQL lives in one);
+# networks; images and containers of any other project; APP_DIR/releases,
+# APP_DIR/current, the runtime directory. There is no `system prune`, no
+# `container prune` and no `volume prune` here, on purpose. Every removal is
+# best-effort and logged; the free-space gate in .github/actions/remote-upload
+# stays the judge of whether there is now enough.
 #
 # Usage: reclaim-disk.sh <app-dir>
 
@@ -52,8 +61,38 @@ is_release_tag() {
   [ "${#1}" -ge 7 ] && [ "${#1}" -le 64 ]
 }
 
-# Everything a container references, by image name:tag. `ps -a` on purpose: a
-# stopped container of the previous release is how a rollback gets its images.
+# A container of a release whose directory is gone cannot be rolled back to,
+# and while it exists its image cannot be removed. Only a container that is
+# not running is touched, and only when its own release directory is gone.
+echo "----- removing stopped containers of releases that are gone -----"
+removed_containers=0
+while IFS=$'\t' read -r container_id container_image container_state; do
+  case "$container_image" in
+    fluxradar-api:*|fluxradar-web:*) ;;
+    *) continue ;;
+  esac
+  release_id="${container_image#*:}"
+  is_release_tag "$release_id" || continue
+  [ -d "$RELEASES_DIR/$release_id" ] && continue
+  case "$container_state" in
+    exited|created|dead) ;;
+    *)
+      echo "keeping container $container_id ($container_image): it is $container_state"
+      continue
+      ;;
+  esac
+  echo "removing stopped container $container_id ($container_image)"
+  if docker rm "$container_id" >/dev/null 2>&1; then
+    removed_containers=$((removed_containers + 1))
+  else
+    echo "could not remove container $container_id; leaving it" >&2
+  fi
+done < <(docker ps -a --format '{{.ID}}\t{{.Image}}\t{{.State}}' 2>/dev/null || true)
+echo "removed $removed_containers stopped container(s)"
+
+# Everything a container references, by image name:tag, AFTER the sweep above.
+# `ps -a` on purpose: a stopped container of a release that still has its
+# directory is how a rollback gets its images.
 in_use="$(docker ps -a --format '{{.Image}}' 2>/dev/null || true)"
 
 echo "----- removing release images with no release directory -----"
