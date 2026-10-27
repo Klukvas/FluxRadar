@@ -1,371 +1,93 @@
 <!doctype html>
-<html lang="en" data-blog-lang="en">
+<html lang="uk" data-blog-lang="uk">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>FluxRadar Field Notes — website audits, SEO, AI crawlers</title>
-    <meta
-      name="description"
-      content="Practical field notes on public website auditing: technical SEO, AI crawlers, security, accessibility and privacy. In English and Ukrainian."
-    />
+    <title>Блог FluxRadar — аудит, SEO та якість сайту</title>
+    <meta name="description" content="Українські практичні статті для власників сайтів: SEO, AI-видимість, редизайн, швидкодія, доступність і пріоритети аудиту." />
     <link rel="canonical" href="https://fluxradar.net/blog" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="FluxRadar Field Notes" />
-    <meta property="og:title" content="FluxRadar Field Notes" />
-    <meta
-      property="og:description"
-      content="Practical field notes on public website auditing, technical SEO and AI crawler readiness."
-    />
+    <meta property="og:site_name" content="Блог FluxRadar" />
+    <meta property="og:title" content="Блог FluxRadar" />
+    <meta property="og:description" content="Українські статті про аудит сайту, SEO та AI-видимість." />
     <meta property="og:url" content="https://fluxradar.net/blog" />
-    <meta property="og:image" content="https://fluxradar.net/og-image.png" />
-    <meta property="og:image:width" content="1200" />
-    <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="FluxRadar · fluxradar.net" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="FluxRadar Field Notes" />
-    <meta
-      name="twitter:description"
-      content="Practical field notes on public website auditing, technical SEO and AI crawler readiness."
-    />
-    <meta name="twitter:image" content="https://fluxradar.net/og-image.png" />
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@type": "Blog",
-        "name": "FluxRadar Field Notes",
-        "url": "https://fluxradar.net/blog",
-        "description": "Practical field notes on public website auditing, technical SEO and AI crawler readiness.",
-        "inLanguage": ["en", "uk"],
-        "publisher": { "@type": "Organization", "name": "FluxLab", "url": "https://fluxradar.net" }
-      }
-    </script>
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Блог FluxRadar" />
+    <meta name="twitter:description" content="Українські статті про аудит сайту, SEO та AI-видимість." />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"Blog","name":"Блог FluxRadar","url":"https://fluxradar.net/blog","description":"Практичні статті про аудит публічного сайту.","inLanguage":["en","uk"],"publisher":{"@type":"Organization","name":"FluxLab","url":"https://fluxradar.net"}}</script>
     <link rel="stylesheet" href="/blog/blog.css" />
-    <link rel="stylesheet" href="/blog/content.css" />
-    <noscript
-      ><style>
-        [data-article-lang] {
-          display: block !important;
-        }
-      </style></noscript
-    >
+    <noscript><style>[data-article-lang] { display: block !important; }</style></noscript><noscript><style>.filter-bar { display: none; }</style></noscript>
   </head>
   <body data-blog-page="index">
-    <nav class="menubar" aria-label="Site menu">
-      <a class="menubar__apple" href="/">
-        <svg viewBox="0 0 12 12" aria-hidden="true">
-          <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
-        </svg>
-        FluxRadar
-      </a>
-      <button
-        class="menubar__toggle"
-        type="button"
-        data-menu-toggle
-        data-t-label="nav.openMenu"
-        aria-label="Open menu"
-        aria-expanded="false"
-        aria-controls="menubar-links"
-      >
-        <svg viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" fill="none" />
-        </svg>
-      </button>
-      <div id="menubar-links" class="menubar__links">
-        <div class="menubar__sheet-head">
-          <span class="menubar__sheet-brand">
-            <svg viewBox="0 0 12 12" aria-hidden="true">
-              <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
-            </svg>
-            FluxRadar
-          </span>
-          <span class="menubar__sheet-status" data-t="nav.systemStatus"
-            >PUBLIC WEB AUDIT STATION · v0.1</span
-          >
-          <button
-            class="menubar__close"
-            type="button"
-            data-menu-close
-            data-t-label="nav.closeMenu"
-            aria-label="Close menu"
-          >
-            <svg viewBox="0 0 12 12" aria-hidden="true">
-              <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.5" fill="none" />
-            </svg>
-          </button>
-        </div>
-        <div class="menubar__nav">
-          <span class="menubar__group-label" data-t="nav.navigate">Navigate</span>
-          <a class="menubar__item" href="/" data-t="nav.home">Home</a>
-          <button
-            class="menubar__item"
-            type="button"
-            disabled
-            title="Your saved sites and their check history."
-            data-t="nav.profiles"
-            data-t-title="nav.profilesHint"
-          >
-            My sites
-          </button>
-          <button
-            class="menubar__item"
-            type="button"
-            disabled
-            title="Set up and start a new audit."
-            data-t="nav.scan"
-            data-t-title="nav.scanHint"
-          >
-            Scan
-          </button>
-          <button
-            class="menubar__item"
-            type="button"
-            disabled
-            title="Completed and in-progress audit results."
-            data-t="nav.reports"
-            data-t-title="nav.reportsHint"
-          >
-            Reports
-          </button>
-          <button
-            class="menubar__item"
-            type="button"
-            disabled
-            title="Optional data connections. The public-site scan works without them."
-            data-t="nav.integrations"
-            data-t-title="nav.integrationsHint"
-          >
-            Integrations
-          </button>
-          <a class="menubar__item" href="/faq" data-t="nav.faq">FAQ</a>
-          <a class="menubar__item is-active" href="/blog" aria-current="page" data-t="nav.blog"
-            >Blog</a
-          >
-          <span class="menubar__spacer"></span>
-        </div>
-        <div class="menubar__meta">
-          <span class="menubar__group-label" data-t="nav.system">System</span>
-          <div class="menubar__language" data-language>
-            <span id="menubar-language-label" data-t="nav.language">Language</span>
-            <button
-              type="button"
-              role="combobox"
-              class="menubar__language-button"
-              data-language-button
-              aria-haspopup="listbox"
-              aria-expanded="false"
-              aria-controls="menubar-language-listbox"
-              aria-labelledby="menubar-language-label"
-            >
-              <span data-language-current>English</span>
-              <svg class="menubar__language-caret" viewBox="0 0 10 6" aria-hidden="true">
-                <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" />
-              </svg>
-            </button>
-            <ul
-              id="menubar-language-listbox"
-              class="menubar__language-listbox"
-              role="listbox"
-              aria-labelledby="menubar-language-label"
-              hidden
-            >
-              <li
-                class="menubar__language-option is-active"
-                role="option"
-                data-language-option="en"
-                aria-selected="true"
-              >
-                English
-              </li>
-              <li
-                class="menubar__language-option"
-                role="option"
-                data-language-option="uk"
-                aria-selected="false"
-              >
-                Українська
-              </li>
-            </ul>
-          </div>
-          <span class="menubar__system" data-t="nav.systemStatus"
-            >PUBLIC WEB AUDIT STATION · v0.1</span
-          >
-        </div>
-      </div>
-    </nav>
+    <!-- site-header -->
 
     <div class="blog-page">
       <main id="blog-main">
-        <nav class="resource-switch" aria-label="Розділи матеріалів">
-          <a href="/blog?lang=uk" aria-current="page">Блог</a
-          ><a href="/knowledge-base">База знань</a>
-        </nav>
         <header>
-          <div class="kicker" data-t="blog.kicker">PUBLIC WEBSITE OPERATIONS</div>
-          <h1 data-t="blog.title">Field notes for healthier websites.</h1>
-          <p class="lede" data-t="blog.lede">
-            Evidence-led notes on the signals that search engines, AI crawlers and users can observe
-            without private credentials. Available in English and Ukrainian.
-          </p>
+          <div class="kicker" data-t="blog.kicker">ЕКСПЛУАТАЦІЯ ПУБЛІЧНИХ САЙТІВ</div>
+          <h1 data-t="blog.title">Польові нотатки для здоровіших сайтів.</h1>
+          <p class="lede" data-t="blog.lede">Нотатки на основі доказів про сигнали, які пошукові системи, AI-краулери та люди бачать без приватних доступів. Доступно англійською та українською.</p>
         </header>
 
-        <div class="filter-bar" role="group" aria-labelledby="blog-filter-label">
-          <span class="filter-bar__label" id="blog-filter-label" data-t="blog.filterLabel"
-            >Language:</span
-          >
-          <button type="button" data-language-filter="en" aria-pressed="true">EN — English</button>
-          <button type="button" data-language-filter="uk" aria-pressed="false">
-            UA — Українська
-          </button>
+        <nav class="resource-switch" aria-label="Розділи матеріалів" data-t-label="content.sections"><a href="/blog" aria-current="page" data-t="content.blog">Блог</a><a href="/knowledge-base" data-t="content.guides">База знань: 20 покрокових інструкцій</a></nav><div class="content-search" data-content-controls hidden><label for="content-search" data-t="content.search">Знайти матеріал</label><input id="content-search" type="search" placeholder="Наприклад: індексація, бюджет, AI" /><label for="content-category" data-t="content.category">Тема</label><select id="content-category"><option value="" data-t="content.all">Усі теми</option><option value="Контент" data-content-language="uk">Контент</option><option value="Робота зі звітом" data-content-language="uk">Робота зі звітом</option><option value="Запуск і зміни" data-content-language="uk">Запуск і зміни</option><option value="Якість сайту" data-content-language="uk">Якість сайту</option><option value="SEO" data-content-language="uk">SEO</option><option value="Для агенцій" data-content-language="uk">Для агенцій</option><option value="Аналітика" data-content-language="uk">Аналітика</option><option value="План дій" data-content-language="uk">План дій</option><option value="Для замовників" data-content-language="uk">Для замовників</option><option value="AI-пошук" data-content-language="uk">AI-пошук</option><option value="Попередні матеріали" data-t="content.legacy">Попередні матеріали</option></select><button type="button" data-content-reset data-t="content.reset">Скинути фільтри</button><p data-content-results role="status" aria-live="polite"></p></div><div class="filter-bar" role="group" aria-labelledby="blog-filter-label">
+          <span class="filter-bar__label" id="blog-filter-label" data-t="blog.filterLabel">Мова:</span>
+          <button type="button" data-language-filter="en" aria-pressed="false">EN — English</button>
+          <button type="button" data-language-filter="uk" aria-pressed="true">UA — Українська</button>
         </div>
 
-        <section aria-labelledby="en-heading" data-article-lang="en">
-          <h2 id="en-heading" class="kicker" style="margin: 32px 0 0">English articles</h2>
-
-          <article>
-            <div class="article-meta">
-              <span class="kicker-tag">TECHNICAL SEO</span>
-              <span class="lang-badge">EN</span>
-            </div>
-            <h2>
-              <a href="/blog/public-website-audit-checklist">The public website audit checklist</a>
-            </h2>
-            <time datetime="2026-09-04">September 4, 2026</time>
-            <p>
-              A practical sequence for checking crawlability, page signals, canonical URLs and
-              structured data — with coverage data across six audit categories and repeatable
-              evidence for every finding.
-            </p>
-          </article>
-
-          <article>
-            <div class="article-meta">
-              <span class="kicker-tag">AI DISCOVERABILITY</span>
-              <span class="lang-badge">EN</span>
-            </div>
-            <h2>
-              <a href="/blog/ai-crawler-readiness">What AI crawler readiness actually means</a>
-            </h2>
-            <time datetime="2026-09-04">September 4, 2026</time>
-            <p>
-              How to evaluate the public signals that help AI systems understand a site — across
-              five layers from HTML structure to freshness — without claiming to predict any
-              provider's ranking or answer.
-            </p>
-          </article>
-        </section>
-
-        <section aria-labelledby="uk-heading" data-article-lang="uk">
+        <section data-article-lang="uk" aria-label="Українські статті"><section class="content-category" data-content-category="Контент"><h2>Контент</h2><div class="content-grid"><article data-content-card data-category="Контент"><p class="kicker">Контент</p><h3><a href="/blog/uk/bloh-chy-baza-znan">Блог чи база знань: куди помістити матеріал</a></h3><p>Як розділити пояснювальні статті й продуктові інструкції, уникнути дублів і побудувати корисні переходи між ними.</p><time datetime="2026-10-14">14 жовтня 2026</time></article><article data-content-card data-category="Контент"><p class="kicker">Контент</p><h3><a href="/blog/uk/kontent-shcho-dopomahaie-obraty">Контент, що допомагає обрати: структура сторінки послуги</a></h3><p>Як відповісти на питання покупця: придатність послуги, умови, порівняння, докази та зрозумілий наступний крок.</p><time datetime="2026-10-14">14 жовтня 2026</time></article></div></section><section class="content-category" data-content-category="Робота зі звітом"><h2>Робота зі звітом</h2><div class="content-grid"><article data-content-card data-category="Робота зі звітом"><p class="kicker">Робота зі звітом</p><h3><a href="/blog/uk/audyt-bez-khybnykh-vysnovkiv">Як читати аудит сайту без хибних висновків</a></h3><p>Що означають бал, покриття та відсутні дані: як відрізнити підтверджену проблему від обмеження перевірки.</p><time datetime="2026-10-14">14 жовтня 2026</time></article></div></section><section class="content-category" data-content-category="Запуск і зміни"><h2>Запуск і зміни</h2><div class="content-grid"><article data-content-card data-category="Запуск і зміни"><p class="kicker">Запуск і зміни</p><h3><a href="/blog/uk/audyt-pered-redyzainom">Аудит перед редизайном: що потрібно зберегти</a></h3><p>Як підготувати редизайн сайту: зафіксувати цінні сторінки, перевірити шаблони, описати обмеження та критерії запуску.</p><time datetime="2026-10-14">14 жовтня 2026</time></article><article data-content-card data-category="Запуск і зміни"><p class="kicker">Запуск і зміни</p><h3><a href="/blog/uk/mihratsiia-saitu-bez-vtrat">Міграція сайту: як зменшити ризик втрати видимості</a></h3><p>План перенесення домену, CMS або URL: інвентаризація, відповідники, перенаправлення, перевірка запуску та спостереження.</p><time datetime="2026-10-14">14 жовтня 2026</time></article><article data-content-card data-category="Запуск і зміни"><p class="kicker">Запуск і зміни</p><h3><a href="/blog/uk/kontrol-pislia-zapusku">Контроль після запуску сайту: перший тиждень</a></h3><p>План перевірки після релізу: доступність, форми, індексація, аналітика та черга виправлень із відповідальними.</p><time datetime="2026-10-14">14 жовтня 2026</time></article></div></section><section class="content-category" data-content-category="Якість сайту"><h2>Якість сайту</h2><div class="content-grid"><article data-content-card data-category="Якість сайту"><p class="kicker">Якість сайту</p><h3><a href="/blog/uk/dostupnist-form-zaiavky">Доступність форми заявки: перевірка власними силами</a></h3><p>Практичний сценарій перевірки форми: клавіатура, підписи, помилки, стан надсилання та підтвердження результату.</p><time datetime="2026-10-14">14 жовтня 2026</time></article><article data-content-card data-category="Якість сайту"><p class="kicker">Якість сайту</p><h3><a href="/blog/uk/shvydkist-i-zaiavky">Швидкість сайту й заявки: як перевірити зв’язок</a></h3><p>Як поєднати вимірювання швидкості з перевіркою шляху заявки: польові дані, лабораторні тести, пріоритети та контроль змін.</p><time datetime="2026-10-14">14 жовтня 2026</time></article><article data-content-card data-category="Якість сайту"><p class="kicker">Якість сайту</p><h3><a href="/blog/uk/bezpeka-publichnoho-saitu">Безпека публічного сайту: межі автоматичного аудиту</a></h3><p>Що показує пасивна перевірка відкритого сайту: HTTPS, заголовки, змішаний вміст і ризики, які потребують окремого тестування.</p><time datetime="2026-10-14">14 жовтня 2026</time></article></div></section><section class="content-category" data-content-category="SEO"><h2>SEO</h2><div class="content-grid"><article data-content-card data-category="SEO"><p class="kicker">SEO</p><h3><a href="/blog/uk/chomu-storinka-ne-indeksuietsia">Чому сторінка не індексується: порядок перевірки</a></h3><p>Як дослідити неіндексовану сторінку: доступ, noindex, canonical, внутрішні посилання та дані Search Console.</p><time datetime="2026-10-14">14 жовтня 2026</time></article><article data-content-card data-category="SEO"><p class="kicker">SEO</p><h3><a href="/blog/uk/hreflang-dlia-ukrainskoho-saitu">Hreflang для українського сайту: без плутанини мов</a></h3><p>Як пов’язати українські та інші мовні сторінки: відповідники, коди мов, зворотні посилання, canonical і перевірка шаблонів.</p><time datetime="2026-10-14">14 жовтня 2026</time></article><article data-content-card data-category="SEO"><p class="kicker">SEO</p><h3><a href="/blog/uk/seo-dlia-lokalnoho-biznesu">SEO для локального бізнесу: що перевірити спочатку</a></h3><p>Як узгодити сайт, місцеву пропозицію та профіль бізнесу: контакти, сторінки послуг, маршрут до звернення і контроль результату.</p><time datetime="2026-10-14">14 жовтня 2026</time></article><article data-content-card data-category="SEO"><p class="kicker">SEO</p><h3><a href="/blog/uk/seo-katalohu-tovariv">SEO каталогу товарів: шаблони, фільтри та наявність</a></h3><p>Як перевірити каталог без хаосу URL: категорії, товари, фільтри, пагінація, відсутні позиції та актуальність даних.</p><time datetime="2026-10-14">14 жовтня 2026</time></article></div></section><section class="content-category" data-content-category="Для агенцій"><h2>Для агенцій</h2><div class="content-grid"><article data-content-card data-category="Для агенцій"><p class="kicker">Для агенцій</p><h3><a href="/blog/uk/audyt-saitu-ahentstvom">Аудит сайту агенцією: як передати результат клієнту</a></h3><p>Як перетворити технічний звіт на зрозумілу передачу клієнту: докази, межі, пріоритети, власники та перевірка виправлень.</p><time datetime="2026-10-14">14 жовтня 2026</time></article></div></section><section class="content-category" data-content-category="Аналітика"><h2>Аналітика</h2><div class="content-grid"><article data-content-card data-category="Аналітика"><p class="kicker">Аналітика</p><h3><a href="/blog/uk/metryky-bez-marnykh-tsyfr">Метрики сайту без марних цифр: що вимірювати</a></h3><p>Як пов’язати показники сайту з рішеннями: технічні сигнали, пошукові переходи, заявки, якість даних і контекст порівняння.</p><time datetime="2026-10-14">14 жовтня 2026</time></article></div></section><section class="content-category" data-content-category="План дій"><h2>План дій</h2><div class="content-grid"><article data-content-card data-category="План дій"><p class="kicker">План дій</p><h3><a href="/blog/uk/rehuliarnyi-audyt-saitu">Регулярний аудит сайту: розклад за ризиком і змінами</a></h3><p>Як організувати повторні перевірки: базова вибірка, тригери запуску, порівнювані умови, історія проблем і власники виправлень.</p><time datetime="2026-10-14">14 жовтня 2026</time></article><article data-content-card data-category="План дій"><p class="kicker">План дій</p><h3><a href="/blog/uk/priorytety-dlia-maloho-biudzhetu">Пріоритети аудиту для малого бюджету</a></h3><p>Як обрати кілька важливих виправлень: підтверджений вплив, охоплення шаблону, зусилля, залежності та перевірка результату.</p><time datetime="2026-10-14">14 жовтня 2026</time></article></div></section><section class="content-category" data-content-category="Для замовників"><h2>Для замовників</h2><div class="content-grid"><article data-content-card data-category="Для замовників"><p class="kicker">Для замовників</p><h3><a href="/blog/uk/yak-zamovyty-audyt">Як замовити аудит сайту: бриф для підрядника</a></h3><p>Практичний бриф для аудиту: мета, область, доступи, формат доказів, пріоритети та критерії приймання роботи.</p><time datetime="2026-10-14">14 жовтня 2026</time></article></div></section><section class="content-category" data-content-category="AI-пошук"><h2>AI-пошук</h2><div class="content-grid"><article data-content-card data-category="AI-пошук"><p class="kicker">AI-пошук</p><h3><a href="/blog/uk/robots-dlia-ai-poshuku">Robots для AI-пошуку: різні боти, різні правила</a></h3><p>Як розділити правила для пошуку, навчання та запитів користувача, перевірити robots.txt і не закрити потрібні сторінки.</p><time datetime="2026-10-14">14 жовтня 2026</time></article><article data-content-card data-category="AI-пошук"><p class="kicker">AI-пошук</p><h3><a href="/blog/uk/ai-poshuk-i-vidymist-brendu">AI-пошук і видимість бренду: що можна перевірити</a></h3><p>Як досліджувати згадки бренду в AI-відповідях: питання, джерела, повторюваність, фактичні помилки та межі висновків.</p><time datetime="2026-10-14">14 жовтня 2026</time></article></div></section><section aria-labelledby="uk-heading" data-content-category="Попередні матеріали">
           <h2 id="uk-heading" class="kicker" style="margin: 32px 0 0">Українські статті</h2>
-          <article>
-            <div class="article-meta">
-              <span class="kicker-tag">ВЛАСНИЙ КЕЙС</span
-              ><span class="lang-badge lang-badge--uk">UA</span>
-            </div>
-            <h2>
-              <a href="/blog/uk/fluxradar-html-bez-javascript"
-                >Як ми відкрили текст FluxRadar для читання без JavaScript</a
-              >
-            </h2>
-            <time datetime="2026-10-20">20 жовтня 2026</time>
-            <p>
-              Власний технічний кейс FluxRadar: порівняння початкового HTML, українських адрес і
-              навігації до та після prerender. Без обіцянок зростання позицій.
-            </p>
-          </article>
-          <article>
-            <div class="article-meta">
-              <span class="kicker-tag">ОНОВЛЕННЯ FLUXRADAR</span
-              ><span class="lang-badge lang-badge--uk">UA</span>
-            </div>
-            <h2>
-              <a href="/blog/uk/novi-perevirky-saitu"
-                >Сім нових перевірок сайту: що тепер бачить FluxRadar</a
-              >
-            </h2>
-            <time datetime="2026-10-20">20 жовтня 2026</time>
-            <p>
-              Нові сигнали для SEO, мобільних екранів, ресурсів, TLS, SPF/DMARC і контенту — з
-              доказами та чіткими межами.
-            </p>
-          </article>
-          <article>
-            <div class="article-meta">
-              <span class="kicker-tag">ОНОВЛЕННЯ FLUXRADAR</span
-              ><span class="lang-badge lang-badge--uk">UA</span>
-            </div>
-            <h2>
-              <a href="/blog/uk/ai-boty-poshuk-i-navchannia"
-                >AI-боти: пошук, запити користувачів і навчання моделей</a
-              >
-            </h2>
-            <time datetime="2026-10-20">20 жовтня 2026</time>
-            <p>
-              12 агентів у звіті, нейтральне блокування навчання та важливі відмінності
-              robots-політик постачальників.
-            </p>
-          </article>
 
-          <article>
+          <article data-content-card data-category="Попередні матеріали">
             <div class="article-meta">
               <span class="kicker-tag">ТЕХНІЧНЕ SEO</span>
               <span class="lang-badge lang-badge--uk">UA</span>
             </div>
-            <h2>
-              <a href="/blog/uk/tekhnichne-seo-audyt">Технічний SEO-аудит без доступу до адмінки</a>
-            </h2>
+            <h2><a href="/blog/uk/tekhnichne-seo-audyt">Технічний SEO-аудит без доступу до адмінки</a></h2>
             <time datetime="2026-09-05">5 вересня 2026</time>
-            <p>
-              Покрокова перевірка публічного сайту: краулінг, robots.txt, канонічні URL,
-              структуровані дані. З воронкою сторінок та відтворюваними доказами для кожної
-              знахідки.
-            </p>
+            <p>Покрокова перевірка публічного сайту: краулінг, robots.txt, канонічні URL, структуровані дані. З воронкою сторінок та відтворюваними доказами для кожної знахідки.</p>
           </article>
 
-          <article>
+          <article data-content-card data-category="Попередні матеріали">
             <div class="article-meta">
               <span class="kicker-tag">ПРИВАТНІСТЬ</span>
               <span class="lang-badge lang-badge--uk">UA</span>
             </div>
-            <h2>
-              <a href="/blog/uk/pryvachnist-ta-cookie"
-                >Приватність та cookie-сигнали: що бачать публічні краулери</a
-              >
-            </h2>
+            <h2><a href="/blog/uk/pryvachnist-ta-cookie">Приватність та cookie-сигнали: що бачать публічні краулери</a></h2>
             <time datetime="2026-09-05">5 вересня 2026</time>
-            <p>
-              Які публічні сигнали конфіденційності перевіряють краулери: cookie-банери,
-              CSP-заголовки, трекери у вихідному HTML та посилання на Cookie Policy. З даними про
-              поширеність сигналів.
-            </p>
+            <p>Які публічні сигнали конфіденційності перевіряють краулери: cookie-банери, CSP-заголовки, трекери у вихідному HTML та посилання на Cookie Policy. З даними про поширеність сигналів.</p>
+          </article>
+        </section></section>
+<section aria-labelledby="en-heading" data-article-lang="en">
+          <h2 id="en-heading" class="kicker" style="margin: 32px 0 0">English articles</h2>
+
+          <article data-content-card data-category="Попередні матеріали">
+            <div class="article-meta">
+              <span class="kicker-tag">TECHNICAL SEO</span>
+              <span class="lang-badge">EN</span>
+            </div>
+            <h2><a href="/blog/public-website-audit-checklist">The public website audit checklist</a></h2>
+            <time datetime="2026-09-04">September 4, 2026</time>
+            <p>A practical sequence for checking crawlability, page signals, canonical URLs and structured data — with coverage data across six audit categories and repeatable evidence for every finding.</p>
+          </article>
+
+          <article data-content-card data-category="Попередні матеріали">
+            <div class="article-meta">
+              <span class="kicker-tag">AI DISCOVERABILITY</span>
+              <span class="lang-badge">EN</span>
+            </div>
+            <h2><a href="/blog/ai-crawler-readiness">What AI crawler readiness actually means</a></h2>
+            <time datetime="2026-09-04">September 4, 2026</time>
+            <p>How to evaluate the public signals that help AI systems understand a site — across five layers from HTML structure to freshness — without claiming to predict any provider's ranking or answer.</p>
           </article>
         </section>
 
-        <p class="blog-empty" data-blog-empty hidden data-t="blog.empty">
-          No articles in this language yet. Switch the language filter to see the rest.
-        </p>
+        <p class="blog-empty" data-blog-empty hidden data-t="blog.empty">Статей цією мовою поки немає. Змініть фільтр мови, щоб побачити решту.</p>
 
-        <footer class="site-footer">
-          <span>© 2026 FluxLab</span>
-          <span><a href="/" data-t="blog.footerHome">FluxRadar — public website audits</a></span>
-          <span class="powered-by">
-            <a
-              class="powered-by__link"
-              href="https://flux-lab.dev"
-              target="_blank"
-              rel="noopener noreferrer"
-              data-t-label="blog.poweredByAria"
-              aria-label="Created by FluxLab (opens in a new tab)"
-            >
-              <span class="powered-by__mark" aria-hidden="true">◈</span>
-              <span data-t="blog.poweredBy">Created by FluxLab</span>
-            </a>
-          </span>
-        </footer>
+        <!-- site-footer -->
       </main>
     </div>
-    <script src="/blog/public-links.js"></script>
-    <script src="/blog/attribution.js"></script>
-    <script src="/blog/blog.js"></script>
+    <script src="/blog/blog.js"></script><script src="/blog/content.js"></script>
   </body>
 </html>

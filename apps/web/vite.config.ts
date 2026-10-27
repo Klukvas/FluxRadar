@@ -1,5 +1,5 @@
 import { mkdir, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 import react from '@vitejs/plugin-react';
 import type { Connect, Plugin } from 'vite';
@@ -10,6 +10,7 @@ import { defineConfig, runnerImport } from 'vite';
 import { legacyPublicRedirect, publicRequestRewrite } from './src/public-page-routing.js';
 import { blogIndexUrl } from './src/blog-routing.js';
 import { sentryDsnProblem } from './src/sentry-dsn.js';
+import { staticChromePlugin } from './src/static-chrome-plugin.js';
 
 /**
  * Serve standalone content HTML for clean /blog and /knowledge-base paths in `vite dev` and
@@ -157,5 +158,19 @@ function sentryDsnCheckPlugin(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), blogIndexRewritePlugin(), staticPageHeadsPlugin(), sentryDsnCheckPlugin()],
+  plugins: [
+    react(),
+    blogIndexRewritePlugin(),
+    staticChromePlugin(),
+    staticPageHeadsPlugin(),
+    sentryDsnCheckPlugin(),
+  ],
+  build: {
+    rollupOptions: {
+      input: {
+        app: resolve(import.meta.dirname, 'index.html'),
+        'static-chrome': resolve(import.meta.dirname, 'src/static-chrome-client.tsx'),
+      },
+    },
+  },
 });

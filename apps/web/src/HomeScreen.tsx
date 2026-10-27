@@ -1,7 +1,7 @@
+import { SiteFooter } from './site-chrome';
 import { useEffect, useRef } from 'react';
 
-import { Button, CreatedByFluxLab, MenuBar } from './components';
-import type { Account } from './api';
+import { Button, MenuBar, StatusChip, Terminal } from './components';import type { Account } from './api';
 import { AuthScreen } from './AuthScreen';
 import { publicPagePath } from './public-page-routing';
 import { ExampleReport } from './ExampleReport';
@@ -235,31 +235,7 @@ export function HomeScreen(props: {
             {t.home.lastCall.cta} <span aria-hidden="true">→</span>
           </Button>
         </section>
-        <footer className="home__footer">
-          <span>{t.home.footer.brand}</span>
-          <span className="home__footer-links">
-            <a href={publicPagePath('checks', props.language)}>{t.home.footer.coverageLink}</a>
-            <a href={publicPagePath('exampleReport', props.language)}>
-              {t.home.footer.exampleLink}
-            </a>
-            <a href={publicPagePath('faq', props.language)}>{t.nav.faq}</a>
-            <a href={publicPagePath('privacy', props.language)}>{t.home.footer.privacyLink}</a>
-            <a href={publicPagePath('terms', props.language)}>{t.home.footer.termsLink}</a>
-            <a href={publicPagePath('terms', props.language) + '#terms-paid'}>
-              {t.home.footer.refundLink}
-            </a>
-            <a href={publicPagePath('cookies', props.language)}>{t.legal.cookies.title}</a>
-            <a href={publicPagePath('checks', props.language) + '#methodology'}>
-              {props.language === 'uk' ? 'Як ми перевіряємо' : 'How we audit'}
-            </a>
-            <a href="/knowledge-base">
-              {props.language === 'uk' ? 'База знань' : 'Knowledge base (Ukrainian)'}
-            </a>
-            <a href="/blog">{t.home.footer.fieldNotes}</a>
-          </span>
-          <CreatedByFluxLab language={props.language} />
-        </footer>
-      </main>
+        <SiteFooter language={props.language} />      </main>
       {props.authOpen ? (
         <div
           className="modal-backdrop"

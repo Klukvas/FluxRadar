@@ -1,17 +1,4 @@
-/*
- * Shared behaviour for every static blog page.
- *
- * Three things live here, and they are the three the React header also does:
- * the full-screen burger sheet, the language combobox (which closes on an
- * outside click and on Escape), and the language choice itself. On the blog
- * index that choice is a real filter — it hides the articles written in the
- * other language and re-labels the page — and on an article page it takes the
- * reader to the index already filtered, because a single-language article has
- * no translated twin to switch to.
- *
- * The chrome ships in English in the HTML, so a reader with JavaScript off
- * still gets a readable page; this file only swaps it when Ukrainian is chosen.
- */
+/* Content language, cookie consent and consent-gated analytics. Header interactions belong to site-chrome. */
 (function () {
   'use strict';
 
@@ -37,40 +24,17 @@
   var GA_SCRIPT_ID = 'fluxradar-ga';
 
   var TEXT = {
-    'nav.navigate': { en: 'Navigate', uk: 'Навігація' },
-    'nav.system': { en: 'System', uk: 'Система' },
-    'nav.home': { en: 'Home', uk: 'Головна' },
-    // The workspace tabs the product header lists: shipped disabled, as a visitor
-    // sees them everywhere, until readSession finds a signed-in reader.
-    'nav.profiles': { en: 'My sites', uk: 'Мої сайти' },
-    'nav.scan': { en: 'Scan', uk: 'Перевірка' },
-    'nav.reports': { en: 'Reports', uk: 'Звіти' },
-    'nav.integrations': { en: 'Integrations', uk: 'Інтеграції' },
-    'nav.profilesHint': {
-      en: 'Your saved sites and their check history.',
-      uk: 'Ваші збережені сайти та історія їхніх перевірок.',
+    'content.sections': { en: 'Resource sections', uk: 'Розділи матеріалів' },
+    'content.search': { en: 'Find an article', uk: 'Знайти матеріал' },
+    'content.category': { en: 'Topic', uk: 'Тема' },
+    'content.all': { en: 'All topics', uk: 'Усі теми' },
+    'content.reset': { en: 'Reset filters', uk: 'Скинути фільтри' },
+    'content.legacy': { en: 'Previous articles', uk: 'Попередні матеріали' },
+    'content.blog': { en: 'Blog', uk: 'Блог' },
+    'content.guides': {
+      en: 'Knowledge base: 20 practical guides in Ukrainian',
+      uk: 'База знань: 20 покрокових інструкцій',
     },
-    'nav.scanHint': {
-      en: 'Set up and start a new audit.',
-      uk: 'Налаштуйте та запустіть нову перевірку.',
-    },
-    'nav.reportsHint': {
-      en: 'Completed and in-progress audit results.',
-      uk: 'Готові та поточні результати перевірок.',
-    },
-    'nav.integrationsHint': {
-      en: 'Optional data connections. The public-site scan works without them.',
-      uk: 'Необовʼязкові підключення даних. Публічна перевірка працює без них.',
-    },
-    'nav.faq': { en: 'FAQ', uk: 'FAQ' },
-    'nav.blog': { en: 'Blog', uk: 'Блог' },
-    'nav.language': { en: 'Language', uk: 'Мова' },
-    'nav.systemStatus': {
-      en: 'PUBLIC WEB AUDIT STATION · v0.1',
-      uk: 'СТАНЦІЯ АУДИТУ ПУБЛІЧНИХ САЙТІВ · v0.1',
-    },
-    'nav.openMenu': { en: 'Open menu', uk: 'Відкрити меню' },
-    'nav.closeMenu': { en: 'Close menu', uk: 'Закрити меню' },
     'blog.kicker': { en: 'PUBLIC WEBSITE OPERATIONS', uk: 'ЕКСПЛУАТАЦІЯ ПУБЛІЧНИХ САЙТІВ' },
     'blog.title': {
       en: 'Field notes for healthier websites.',
@@ -85,22 +49,7 @@
       en: 'No articles in this language yet. Switch the language filter to see the rest.',
       uk: 'Статей цією мовою поки немає. Змініть фільтр мови, щоб побачити решту.',
     },
-    'blog.footerHome': {
-      en: 'FluxRadar — public website audits',
-      uk: 'FluxRadar — аудит публічних сайтів',
-    },
-    // The key predates the wording. It credits the studio that built FluxRadar,
-    // which is what both locales now say; the key itself is the contract every
-    // static page carries in `data-t`, so it keeps its name.
-    'blog.poweredBy': { en: 'Created by FluxLab', uk: 'Створено FluxLab' },
-    // The link leaves the site, so the accessible name says so before it is followed.
-    'blog.poweredByAria': {
-      en: 'Created by FluxLab (opens in a new tab)',
-      uk: 'Створено FluxLab (відкривається в новій вкладці)',
-    },
   };
-
-  var LANGUAGE_LABELS = { en: 'English', uk: 'Українська' };
 
   var COOKIE_TEXT = {
     en: {
@@ -258,7 +207,7 @@
     var requested = readParamLanguage();
     if (requested !== null) return requested;
     var stored = readStoredLanguage();
-    return isLanguage(stored) ? stored : 'en';
+    return isLanguage(stored) ? stored : 'uk';
   }
 
   function translateChrome(language) {
@@ -294,9 +243,11 @@
   function applyLanguage(language, options) {
     currentLanguage = language;
     translateChrome(language);
-    window.fluxradarPublicLinks?.(language);
-    syncWorkspaceTabs(language);
     if (!isIndex) {
+      syncLanguageControls(language);
+      document.dispatchEvent(
+        new window.CustomEvent('fluxradar:content-language', { detail: language }),
+      );
       renderCookieControls(language);
       return;
     }
@@ -305,8 +256,12 @@
     storeLanguage(language);
     updateEmptyState(language);
     syncLanguageControls(language);
+    document.dispatchEvent(new window.Event('content-language-change'));
+    document.dispatchEvent(
+      new window.CustomEvent('fluxradar:content-language', { detail: language }),
+    );
     if (options && options.pushUrl) {
-      var url = language === 'en' ? '/blog' : '/blog?lang=' + language;
+      var url = language === 'uk' ? '/blog' : '/blog?lang=en';
       window.history.replaceState(null, '', url);
     }
     renderCookieControls(language);
@@ -472,7 +427,7 @@
     body.appendChild(options.element);
     appendParagraph(body, text.duration);
     var details = document.createElement('a');
-    details.href = language === 'uk' ? '/uk/cookies' : '/cookies';
+    details.href = '/cookies?lang=' + language;
     details.textContent = text.details;
     body.appendChild(details);
     if (cookieError !== null) {
@@ -509,15 +464,6 @@
   }
 
   function syncLanguageControls(language) {
-    var options = document.querySelectorAll('[data-language-option]');
-    for (var index = 0; index < options.length; index += 1) {
-      var option = options[index];
-      var selected = option.getAttribute('data-language-option') === language;
-      option.setAttribute('aria-selected', String(selected));
-      option.classList.toggle('is-active', selected);
-    }
-    var current = document.querySelector('[data-language-current]');
-    if (current !== null) current.textContent = LANGUAGE_LABELS[language];
     var filters = document.querySelectorAll('[data-language-filter]');
     for (var i = 0; i < filters.length; i += 1) {
       var filter = filters[i];
@@ -535,7 +481,14 @@
       return;
     }
     storeLanguage(language);
-    window.location.assign(language === 'en' ? '/blog' : '/blog?lang=' + language);
+    var section = document.body.getAttribute('data-content-section');
+    var destination =
+      section === 'knowledge-base' && language === 'uk'
+        ? '/knowledge-base'
+        : language === 'en'
+          ? '/blog?lang=en'
+          : '/blog';
+    window.location.assign(destination);
   }
 
   // ── Analytics ───────────────────────────────────────────────────────────
@@ -568,22 +521,13 @@
     if (analyticsLoaded) return;
     analyticsLoaded = true;
     gtag('js', new Date());
-    gtag(
-      'config',
-      GA_MEASUREMENT_ID,
-      Object.assign(
-        {
-          send_page_view: false,
-          allow_google_signals: false,
-          allow_ad_personalization_signals: false,
-          cookie_expires: CONSENT_TTL_MS / 1000,
-          cookie_flags: 'SameSite=Lax;Secure',
-          page_location: window.location.origin + window.location.pathname,
-          page_referrer: cleanReferrer(document.referrer) || '',
-        },
-        window.fluxradarApprovedAttribution?.(window.location.search),
-      ),
-    );
+    gtag('config', GA_MEASUREMENT_ID, {
+      send_page_view: false,
+      allow_google_signals: false,
+      allow_ad_personalization_signals: false,
+      cookie_expires: CONSENT_TTL_MS / 1000,
+      cookie_flags: 'SameSite=Lax;Secure',
+    });
     var script = document.createElement('script');
     script.id = GA_SCRIPT_ID;
     script.async = true;
@@ -591,11 +535,18 @@
     document.head.appendChild(script);
   }
 
-  var cleanReferrer =
-    window.fluxradarCleanReferrer ||
-    function () {
+  function cleanReferrer(referrer) {
+    try {
+      var url = new window.URL(referrer);
+      var path =
+        url.origin === window.location.origin
+          ? url.pathname.replace(/^\/scans\/[^/]+/, '/scans/:id')
+          : url.pathname;
+      return url.origin + path;
+    } catch {
       return null;
-    };
+    }
+  }
 
   function sendPageView() {
     var page = {
@@ -625,148 +576,8 @@
     sendPageView();
   }
 
-  // ── Session ─────────────────────────────────────────────────────────────
-  // The blog's half of src/app-session.ts. Served outside the bundle, it keeps its
-  // own copies of the API base and the tab paths; blog-session.test.ts holds them
-  // to the VITE_API_URL default in Dockerfile.web and to src/workspace-paths.ts.
-  var API_BASE = '/api';
-  var WORKSPACE_TAB_PATHS = {
-    'nav.profiles': '/profiles',
-    'nav.scan': '/scan',
-    'nav.reports': '/reports',
-    'nav.integrations': '/integrations',
-  };
-
-  // The language rides along, as in MenuBar: it is stored only with consent.
-  function syncWorkspaceTabs(language) {
-    Object.keys(WORKSPACE_TAB_PATHS).forEach(function (key) {
-      var link = document.querySelector('a.menubar__item[data-t="' + key + '"]');
-      if (link !== null) link.setAttribute('href', WORKSPACE_TAB_PATHS[key] + '?lang=' + language);
-    });
-  }
-
-  /** Once the envelope names an account, swaps each visitor tab for the link MenuBar draws. */
-  function showSession(envelope) {
-    var account = envelope?.success === true ? envelope.data : null;
-    if (typeof account !== 'object' || account === null) throw new Error('No account');
-    Object.keys(WORKSPACE_TAB_PATHS).forEach(function (key) {
-      var button = document.querySelector('button.menubar__item[data-t="' + key + '"]');
-      if (button === null) return;
-      var link = document.createElement('a');
-      ['class', 'title', 'data-t', 'data-t-title'].forEach(function (name) {
-        if (button.hasAttribute(name)) link.setAttribute(name, button.getAttribute(name));
-      });
-      link.textContent = button.textContent;
-      button.replaceWith(link);
-    });
-    syncWorkspaceTabs(currentLanguage);
-  }
-
-  // A visitor's 401 is the ordinary answer. Any other answer, or a failed request,
-  // logs one line that never carries the body: a JSON parse error would quote it.
-  function readSession() {
-    window
-      .fetch(API_BASE + '/auth/me', { credentials: 'same-origin' })
-      .then(function (response) {
-        if (response.status === 401) return undefined;
-        if (!response.ok) throw new Error('HTTP ' + response.status);
-        return response.json().then(showSession, function () {
-          throw new Error('Not JSON');
-        });
-      })
-      .catch(function (caught) {
-        window.console.error('FluxRadar session unavailable', caught);
-      });
-  }
-
-  // ── Burger sheet ────────────────────────────────────────────────────────
-  var toggle = document.querySelector('[data-menu-toggle]');
-  var sheet = document.getElementById('menubar-links');
-  var closeButton = document.querySelector('[data-menu-close]');
-
-  function setMenuOpen(open) {
-    if (toggle === null || sheet === null) return;
-    sheet.classList.toggle('is-open', open);
-    toggle.setAttribute('aria-expanded', String(open));
-    if (open && closeButton !== null) closeButton.focus();
-    if (!open) toggle.focus();
-  }
-
-  if (toggle !== null && sheet !== null) {
-    toggle.addEventListener('click', function () {
-      setMenuOpen(!sheet.classList.contains('is-open'));
-    });
-  }
-  if (closeButton !== null) {
-    closeButton.addEventListener('click', function () {
-      setMenuOpen(false);
-    });
-  }
-
-  // ── Language combobox ───────────────────────────────────────────────────
-  var languageBox = document.querySelector('[data-language]');
-  var languageButton = document.querySelector('[data-language-button]');
-  var listbox = document.getElementById('menubar-language-listbox');
-
-  function setListboxOpen(open) {
-    if (languageButton === null || listbox === null) return;
-    listbox.hidden = !open;
-    languageButton.setAttribute('aria-expanded', String(open));
-    if (open) {
-      var active = listbox.querySelector('[aria-selected="true"]') || listbox.firstElementChild;
-      if (active !== null) active.focus();
-    }
-  }
-
-  function isListboxOpen() {
-    return listbox !== null && listbox.hidden === false;
-  }
-
-  if (languageButton !== null && listbox !== null) {
-    languageButton.addEventListener('click', function () {
-      setListboxOpen(!isListboxOpen());
-    });
-    var optionNodes = listbox.querySelectorAll('[data-language-option]');
-    for (var index = 0; index < optionNodes.length; index += 1) {
-      (function (option) {
-        option.setAttribute('tabindex', '-1');
-        option.addEventListener('click', function () {
-          setListboxOpen(false);
-          chooseLanguage(option.getAttribute('data-language-option'));
-        });
-        option.addEventListener('keydown', function (event) {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            setListboxOpen(false);
-            chooseLanguage(option.getAttribute('data-language-option'));
-          } else if (event.key === 'ArrowDown' && option.nextElementSibling !== null) {
-            event.preventDefault();
-            option.nextElementSibling.focus();
-          } else if (event.key === 'ArrowUp' && option.previousElementSibling !== null) {
-            event.preventDefault();
-            option.previousElementSibling.focus();
-          }
-        });
-      })(optionNodes[index]);
-    }
-  }
-
-  // One listener for both overlays: a click outside the language menu closes
-  // it, which is what a reader expects from a dropdown that covers the page.
-  document.addEventListener('pointerdown', function (event) {
-    if (!isListboxOpen()) return;
-    if (languageBox !== null && languageBox.contains(event.target)) return;
-    setListboxOpen(false);
-  });
-
-  document.addEventListener('keydown', function (event) {
-    if (event.key !== 'Escape') return;
-    if (isListboxOpen()) {
-      setListboxOpen(false);
-      if (languageButton !== null) languageButton.focus();
-      return;
-    }
-    if (sheet !== null && sheet.classList.contains('is-open')) setMenuOpen(false);
+  document.addEventListener('fluxradar:content-language-request', function (event) {
+    if (isLanguage(event.detail)) chooseLanguage(event.detail);
   });
 
   // ── Filter bar (index only) ─────────────────────────────────────────────
@@ -796,5 +607,4 @@
     syncAnalytics();
     renderCookieControls(currentLanguage);
   });
-  readSession();
 })();
