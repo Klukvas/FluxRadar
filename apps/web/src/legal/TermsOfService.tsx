@@ -5,7 +5,7 @@ import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } fro
 
 // Bumped when the merchant of record changed from FastSpring to Creem.
 // 19 October 2026: Basic and Complete are the paid audits; the earlier Website Audit package was removed.
-const TERMS_EFFECTIVE: EffectiveDate = { uk: '19 жовтня 2026 року', en: '19 October 2026' };
+const TERMS_EFFECTIVE: EffectiveDate = { uk: '26 жовтня 2026 року', en: '26 October 2026' };
 
 export function TermsOfService({ language }: { readonly language: Language }): JSX.Element {
   // The footer's refund link points straight at the purchases section, and the
@@ -149,6 +149,11 @@ function UkrainianTerms(): JSX.Element {
           ви можете завантажувати, передавати та публікувати свій звіт на власний розсуд і
           відповідаєте за розкриту в ньому інформацію. FluxRadar і FluxLab зберігають права на
           сервіс, програмний код, правила, методики оцінювання та брендинг.
+        </p>
+        <p>
+          Звіти тарифу Complete можна передавати власним клієнтам під своїм брендом. Ви відповідаєте
+          за те, що передаєте, і не можете подавати автоматичний звіт як юридичний висновок,
+          висновок з безпеки чи доступності або сертифікацію.
         </p>
         <p>
           Ми можемо використовувати лише знеособлені й агреговані результати аудитів для покращення
@@ -313,6 +318,11 @@ function EnglishTerms(): JSX.Element {
           default, but you may download, share and publish your own report at your discretion and
           are responsible for information you disclose. FluxRadar and FluxLab retain rights in the
           service, software, rules, scoring methods and branding.
+        </p>
+        <p>
+          Complete reports may be delivered to your own clients under your own brand. You are
+          responsible for what you deliver and may not present an automated report as a legal,
+          security or accessibility opinion or certification.
         </p>
         <p>
           We may use only anonymized and aggregated audit results to improve service rules and

@@ -161,12 +161,16 @@ async function archiveExport(
     // Log the real SDK / network error so operators can diagnose
     // misconfiguration (wrong endpoint, bucket, credentials, unsupported
     // headers) without it leaking to the client response.
-    logger.error('report storage putText failed', {
-      scanId,
-      format,
-      objectKey,
-      error: err instanceof Error ? `${err.name}: ${err.message}` : String(err),
-    });
+    logger.error(
+      'report storage putText failed',
+      {
+        scanId,
+        format,
+        objectKey,
+        error: err instanceof Error ? `${err.name}: ${err.message}` : String(err),
+      },
+      err,
+    );
     throw new ApiError(
       503,
       'EXPORT_STORAGE_UNAVAILABLE',

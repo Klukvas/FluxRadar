@@ -167,7 +167,7 @@ export const accountCopy: Record<Language, AccountCopy> = {
     },
     deletion: {
       heading: 'Delete account',
-      body: 'Deleting the account removes your sites, every report and export, your purchase history in FluxRadar, connected Google and Bing accounts and every session. It cannot be undone.',
+      body: 'Deleting the account removes your sites, every report and export, your purchase history in FluxRadar, connected Google and Bing accounts, your report branding and every session. It cannot be undone.',
       provider:
         'The payment provider keeps its own order records and receipts, as the law requires.',
       confirmLabel: (email) => `Type ${email} to confirm`,
@@ -250,7 +250,7 @@ export const accountCopy: Record<Language, AccountCopy> = {
     },
     deletion: {
       heading: 'Видалити акаунт',
-      body: 'Видалення акаунта прибирає ваші сайти, усі звіти й експорти, історію покупок у FluxRadar, підключені акаунти Google і Bing та всі сесії. Цю дію не можна скасувати.',
+      body: 'Видалення акаунта прибирає ваші сайти, усі звіти й експорти, історію покупок у FluxRadar, підключені акаунти Google і Bing, оформлення звітів та всі сесії. Цю дію не можна скасувати.',
       provider:
         'Платіжний провайдер зберігає власні записи замовлень і чеки, як того вимагає закон.',
       confirmLabel: (email) => `Введіть ${email}, щоб підтвердити`,

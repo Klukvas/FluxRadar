@@ -15,8 +15,8 @@ name: Deploy production
 #   preflight  reclaim this workflow's own stale staging dirs on the server
 #   reclaim    free disk: release images with no release directory, dangling
 #              layers, stale build cache — before the uploads' space gate runs
-#   image      ┐ both images (a matrix: api, web) and the release bundle, built
-#   package    ┘ and shipped in parallel. None of it touches anything that serves
+#   package    the release bundle, built and shipped first
+#   image      both images (a matrix: api, web), built and shipped serially. None of it touches anything that serves
 #                traffic, so a failure here leaves the previous release untouched.
 #   backup     a snapshot BEFORE a migration that cannot be undone
 #   release    migrate, prove a rollback is possible, start, switch traffic
@@ -79,7 +79,7 @@ jobs:
         # touches releases, current, runtime, Docker data/volumes, or PostgreSQL.
         #
         # The free-space gate that used to live here has moved to the upload
-        # itself: three stages now upload in parallel and each one knows the size
+        # itself: each stage knows the size
         # of its own artifact, which is a more precise question than this stage
         # could ask before any of them had been built.
         env:
@@ -176,20 +176,27 @@ jobs:
 
   image:
     name: Build and ship the ${{ matrix.service }} image
-    needs: reclaim
+    needs: [reclaim, package]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: production
     strategy:
       # Each leg cleans up its own staging directory when it fails. Cancelling
       # the other leg because one failed would only interrupt that cleanup.
+      # One disk budget at a time; package finishes before either image.
+      max-parallel: 1
       fail-fast: false
       matrix:
         include:
+          # A `--build-arg NAME` without a value takes NAME's value from the
+          # step's environment below, so nothing here is interpolated into the
+          # command line. The web DSN goes to the web image only.
           - service: api
-            build-args: ''
+            build-args: --build-arg SENTRY_RELEASE
           - service: web
-            build-args: --build-arg VITE_API_URL=/api
+            build-args: >-
+              --build-arg VITE_API_URL=/api --build-arg VITE_SENTRY_DSN
+              --build-arg VITE_SENTRY_RELEASE
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -205,6 +212,18 @@ jobs:
           RELEASE_ID: ${{ github.sha }}
           SERVICE: ${{ matrix.service }}
           BUILD_ARGS: ${{ matrix.build-args }}
+          # Sentry error reports name the commit they came from. Both images
+          # bake it in; nothing else reads these names.
+          SENTRY_RELEASE: ${{ github.sha }}
+          VITE_SENTRY_RELEASE: ${{ github.sha }}
+          # The browser's DSN is public by design — every page that reports
+          # carries it — so it is a production environment VARIABLE, not a
+          # secret. Empty builds a site that loads no Sentry code at all
+          # (apps/web/src/error-monitoring.ts); an unusable one fails this build
+          # by name (apps/web/src/sentry-dsn.ts). Enable "Prevent Storing of IP
+          # Addresses" (Project Settings → Security & Privacy) on both Sentry
+          # projects before setting the DSN; the Privacy Policy relies on it.
+          VITE_SENTRY_DSN: ${{ vars.PRODUCTION_SENTRY_WEB_DSN }}
         run: |
           set -euo pipefail
           # BUILD_ARGS is deliberately unquoted: it is zero or more flags.
@@ -226,8 +245,13 @@ jobs:
           release-id: ${{ github.sha }}
           stage: ${{ matrix.service }}-image
           files: ${{ runner.temp }}/fluxradar-${{ matrix.service }}.tar
+          image-archive: ${{ runner.temp }}/fluxradar-${{ matrix.service }}.tar
           install: |
-            docker load --input "$STAGE_DIR/fluxradar-${{ matrix.service }}.tar"
+            # Docker can return zero after an unpack failure; inspect alone
+            # still finds the imported image. Treat its explicit error as fatal.
+            load_output="$(docker load --input "$STAGE_DIR/fluxradar-${{ matrix.service }}.tar" 2>&1)" || { printf '%s\n' "$load_output"; exit 1; }
+            printf '%s\n' "$load_output"
+            if grep -q 'Error unpacking image' <<< "$load_output"; then exit 1; fi
             # Loading a tar that does not carry the expected tag is silent, and
             # the release script would then fail much later with "image not
             # found". Ask now, while this stage still owns the failure.
@@ -326,6 +350,8 @@ jobs:
           # which nothing in this repository can check: an unverified sender is
           # an HTTP error on the first send, reported to the user as an
           # emailVerification status of "provider-error" (email/resend-config.ts).
+          # Nonsecret emergency switch; empty keeps the base configuration.
+          PRODUCTION_GOOGLE_LOGIN_ENABLED: ${{ vars.PRODUCTION_GOOGLE_LOGIN_ENABLED }}
           PRODUCTION_RESEND_API_KEY: ${{ secrets.PRODUCTION_RESEND_API_KEY }}
           PRODUCTION_RESEND_FROM_EMAIL: ${{ secrets.PRODUCTION_RESEND_FROM_EMAIL }}
           # Owner dashboard (/admin/stats). A secret for the same reason as the
@@ -334,6 +360,15 @@ jobs:
           # PRODUCTION_ENV_FILE cannot be read back, so without this override
           # adding one address would mean retyping every other variable.
           PRODUCTION_ADMIN_EMAILS: ${{ secrets.PRODUCTION_ADMIN_EMAILS }}
+          # Error reports from the API (Sentry, EU region). A secret: the DSN
+          # lets whoever holds it file events into the project. Empty keeps
+          # what PRODUCTION_ENV_FILE defines, and with neither present errors
+          # are only logged; a value that is present but not an https DSN of the
+          # EU region fails the boot by name (observability/sentry-config.ts).
+          # Enable "Prevent Storing of IP Addresses" (Project Settings → Security
+          # & Privacy) on both Sentry projects before setting the DSN; the
+          # Privacy Policy relies on it.
+          PRODUCTION_SENTRY_DSN: ${{ secrets.PRODUCTION_SENTRY_DSN }}
           PRODUCTION_HETZNER_S3_ACCESS_KEY: ${{ secrets.PRODUCTION_HETZNER_S3_ACCESS_KEY }}
           PRODUCTION_HETZNER_S3_SECRET_KEY: ${{ secrets.PRODUCTION_HETZNER_S3_SECRET_KEY }}
           PRODUCTION_HETZNER_S3_ENDPOINT: ${{ secrets.PRODUCTION_HETZNER_S3_ENDPOINT }}
@@ -419,6 +454,7 @@ jobs:
 
           upsert_env FLUXRADAR_INTERNAL_FREE_EMAILS INTERNAL_FREE_EMAILS
           upsert_env FLUXRADAR_ADMIN_EMAILS PRODUCTION_ADMIN_EMAILS
+          upsert_env SENTRY_DSN PRODUCTION_SENTRY_DSN
           upsert_env FLUXRADAR_FREE_CHECK_ALLOWED_ORIGINS PRODUCTION_FREE_CHECK_ALLOWED_ORIGINS
           upsert_env INTEGRATION_ENCRYPTION_KEY PRODUCTION_INTEGRATION_ENCRYPTION_KEY
           upsert_env BING_OAUTH_CLIENT_ID PRODUCTION_BING_OAUTH_CLIENT_ID
@@ -440,6 +476,7 @@ jobs:
           upsert_env PAGESPEED_API_KEY PRODUCTION_PAGESPEED_API_KEY
           upsert_env CRUX_API_KEY PRODUCTION_CRUX_API_KEY
           upsert_env CRAWL_EGRESS_PROXY_URL PRODUCTION_CRAWL_EGRESS_PROXY_URL
+          upsert_env GOOGLE_LOGIN_ENABLED PRODUCTION_GOOGLE_LOGIN_ENABLED
           upsert_env RESEND_API_KEY PRODUCTION_RESEND_API_KEY
           upsert_env RESEND_FROM_EMAIL PRODUCTION_RESEND_FROM_EMAIL
           upsert_env HETZNER_S3_ACCESS_KEY PRODUCTION_HETZNER_S3_ACCESS_KEY

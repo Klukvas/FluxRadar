@@ -10,12 +10,14 @@ import {
   isPublicDocument,
   isTerminalScan,
   isWorkspaceScreen,
+  newScanPath,
   pathForScreen,
   scanRoutePreference,
   type Screen,
 } from './app-routes';
 import type { AppState } from './app-state';
 import { authCopy } from './auth-copy';
+import { consumeGoogleReturn } from './google-auth-return';
 import type { Language } from './i18n';
 
 type ConfirmEmailSignedIn = (token: string, current: Account) => Promise<void>;
@@ -32,6 +34,7 @@ type SessionBoot = Pick<
   | 'setSelectedProfile'
   | 'setSelectedScan'
   | 'setTourOpen'
+  | 'setNewScanPlan'
 > & {
   readonly openScanById: OpenScanById;
   readonly confirmEmailSignedIn: ConfirmEmailSignedIn;
@@ -152,6 +155,65 @@ async function restoreSignedInSession(value: Account, boot: SessionBoot): Promis
       return;
     }
     if (entryRoute.emailAction?.kind === 'reset') return;
+    const googleLanguage = new URLSearchParams(window.location.search).get('lang');
+    const languageSearch =
+      googleLanguage === 'uk' || googleLanguage === 'en' ? `?lang=${googleLanguage}` : '';
+    const googleReturn = consumeGoogleReturn();
+    if (new URLSearchParams(window.location.search).get('google_auth') === 'success') {
+      const pending = googleReturn?.intent;
+      boot.setNewScanPlan(pending?.plan ?? null);
+      if (googleReturn?.route.scanId) {
+        window.history.replaceState(
+          null,
+          '',
+          pathForScreen(googleReturn.route.screen, googleReturn.route.scanId) + languageSearch,
+        );
+        await openScanById(
+          googleReturn.route.scanId,
+          scanRoutePreference(googleReturn.route.screen),
+        );
+        if (googleLanguage === 'uk' || googleLanguage === 'en') {
+          const restoredUrl = new URL(window.location.href);
+          restoredUrl.searchParams.set('lang', googleLanguage);
+          window.history.replaceState(
+            null,
+            '',
+            restoredUrl.pathname + restoredUrl.search + restoredUrl.hash,
+          );
+        }
+      } else if (pending?.site) {
+        setScreen('desktop');
+        window.history.replaceState(
+          null,
+          '',
+          `/profiles?add=${encodeURIComponent(pending.site)}${languageSearch ? `&lang=${googleLanguage}` : ''}`,
+        );
+      } else if (pending?.plan) {
+        setScreen('new-scan');
+        window.history.replaceState(null, '', '/scan' + languageSearch);
+      } else {
+        const target =
+          googleReturn !== null && isWorkspaceScreen(googleReturn.route.screen)
+            ? googleReturn.route.screen
+            : 'desktop';
+        setScreen(target);
+        const requestedProfileId = googleReturn?.route.profileId ?? null;
+        const requestedProfile = profiles.find((profile) => profile.id === requestedProfileId);
+        if (target === 'new-scan' && requestedProfile !== undefined)
+          setSelectedProfile(requestedProfile);
+        const targetUrl = new URL(
+          target === 'new-scan'
+            ? newScanPath(requestedProfile?.id ?? null)
+            : pathForScreen(target, null),
+          window.location.origin,
+        );
+        if (googleLanguage === 'uk' || googleLanguage === 'en')
+          targetUrl.searchParams.set('lang', googleLanguage);
+        window.history.replaceState(null, '', targetUrl.pathname + targetUrl.search);
+        if (value.onboarding?.status === 'pending') setTourOpen(true);
+      }
+      return;
+    }
     if (entryRoute.scanId !== null) {
       await openScanById(entryRoute.scanId, scanRoutePreference(entryRoute.screen));
       return;

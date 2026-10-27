@@ -11,6 +11,6 @@ export function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, BCRYPT_ROUNDS);
 }
 
-export function verifyPassword(password: string, passwordHash: string): Promise<boolean> {
-  return bcrypt.compare(password, passwordHash);
+export function verifyPassword(password: string, passwordHash: string | null): Promise<boolean> {
+  return passwordHash === null ? Promise.resolve(false) : bcrypt.compare(password, passwordHash);
 }

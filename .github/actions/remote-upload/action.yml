@@ -4,9 +4,8 @@ description: >-
   into this release's own staging directory, run the command that installs it,
   and remove the staging directory again — on success or on failure.
 
-# The three artifacts a release is made of — the API image and the web image
-# (the two legs of deploy.yml's `image` matrix) and the source/env bundle (the
-# `package` job) — are uploaded at the same time, and every upload has to answer
+# The release bundle finishes before the serialized API/web image matrix.
+# Every upload still has to answer
 # the same two questions before it writes: is there room, and who cleans up if
 # this fails. All three call this action, so there is one answer and it cannot
 # drift. (The `package` job used to carry its own inline copy, which had.)
@@ -35,6 +34,9 @@ inputs:
   files:
     description: Local paths to upload, one per line.
     required: true
+  image-archive:
+    description: Optional docker-save archive; enables containerd peak-space checks.
+    default: ''
   install:
     description: >-
       Bash run on the server once every file has arrived. It is given APP_DIR,
@@ -54,10 +56,18 @@ runs:
         RELEASE_ID: ${{ inputs.release-id }}
         STAGE: ${{ inputs.stage }}
         UPLOAD_FILES: ${{ inputs.files }}
+        IMAGE_ARCHIVE: ${{ inputs.image-archive }}
         INSTALL_SCRIPT: ${{ inputs.install }}
       run: |
         set -euo pipefail
+        # Cleanup paths are interpolated into a remote shell: restrict them
+        # before installing traps or creating anything on the destination.
+        [[ "$APP_DIR" =~ ^/[a-zA-Z0-9_./-]+$ && "$APP_DIR" != *..* ]] || exit 1
+        [[ "$RELEASE_ID" =~ ^[a-f0-9]{7,64}$ && "$STAGE" =~ ^[a-z0-9-]+$ ]] || exit 1
         STAGE_DIR="$APP_DIR/incoming/$RELEASE_ID/$STAGE"
+        owner_token="$$-$RANDOM"
+        image_need_kb=0
+        image_need_inodes=0
 
         # One path per line, blanks dropped, so the caller can write the list as
         # a YAML block scalar and still get exact filenames (paths here are
@@ -72,9 +82,8 @@ runs:
           exit 1
         fi
 
-        # Measure exactly what is about to be written, rather than guessing with
-        # a constant. `du -ck` reports block usage, which rounds up, so the gate
-        # can only ever be conservative.
+        # Legacy package/extraction gate. Images additionally use their apparent
+        # archive length and per-file destination allocation, below.
         required_kb="$(du -ck "${files[@]}" | tail -n 1 | cut -f1)"
         case "$required_kb" in
           ''|*[!0-9]*)
@@ -82,13 +91,26 @@ runs:
             exit 1
             ;;
         esac
-        # The staged artifact lives on the root filesystem only briefly: it is
-        # extracted or loaded into Docker, which transiently roughly doubles the
-        # footprint. Reserve headroom equal to the artifact (floored at 512 MiB).
+        # Package extraction allowance; this is not the Docker load budget.
         margin_kb="$required_kb"
         floor_kb=524288
         if [ "$margin_kb" -lt "$floor_kb" ]; then margin_kb="$floor_kb"; fi
         need_kb=$(( required_kb + margin_kb ))
+
+        if [ -n "${IMAGE_ARCHIVE:-}" ]; then
+          [ "${#files[@]}" -eq 1 ] && [ "${files[0]}" = "$IMAGE_ARCHIVE" ] || exit 1
+          image_metadata="$(python3 deploy/image-space.py "$IMAGE_ARCHIVE")"
+          [[ "$image_metadata" =~ ^([0-9]{1,10})\ ([0-9]{1,10})\ ([0-9]{1,10})\ ([0-9]{1,10})$ ]] || { echo 'ERROR: invalid image capacity metadata' >&2; exit 1; }
+          archive_kb="${BASH_REMATCH[1]}"
+          content_kb="${BASH_REMATCH[2]}"
+          unpack_kb="${BASH_REMATCH[3]}"
+          inode_count="${BASH_REMATCH[4]}"
+          for value in "$archive_kb" "$content_kb" "$unpack_kb" "$inode_count"; do
+            (( 10#$value > 0 && 10#$value <= 1073741824 )) || exit 1
+          done
+          image_need_kb=$((10#$archive_kb + 10#$content_kb + 10#$unpack_kb + 1048576))
+          image_need_inodes=$((10#$inode_count + 16384))
+        fi
 
         # On ANY failure below, remove ONLY this artifact's staging subdirectory.
         # Releases, current, runtime, Docker data/volumes, PostgreSQL and the
@@ -98,20 +120,30 @@ runs:
         # directory on the next deploy, and until then it holds disk space.
         cleanup_stage() {
           # shellcheck disable=SC2029
-          if ! ssh "$SSH_USER@$SSH_HOST" "rm -rf -- '$STAGE_DIR' && { rmdir --ignore-fail-on-non-empty -- '$APP_DIR/incoming/$RELEASE_ID' 2>/dev/null || true; }"; then
+          if ! ssh "$SSH_USER@$SSH_HOST" "if test -f '$STAGE_DIR/.owner-$owner_token'; then rm -rf -- '$STAGE_DIR' && { rmdir --ignore-fail-on-non-empty -- '$APP_DIR/incoming/$RELEASE_ID' 2>/dev/null || true; }; fi"; then
             echo "::warning title=Staging directory not removed::incoming/$RELEASE_ID/$STAGE could not be removed from the server; the next deploy's preflight sweep reclaims it."
           fi
         }
-        trap 'rc=$?; cleanup_stage; exit "$rc"' ERR
+        on_exit() {
+          rc=$?
+          trap - EXIT
+          cleanup_stage
+          exit "$rc"
+        }
+        trap on_exit EXIT
+        trap 'exit 130' INT
+        trap 'exit 143' TERM
 
         # shellcheck disable=SC2029
-        ssh "$SSH_USER@$SSH_HOST" bash -s -- "$need_kb" "$APP_DIR" "$RELEASE_ID" "$STAGE" <<'REMOTE'
+        ssh "$SSH_USER@$SSH_HOST" bash -s -- "$need_kb" "$APP_DIR" "$RELEASE_ID" "$STAGE" "$owner_token" <<'REMOTE'
         set -eu
         NEED_KB="$1"
         APP_DIR="$2"
         RELEASE_ID="$3"
         STAGE="$4"
-        install -m 700 -d "$APP_DIR/incoming" "$APP_DIR/incoming/$RELEASE_ID" "$APP_DIR/incoming/$RELEASE_ID/$STAGE"
+        install -m 700 -d "$APP_DIR/incoming" "$APP_DIR/incoming/$RELEASE_ID"
+        mkdir -m 700 -- "$APP_DIR/incoming/$RELEASE_ID/$STAGE"
+        touch "$APP_DIR/incoming/$RELEASE_ID/$STAGE/.owner-$5"
         # df prints the mount point in its last column, not the path given to it,
         # so APP_DIR is not written to the log here.
         df -P -h "$APP_DIR" || true
@@ -130,12 +162,25 @@ runs:
         echo "OK: ${avail_kb} KiB free, ${NEED_KB} KiB required for $STAGE; uploading."
         REMOTE
 
+        if [ "$image_need_kb" -gt 0 ]; then
+          # shellcheck disable=SC2029
+          ssh "$SSH_USER@$SSH_HOST" bash -s -- "$image_need_kb" "$image_need_inodes" "$APP_DIR" "$STAGE_DIR" < deploy/check-image-space.sh
+        fi
         for file in "${files[@]}"; do
           scp "$file" "$SSH_USER@$SSH_HOST:$STAGE_DIR/$(basename "$file")"
         done
 
+        if [ "$image_need_kb" -gt 0 ]; then
+          # The staged archive is now included in df's used blocks.
+          load_need_kb=$((image_need_kb - 10#$archive_kb))
+          # shellcheck disable=SC2029
+          ssh "$SSH_USER@$SSH_HOST" bash -s -- "$load_need_kb" "$image_need_inodes" "$APP_DIR" "$STAGE_DIR" < deploy/check-image-space.sh
+        fi
+
         # The install script is written as a bare body; the preamble gives it the
         # three names its contract promises, so no caller has to re-derive them.
+        # The generated remote script expands these variables on the server.
+        # shellcheck disable=SC2016
         {
           printf 'set -eu\n'
           printf 'APP_DIR="$1"\nRELEASE_ID="$2"\nSTAGE="$3"\n'
@@ -146,5 +191,5 @@ runs:
         ssh "$SSH_USER@$SSH_HOST" bash -s -- "$APP_DIR" "$RELEASE_ID" "$STAGE" \
           < "$RUNNER_TEMP/install-$STAGE.sh"
 
-        trap - ERR
-        cleanup_stage
+        # EXIT also cleans on success; a killed runner may leave its owned stage
+        # for the existing preflight sweep, never a sibling upload.

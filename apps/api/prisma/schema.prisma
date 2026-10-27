@@ -15,7 +15,8 @@ datasource db {
 model Account {
   id                    String    @id @default(cuid())
   email                 String    @unique
-  passwordHash          String
+  passwordHash          String?
+  googleSubject         String?   @unique
   emailVerifiedAt       DateTime?
   onboardingCompletedAt DateTime?
   onboardingSkippedAt   DateTime?
@@ -35,6 +36,7 @@ model Account {
   bingBindings       SiteBingBinding[]
   reachabilityProbes SiteReachabilityProbe[]
   oauthStates        IntegrationOAuthState[]
+  reportBranding     ReportBranding?
   artifacts          ExportArtifact[]
   emailTokens        EmailToken[]
   emailNotifications EmailNotification[]
@@ -43,6 +45,19 @@ model Account {
   crawlPages         ScanCrawlPage[]
   crawlResourceSets  ScanCrawlResourceSet[]
   domainVerifications DomainVerification[]
+}
+
+// Short-lived login attempts; no Google access/refresh tokens are retained.
+model GoogleLoginState {
+  stateHash   String   @id
+  bindingHash String
+  nonceHash   String
+  codeVerifier String
+  rememberMe Boolean @default(false)
+  language String?
+  expiresAt DateTime
+
+  @@index([expiresAt])
 }
 
 model EmailToken {
@@ -880,6 +895,27 @@ model IntegrationOAuthState {
 
 // Private report artifact stored in Hetzner Object Storage. The DB row keeps
 // the object address and tenant boundary; the object itself is never public.
+/// One brand per account for client-facing report output (white-label).
+/// Applied at render time to scans whose plan supports `whiteLabel`.
+model ReportBranding {
+  id          String   @id @default(cuid())
+  accountId   String   @unique
+  enabled     Boolean  @default(false)
+  displayName String
+  /// Lowercase #rrggbb, contrast >= 3:1 on white; null = no accent.
+  accentColor String?
+  /// One line of plain text on the cover.
+  contactLine String?
+  /// Sanitised PNG, <= 256 KiB. Prisma 6 reads Bytes as Uint8Array.
+  logoPng     Bytes?
+  logoWidth   Int?
+  logoHeight  Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+}
+
 model ExportArtifact {
   id          String   @id @default(cuid())
   accountId   String

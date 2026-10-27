@@ -156,6 +156,32 @@ describe('public profile suggestions', () => {
     expect(suggestions.targetAudience).toBeUndefined();
   });
 
+  // A `</noscript\n>` in <head> — what Prettier produces from a long line —
+  // used to end the document as far as node-html-parser was concerned, so the
+  // autofill read a homepage as having no title, no JSON-LD and no text at all.
+  // See packages/crawler/src/html-parse.ts.
+  it('reads a homepage whose <head> wraps the closing </noscript> onto its own line', () => {
+    expect(
+      extractProfileSuggestions(`<html lang="en"><head>
+        <noscript
+          ><style>
+            .fallback {
+              display: block;
+            }
+          </style></noscript
+        >
+        <title>Studio</title>
+        <script type="application/ld+json">${JSON.stringify({
+          '@type': 'Organization',
+          areaServed: 'Europe',
+        })}</script></head><body><main><h1>Studio</h1></main></body></html>`),
+    ).toEqual({
+      name: 'Studio',
+      region: 'Europe',
+      targetLanguages: 'en',
+    });
+  });
+
   it('keeps the rest of the proposal when a stated category has malformed encoding', () => {
     expect(
       extractProfileSuggestions(`<html lang="en"><head><title>Studio</title>

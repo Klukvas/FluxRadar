@@ -6,7 +6,12 @@
 export interface ApiLogger {
   info(message: string, context?: Readonly<Record<string, unknown>>): void;
   warn(message: string, context?: Readonly<Record<string, unknown>>): void;
-  error(message: string, context?: Readonly<Record<string, unknown>>): void;
+  /**
+   * `cause` is the error being reported, when the caller holds one. The log
+   * line itself never reads it — `context` already describes the error — but
+   * an error report uses its stack trace (observability/reporting-logger.ts).
+   */
+  error(message: string, context?: Readonly<Record<string, unknown>>, cause?: unknown): void;
 }
 
 const noop = (): void => undefined;

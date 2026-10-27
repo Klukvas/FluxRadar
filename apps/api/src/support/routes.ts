@@ -86,11 +86,15 @@ export function supportRouter(deps: SupportRouterDeps): Router {
         language: input.language ?? null,
       });
     } catch (error) {
-      deps.logger.error('support request delivery failed', {
-        channel: channel.kind,
-        sender: sender.kind,
-        error: error instanceof Error ? error.message : String(error),
-      });
+      deps.logger.error(
+        'support request delivery failed',
+        {
+          channel: channel.kind,
+          sender: sender.kind,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        error,
+      );
       throw new ApiError(
         502,
         'SUPPORT_DELIVERY_FAILED',

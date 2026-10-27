@@ -1,7 +1,7 @@
 // Shared observations are cached once per immutable crawl/snapshot. Never infer
 // a clinic from a keyword in a news article or compare unrelated branch contacts.
-import type { CrawlResult, PageSnapshot } from '@fluxradar/crawler';
-import { parse, type HTMLElement } from 'node-html-parser';
+import { parseHtml, type CrawlResult, type PageSnapshot } from '@fluxradar/crawler';
+import type { HTMLElement } from 'node-html-parser';
 
 import { visibleText } from '../content/visible-text.js';
 import type { SiteContext } from '../engine/types.js';
@@ -254,7 +254,7 @@ export function readable(page: PageSnapshot): boolean {
     mount.text.trim() === '' &&
     root.querySelector('script[src], script[type="module"]') !== null
   ) {
-    const content = parse((root.querySelector('body') ?? root).outerHTML);
+    const content = parseHtml((root.querySelector('body') ?? root).outerHTML);
     content
       .querySelectorAll(
         'nav, header, footer, aside, script, style, noscript, template, [role="navigation"], [role="banner"], [role="contentinfo"], [role="complementary"]',

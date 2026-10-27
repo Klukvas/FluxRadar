@@ -14,14 +14,16 @@
 // report its money was returned for. The Free check is excluded: it is a single
 // homepage check, and the printable page already covers it.
 //
-// Nothing in the rendering path fetches anything. There are no images, no
-// stylesheets and no remote fonts (export/pdf/fonts.ts), so a report cannot be
+// Nothing in the rendering path fetches anything. Images use only in-memory PNG bytes validated
+// at upload; there are no stylesheets or remote fonts (export/pdf/fonts.ts), so a report cannot be
 // made to issue a request on the server's behalf.
 
 import { Router } from 'express';
 import type { PrismaClient } from '@prisma/client';
 import { FINDING_LANGUAGES, type FindingLanguage } from '@fluxradar/rules';
-import type { ScanExportStatus } from '@fluxradar/contracts';
+import { planSupports, type ScanExportStatus } from '@fluxradar/contracts';
+import { loadReportBrand, type ReportBrand } from '../branding/load.ts';
+import { brandedFilename } from './pdf/branding.ts';
 import { z } from 'zod';
 
 import { accountIdFrom, requireAuth } from '../auth/middleware.ts';
@@ -47,6 +49,7 @@ import { renderReportPdf, type ActionPlanLoader } from './pdf/render.ts';
 import { isReportSnapshotReady } from '../scans/report-readiness.ts';
 
 export interface PdfRouterDeps {
+  readonly loadBrand?: (accountId: string) => Promise<ReportBrand | null>;
   readonly prisma: PrismaClient;
   readonly now: () => Date;
   readonly objectStore?: PrivateObjectStore | null;
@@ -161,9 +164,14 @@ export function reportPdfRouter(deps: PdfRouterDeps): Router {
       );
     }
 
+    const brand = planSupports(scan.plan, 'whiteLabel')
+      ? await (deps.loadBrand ?? ((id: string) => loadReportBrand(deps.prisma, id)))(accountId)
+      : null;
+    const filename = attachmentName(scan.domain, scan.id);
     const language: FindingLanguage = parseInput(querySchema, req.query).language;
     const rendered = await renderReportPdf({
       prisma: deps.prisma,
+      brand,
       scan,
       language,
       now: deps.now(),
@@ -174,7 +182,7 @@ export function reportPdfRouter(deps: PdfRouterDeps): Router {
       .type('application/pdf')
       .setHeader(
         'Content-Disposition',
-        `attachment; filename="${attachmentName(scan.domain, scan.id)}"`,
+        `attachment; filename="${brand ? brandedFilename(filename) : filename}"`,
       )
       .setHeader('Content-Length', String(rendered.bytes.byteLength))
       .setHeader('X-Fluxradar-Findings', String(rendered.findingCount))
@@ -189,10 +197,14 @@ export function reportPdfRouter(deps: PdfRouterDeps): Router {
     void archivePdf(deps, logger, accountId, scanId, rendered.bytes)
       .then((outcome) => deps.onArchived?.(outcome))
       .catch((error: unknown) => {
-        logger.error('report pdf archive failed', {
-          scanId,
-          error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
-        });
+        logger.error(
+          'report pdf archive failed',
+          {
+            scanId,
+            error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+          },
+          error,
+        );
       });
   });
 
@@ -232,11 +244,15 @@ async function archivePdf(
     });
     return 'stored';
   } catch (error) {
-    logger.error('report pdf archive failed', {
-      scanId,
-      objectKey,
-      error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
-    });
+    logger.error(
+      'report pdf archive failed',
+      {
+        scanId,
+        objectKey,
+        error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+      },
+      error,
+    );
     return 'failed';
   }
 }

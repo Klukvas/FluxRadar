@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en" data-blog-lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>FluxRadar Field Notes — website audits, SEO, AI crawlers</title>
+    <meta
+      name="description"
+      content="Practical field notes on public website auditing: technical SEO, AI crawler readiness, security signals, accessibility and privacy consent. Published in English and Ukrainian."
+    />
+    <link rel="canonical" href="https://fluxradar.net/blog" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="FluxRadar Field Notes" />
+    <meta property="og:title" content="FluxRadar Field Notes" />
+    <meta
+      property="og:description"
+      content="Practical field notes on public website auditing, technical SEO and AI crawler readiness."
+    />
+    <meta property="og:url" content="https://fluxradar.net/blog" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="FluxRadar Field Notes" />
+    <meta
+      name="twitter:description"
+      content="Practical field notes on public website auditing, technical SEO and AI crawler readiness."
+    />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Blog",
+        "name": "FluxRadar Field Notes",
+        "url": "https://fluxradar.net/blog",
+        "description": "Practical field notes on public website auditing, technical SEO and AI crawler readiness.",
+        "inLanguage": ["en", "uk"],
+        "publisher": { "@type": "Organization", "name": "FluxLab", "url": "https://fluxradar.net" }
+      }
+    </script>
+    <link rel="stylesheet" href="/blog/blog.css" />
+    <link rel="stylesheet" href="/blog/content.css" />
+    <noscript
+      ><style>
+        [data-article-lang] {
+          display: block !important;
+        }
+      </style></noscript
+    >
+  </head>
+  <body data-blog-page="index">
+    <nav class="menubar" aria-label="Site menu">
+      <a class="menubar__apple" href="/">
+        <svg viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+        </svg>
+        FluxRadar
+      </a>
+      <button
+        class="menubar__toggle"
+        type="button"
+        data-menu-toggle
+        data-t-label="nav.openMenu"
+        aria-label="Open menu"
+        aria-expanded="false"
+        aria-controls="menubar-links"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" fill="none" />
+        </svg>
+      </button>
+      <div id="menubar-links" class="menubar__links">
+        <div class="menubar__sheet-head">
+          <span class="menubar__sheet-brand">
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+            </svg>
+            FluxRadar
+          </span>
+          <span class="menubar__sheet-status" data-t="nav.systemStatus"
+            >PUBLIC WEB AUDIT STATION · v0.1</span
+          >
+          <button
+            class="menubar__close"
+            type="button"
+            data-menu-close
+            data-t-label="nav.closeMenu"
+            aria-label="Close menu"
+          >
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.5" fill="none" />
+            </svg>
+          </button>
+        </div>
+        <div class="menubar__nav">
+          <span class="menubar__group-label" data-t="nav.navigate">Navigate</span>
+          <a class="menubar__item" href="/" data-t="nav.home">Home</a>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Your saved sites and their check history."
+            data-t="nav.profiles"
+            data-t-title="nav.profilesHint"
+          >
+            My sites
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Set up and start a new audit."
+            data-t="nav.scan"
+            data-t-title="nav.scanHint"
+          >
+            Scan
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Completed and in-progress audit results."
+            data-t="nav.reports"
+            data-t-title="nav.reportsHint"
+          >
+            Reports
+          </button>
+          <button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Optional data connections. The public-site scan works without them."
+            data-t="nav.integrations"
+            data-t-title="nav.integrationsHint"
+          >
+            Integrations
+          </button>
+          <a class="menubar__item" href="/faq" data-t="nav.faq">FAQ</a>
+          <a class="menubar__item is-active" href="/blog" aria-current="page" data-t="nav.blog"
+            >Blog</a
+          >
+          <span class="menubar__spacer"></span>
+        </div>
+        <div class="menubar__meta">
+          <span class="menubar__group-label" data-t="nav.system">System</span>
+          <div class="menubar__language" data-language>
+            <span id="menubar-language-label" data-t="nav.language">Language</span>
+            <button
+              type="button"
+              role="combobox"
+              class="menubar__language-button"
+              data-language-button
+              aria-haspopup="listbox"
+              aria-expanded="false"
+              aria-controls="menubar-language-listbox"
+              aria-labelledby="menubar-language-label"
+            >
+              <span data-language-current>English</span>
+              <svg class="menubar__language-caret" viewBox="0 0 10 6" aria-hidden="true">
+                <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" />
+              </svg>
+            </button>
+            <ul
+              id="menubar-language-listbox"
+              class="menubar__language-listbox"
+              role="listbox"
+              aria-labelledby="menubar-language-label"
+              hidden
+            >
+              <li
+                class="menubar__language-option is-active"
+                role="option"
+                data-language-option="en"
+                aria-selected="true"
+              >
+                English
+              </li>
+              <li
+                class="menubar__language-option"
+                role="option"
+                data-language-option="uk"
+                aria-selected="false"
+              >
+                Українська
+              </li>
+            </ul>
+          </div>
+          <span class="menubar__system" data-t="nav.systemStatus"
+            >PUBLIC WEB AUDIT STATION · v0.1</span
+          >
+        </div>
+      </div>
+    </nav>
+
+    <div class="blog-page">
+      <main id="blog-main">
+        <nav class="resource-switch" aria-label="Розділи матеріалів">
+          <a href="/blog?lang=uk" aria-current="page">Блог</a
+          ><a href="/knowledge-base">База знань</a>
+        </nav>
+        <header>
+          <div class="kicker" data-t="blog.kicker">PUBLIC WEBSITE OPERATIONS</div>
+          <h1 data-t="blog.title">Field notes for healthier websites.</h1>
+          <p class="lede" data-t="blog.lede">
+            Evidence-led notes on the signals that search engines, AI crawlers and users can observe
+            without private credentials. Available in English and Ukrainian.
+          </p>
+        </header>
+
+        <div class="filter-bar" role="group" aria-labelledby="blog-filter-label">
+          <span class="filter-bar__label" id="blog-filter-label" data-t="blog.filterLabel"
+            >Language:</span
+          >
+          <button type="button" data-language-filter="en" aria-pressed="true">EN — English</button>
+          <button type="button" data-language-filter="uk" aria-pressed="false">
+            UA — Українська
+          </button>
+        </div>
+
+        <section aria-labelledby="en-heading" data-article-lang="en">
+          <h2 id="en-heading" class="kicker" style="margin: 32px 0 0">English articles</h2>
+
+          <article>
+            <div class="article-meta">
+              <span class="kicker-tag">TECHNICAL SEO</span>
+              <span class="lang-badge">EN</span>
+            </div>
+            <h2>
+              <a href="/blog/public-website-audit-checklist">The public website audit checklist</a>
+            </h2>
+            <time datetime="2026-09-04">September 4, 2026</time>
+            <p>
+              A practical sequence for checking crawlability, page signals, canonical URLs and
+              structured data — with coverage data across six audit categories and repeatable
+              evidence for every finding.
+            </p>
+          </article>
+
+          <article>
+            <div class="article-meta">
+              <span class="kicker-tag">AI DISCOVERABILITY</span>
+              <span class="lang-badge">EN</span>
+            </div>
+            <h2>
+              <a href="/blog/ai-crawler-readiness">What AI crawler readiness actually means</a>
+            </h2>
+            <time datetime="2026-09-04">September 4, 2026</time>
+            <p>
+              How to evaluate the public signals that help AI systems understand a site — across
+              five layers from HTML structure to freshness — without claiming to predict any
+              provider's ranking or answer.
+            </p>
+          </article>
+        </section>
+
+        <section aria-labelledby="uk-heading" data-article-lang="uk">
+          <h2 id="uk-heading" class="kicker" style="margin: 32px 0 0">Українські статті</h2>
+          <article>
+            <div class="article-meta">
+              <span class="kicker-tag">ВЛАСНИЙ КЕЙС</span
+              ><span class="lang-badge lang-badge--uk">UA</span>
+            </div>
+            <h2>
+              <a href="/blog/uk/fluxradar-html-bez-javascript"
+                >Як ми відкрили текст FluxRadar для читання без JavaScript</a
+              >
+            </h2>
+            <time datetime="2026-10-20">20 жовтня 2026</time>
+            <p>
+              Власний технічний кейс FluxRadar: порівняння початкового HTML, українських адрес і
+              навігації до та після prerender. Без обіцянок зростання позицій.
+            </p>
+          </article>
+          <article>
+            <div class="article-meta">
+              <span class="kicker-tag">ОНОВЛЕННЯ FLUXRADAR</span
+              ><span class="lang-badge lang-badge--uk">UA</span>
+            </div>
+            <h2>
+              <a href="/blog/uk/novi-perevirky-saitu"
+                >Сім нових перевірок сайту: що тепер бачить FluxRadar</a
+              >
+            </h2>
+            <time datetime="2026-10-20">20 жовтня 2026</time>
+            <p>
+              Нові сигнали для SEO, мобільних екранів, ресурсів, TLS, SPF/DMARC і контенту — з
+              доказами та чіткими межами.
+            </p>
+          </article>
+          <article>
+            <div class="article-meta">
+              <span class="kicker-tag">ОНОВЛЕННЯ FLUXRADAR</span
+              ><span class="lang-badge lang-badge--uk">UA</span>
+            </div>
+            <h2>
+              <a href="/blog/uk/ai-boty-poshuk-i-navchannia"
+                >AI-боти: пошук, запити користувачів і навчання моделей</a
+              >
+            </h2>
+            <time datetime="2026-10-20">20 жовтня 2026</time>
+            <p>
+              12 агентів у звіті, нейтральне блокування навчання та важливі відмінності
+              robots-політик постачальників.
+            </p>
+          </article>
+
+          <article>
+            <div class="article-meta">
+              <span class="kicker-tag">ТЕХНІЧНЕ SEO</span>
+              <span class="lang-badge lang-badge--uk">UA</span>
+            </div>
+            <h2>
+              <a href="/blog/uk/tekhnichne-seo-audyt">Технічний SEO-аудит без доступу до адмінки</a>
+            </h2>
+            <time datetime="2026-09-05">5 вересня 2026</time>
+            <p>
+              Покрокова перевірка публічного сайту: краулінг, robots.txt, канонічні URL,
+              структуровані дані. З воронкою сторінок та відтворюваними доказами для кожної
+              знахідки.
+            </p>
+          </article>
+
+          <article>
+            <div class="article-meta">
+              <span class="kicker-tag">ПРИВАТНІСТЬ</span>
+              <span class="lang-badge lang-badge--uk">UA</span>
+            </div>
+            <h2>
+              <a href="/blog/uk/pryvachnist-ta-cookie"
+                >Приватність та cookie-сигнали: що бачать публічні краулери</a
+              >
+            </h2>
+            <time datetime="2026-09-05">5 вересня 2026</time>
+            <p>
+              Які публічні сигнали конфіденційності перевіряють краулери: cookie-банери,
+              CSP-заголовки, трекери у вихідному HTML та посилання на Cookie Policy. З даними про
+              поширеність сигналів.
+            </p>
+          </article>
+        </section>
+
+        <p class="blog-empty" data-blog-empty hidden data-t="blog.empty">
+          No articles in this language yet. Switch the language filter to see the rest.
+        </p>
+
+        <footer class="site-footer">
+          <span>© 2026 FluxLab</span>
+          <span><a href="/" data-t="blog.footerHome">FluxRadar — public website audits</a></span>
+          <span class="powered-by">
+            <a
+              class="powered-by__link"
+              href="https://flux-lab.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-t-label="blog.poweredByAria"
+              aria-label="Created by FluxLab (opens in a new tab)"
+            >
+              <span class="powered-by__mark" aria-hidden="true">◈</span>
+              <span data-t="blog.poweredBy">Created by FluxLab</span>
+            </a>
+          </span>
+        </footer>
+      </main>
+    </div>
+    <script src="/blog/public-links.js"></script>
+    <script src="/blog/attribution.js"></script>
+    <script src="/blog/blog.js"></script>
+  </body>
+</html>

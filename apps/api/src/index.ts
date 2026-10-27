@@ -10,6 +10,7 @@ import { actionPlanPdfLoader } from './action-plan/pdf-loader.ts';
 import { readAdminEmails } from './admin/admin-emails.ts';
 import { adminStatsRouter } from './admin/routes.ts';
 import { LoginRateLimiter, RequestRateLimiter } from './auth/rate-limit.ts';
+import { brandingRouter } from './branding/routes.ts';
 import { accountRouter } from './auth/account-routes.ts';
 import { authRouter } from './auth/routes.ts';
 import {
@@ -38,6 +39,12 @@ import { stdoutLogger } from './http/logger.ts';
 import { resolveTrustProxy } from './http/trust-proxy.ts';
 import type { ApiLogger } from './http/logger.ts';
 import { requestLogger } from './http/request-logger.ts';
+import {
+  SHUTDOWN_FLUSH_TIMEOUT_MS,
+  startErrorReporting,
+  type ErrorReporter,
+} from './observability/error-reporting.ts';
+import { withErrorReporting } from './observability/reporting-logger.ts';
 import { issuesRouter } from './issues/routes.ts';
 import { bingIntegrationRouter } from './integrations/bing/routes.ts';
 import { createBingDataRunner } from './integrations/bing/runner.ts';
@@ -222,10 +229,14 @@ export function createApp(options: CreateAppOptions): Express {
     scheduled.add(scanId);
     void processScan(workerDeps, scanId)
       .catch((error: unknown) => {
-        logger.error('background scan failed', {
-          scanId,
-          error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
-        });
+        logger.error(
+          'background scan failed',
+          {
+            scanId,
+            error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+          },
+          error,
+        );
       })
       .finally(() => scheduled.delete(scanId));
   };
@@ -279,6 +290,7 @@ export function createApp(options: CreateAppOptions): Express {
     }),
   );
   app.use(accountRouter({ prisma: options.prisma, now, requestRateLimiter }));
+  app.use(brandingRouter({ prisma: options.prisma, now, requestRateLimiter, logger }));
   app.use(
     supportRouter({
       prisma: options.prisma,
@@ -420,11 +432,20 @@ export function createApp(options: CreateAppOptions): Express {
   return app;
 }
 
-/** Starts the local HTTP server and drains jobs left in the database. */
-export async function startServer(port = Number(process.env.PORT ?? 3000)): Promise<StartedApi> {
+/**
+ * Starts the local HTTP server and drains jobs left in the database.
+ *
+ * With an `errorReporter`, every `logger.error` of the running server is also
+ * an error report (observability/reporting-logger.ts); without one — and in
+ * every test, which builds through `createApp` — it only logs.
+ */
+export async function startServer(
+  port = Number(process.env.PORT ?? 3000),
+  errorReporter: ErrorReporter | null = null,
+): Promise<StartedApi> {
   validateRuntimeConfig();
   const prisma = createPrismaClient();
-  const logger = stdoutLogger;
+  const logger = withErrorReporting(stdoutLogger, errorReporter);
   const mailer = createMailer();
   // One store for the whole process: the export route, account deletion and the
   // retention sweep all address the same bucket.
@@ -461,9 +482,13 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
     try {
       await processPendingJobs(workerDeps);
     } catch (error: unknown) {
-      logger.error('queue drain failed', {
-        error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
-      });
+      logger.error(
+        'queue drain failed',
+        {
+          error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+        },
+        error,
+      );
     } finally {
       queueDrainRunning = false;
     }
@@ -514,9 +539,13 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
         adapters: [],
       });
     } catch (error: unknown) {
-      logger.error('refund dispatch sweep failed', {
-        error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
-      });
+      logger.error(
+        'refund dispatch sweep failed',
+        {
+          error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+        },
+        error,
+      );
     } finally {
       refundDispatchRunning = false;
     }
@@ -540,9 +569,13 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
   };
   const egressHealthTimer = setInterval(() => {
     void checkEgress().catch((error: unknown) => {
-      logger.error('crawl egress health check failed', {
-        error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
-      });
+      logger.error(
+        'crawl egress health check failed',
+        {
+          error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+        },
+        error,
+      );
     });
   }, EGRESS_HEALTH_INTERVAL_MS);
   egressHealthTimer.unref();
@@ -554,9 +587,13 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
         return drainQueue();
       })
       .catch((error: unknown) => {
-        logger.error('queue recovery failed', {
-          error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
-        });
+        logger.error(
+          'queue recovery failed',
+          {
+            error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+          },
+          error,
+        );
       });
   }, QUEUE_RECOVERY_INTERVAL_MS);
   queueRecoveryTimer.unref();
@@ -577,6 +614,8 @@ export async function startServer(port = Number(process.env.PORT ?? 3000)): Prom
       // and its attempt released, rather than left holding the scan's slot.
       await actionPlanRuns.stop();
       await prisma.$disconnect();
+      // Last, so whatever the shutdown itself reported leaves before the process does.
+      await errorReporter?.flush(SHUTDOWN_FLUSH_TIMEOUT_MS);
     },
   };
 }
@@ -654,11 +693,21 @@ function corsMiddleware(origin: string) {
 }
 
 if (resolve(fileURLToPath(import.meta.url)) === resolve(process.argv[1] ?? '')) {
-  void startServer().catch((error: unknown) => {
-    stdoutLogger.error('API failed to start', {
-      error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
-    });
+  // Before anything else runs, so a boot that fails is reported too. Null with
+  // no SENTRY_DSN, and always under a test runner (observability/error-reporting.ts).
+  const errorReporter = startErrorReporting();
+  void startServer(undefined, errorReporter).catch(async (error: unknown) => {
+    withErrorReporting(stdoutLogger, errorReporter).error(
+      'API failed to start',
+      {
+        error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+      },
+      error,
+    );
     process.exitCode = 1;
+    // The process ends once nothing is left to do; the report must not be the
+    // thing that is cut short.
+    await errorReporter?.flush(SHUTDOWN_FLUSH_TIMEOUT_MS);
   });
 }
 

@@ -226,14 +226,14 @@ export const copy = {
     },
     seo: {
       home: {
-        title: 'FluxRadar — public website audit for SEO, AI crawlers, security and accessibility',
+        title: 'FluxRadar | Website audit: SEO, AI, security and accessibility',
         description:
-          'FluxRadar audits any public website and reports what search engines, AI crawlers and users can observe: SEO, AI readiness, security headers, accessibility, performance and privacy signals. Two one-time reports, no subscription.',
+          'FluxRadar audits the SEO, AI readiness, security, accessibility and performance of any public website. Two one-time reports, no subscription.',
       },
       faq: {
         title: 'FAQ — what every FluxRadar check means | FluxRadar',
         description:
-          'Plain answers about every FluxRadar check: SEO, AI crawler readiness, security, accessibility, structured data, privacy, performance — and the limits of what a public audit can prove.',
+          'Plain answers about every FluxRadar check: SEO, AI crawlers, security, accessibility, performance, privacy and the limits of a public audit.',
       },
       checks: {
         title: 'Audit coverage — every check FluxRadar runs | FluxRadar',
@@ -263,7 +263,7 @@ export const copy = {
       exampleReport: {
         title: 'Example report — what you get, on a made-up salon site | FluxRadar',
         description:
-          'A complete FluxRadar report for a made-up site, written for a business owner: the score, how much of the site was read, what to fix first, and six findings with what is wrong, why it matters and what to do. Nothing on it is a real site.',
+          'A complete FluxRadar report on a made-up salon site: the score, how much of the site was read, what to fix first and six findings in plain words.',
       },
       workspaceTitle: 'Workspace — FluxRadar',
     },
@@ -2323,19 +2323,19 @@ export const copy = {
     },
     seo: {
       home: {
-        title: 'FluxRadar — аудит публічного сайту: SEO, AI-краулери, безпека та доступність',
+        title: 'FluxRadar | Аудит сайту: SEO, AI, безпека та доступність',
         description:
-          'FluxRadar перевіряє будь-який публічний сайт і показує те, що бачать пошукові системи, AI-краулери та люди: SEO, готовність до AI, заголовки безпеки, доступність, продуктивність і сигнали приватності. Два разові звіти, без підписки.',
+          'FluxRadar перевіряє SEO, готовність до AI, безпеку, доступність і продуктивність будь-якого публічного сайту. Два разові звіти, без підписки.',
       },
       faq: {
         title: 'Часті питання — що означає кожна перевірка FluxRadar | FluxRadar',
         description:
-          'Прості відповіді про кожну перевірку FluxRadar: SEO, готовність до AI-краулерів, безпека, доступність, структуровані дані, приватність, продуктивність — і межі того, що може довести публічний аудит.',
+          'Прості відповіді про кожну перевірку FluxRadar: SEO, AI-краулери, безпека, доступність, продуктивність, приватність і межі публічного аудиту.',
       },
       checks: {
         title: 'Обсяг аудиту — усі перевірки FluxRadar | FluxRadar',
         description:
-          'Повний перелік того, що FluxRadar перевіряє на публічному сайті, які стандарти використовує кожен модуль, як підтверджуються знахідки та чого FluxRadar не сертифікує.',
+          'Повний перелік того, що FluxRadar перевіряє на публічному сайті: стандарти кожного модуля, докази знахідок і те, чого FluxRadar не сертифікує.',
       },
       privacy: {
         title: 'Політика приватності | FluxRadar',
@@ -2353,9 +2353,9 @@ export const copy = {
           'Які cookies і browser storage використовує FluxRadar, навіщо вони потрібні, скільки зберігаються та як ними керувати.',
       },
       exampleReport: {
-        title: 'Приклад звіту — що ви отримаєте, на вигаданому сайті салону | FluxRadar',
+        title: 'Приклад звіту: що ви отримаєте від аудиту | FluxRadar',
         description:
-          'Повний звіт FluxRadar для вигаданого сайту, написаний для власника бізнесу: бал, яку частину сайту прочитано, що виправляти першим і шість знахідок із тим, що не так, чому це важливо й що робити. Жодного реального сайту тут немає.',
+          'Повний звіт FluxRadar для вигаданого сайту салону: бал, яку частину сайту прочитано, що виправляти першим і шість знахідок простими словами.',
       },
       bot: {
         title: 'FluxRadarBot — краулер FluxRadar | FluxRadar',

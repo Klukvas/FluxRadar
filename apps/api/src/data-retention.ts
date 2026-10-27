@@ -371,9 +371,13 @@ export async function sweepRetention(
     const result = await runRetentionSweep(prisma, now, objectStore);
     logger.info('retention sweep completed', { ...result });
   } catch (error) {
-    logger.error('retention sweep failed', {
-      error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
-    });
+    logger.error(
+      'retention sweep failed',
+      {
+        error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+      },
+      error,
+    );
   }
 }
 
@@ -595,6 +599,7 @@ export async function deleteAccountData(
       await tx.webhookEvent.deleteMany({
         where: { OR: [{ accountId }, ...purchaseDeliveryFilters(purchases)] },
       });
+      await tx.reportBranding.deleteMany({ where: { accountId } });
       await tx.account.deleteMany({ where: { id: accountId } });
       return true;
     },

@@ -78,6 +78,15 @@ case "$1" in
       *"force-recreate caddy"*)
         if [ "$FAIL_CADDY_UP" = "1" ]; then echo 'compose refused to start caddy' >&2; exit 1; fi ;;
     esac ;;
+  run)
+    case "$*" in *"--name fluxradar-api-"*)
+      last=''; flag=''
+      for argument in "$@"; do
+        if [ "$last" = '--env-file' ]; then flag="$(sed -n 's/^GOOGLE_LOGIN_ENABLED=//p' "$argument")"; fi
+        last="$argument"
+      done
+      printf 'API_FLAG=%s\n' "$flag" >> "$DOCKER_LOG" ;;
+    esac ;;
   image)
     if [ "$MISSING_IMAGES" = "1" ]; then exit 1; fi ;;
   container)
@@ -97,6 +106,7 @@ case "$1" in
     esac ;;
   inspect)
     case "$*" in
+      *"{{.Image}}"*) case "$*" in *fluxradar-web-*) printf 'sha256:%064d\n' 2 ;; *) printf 'sha256:%064d\n' 1 ;; esac ;;
       *"State.Running"*)
         if [ "$STOPPED_CONTAINERS" = "1" ]; then printf 'false\n'; else printf 'true\n'; fi ;;
       *NetworkSettings.Networks*) printf 'fluxradar_default\n' ;;
@@ -190,6 +200,7 @@ interface Options {
   /** Appended to the failed-release argument, to spell the same path differently. */
   readonly failedArgSuffix?: string;
   readonly env?: Readonly<Record<string, string>>;
+  readonly googleSwitch?: boolean;
 }
 
 /**
@@ -202,6 +213,10 @@ function runRollback(options: Options = {}): Rollback {
 
   const targetDir = makeRelease(appDir, TARGET_ID, CADDYFILE_TEMPLATE);
   const failedDir = makeRelease(appDir, FAILED_ID, options.failedCaddyfile ?? CADDYFILE_TEMPLATE);
+  if (options.googleSwitch) {
+    writeFileSync(join(targetDir, '.env.production'), 'GOOGLE_LOGIN_ENABLED=true\n');
+    writeFileSync(join(failedDir, '.env.production'), 'GOOGLE_LOGIN_ENABLED=false\n');
+  }
   const live = options.alreadyRolledBack
     ? { dir: targetDir, id: TARGET_ID, api: TARGET_API_UPSTREAM, web: TARGET_WEB_UPSTREAM }
     : { dir: failedDir, id: FAILED_ID, api: FAILED_API_UPSTREAM, web: FAILED_WEB_UPSTREAM };
@@ -254,6 +269,12 @@ function runRollback(options: Options = {}): Rollback {
         `FLUXRADAR_ROLLBACK_WEB_UPSTREAM=${options.recordUpstreams === false ? '' : RECORDED_WEB_UPSTREAM}`,
         `FLUXRADAR_ROLLBACK_API_CONTAINER=fluxradar-api-${TARGET_ID}`,
         `FLUXRADAR_ROLLBACK_WEB_CONTAINER=fluxradar-web-${TARGET_ID}`,
+        ...(options.googleSwitch
+          ? [
+              `FLUXRADAR_ROLLBACK_API_IMAGE=sha256:${'1'.padStart(64, '0')}`,
+              `FLUXRADAR_ROLLBACK_WEB_IMAGE=sha256:${'2'.padStart(64, '0')}`,
+            ]
+          : []),
         '',
       ].join('\n'),
     );
@@ -373,12 +394,31 @@ function expectNothingTouched(rollback: Rollback): void {
   expect(rollback.currentReleaseId()).toBe(FAILED_ID);
 }
 
+describe('Google rollback emergency switch', () => {
+  it.each<Readonly<Record<string, string>>>([{}, { STOPPED_CONTAINERS: '1' }, { MISSING_CONTAINERS: '1' }])(
+    'recreates running, stopped or removed target with the verified false switch',
+    (env) => {
+      const rollback = runRollback({ googleSwitch: true, env });
+      expectRestored(rollback, TARGET_API_UPSTREAM, TARGET_WEB_UPSTREAM);
+      const calls = rollback.dockerCalls();
+      expect(calls.filter((call) => call === 'API_FLAG=false')).toHaveLength(1);
+      expect(calls).not.toContain('API_FLAG=true');
+      expect(calls.some((call) => call.startsWith('start fluxradar-api-'))).toBe(false);
+      expect(
+        calls.some(
+          (call) => call.startsWith('run -d') && call.endsWith(`sha256:${'1'.padStart(64, '0')}`),
+        ),
+      ).toBe(true);
+    },
+  );
+});
+
 describe('DEPLOY-011 rollback-release.sh', () => {
   it('uses stable Docker names and aliases for an image-backed rollback', () => {
     const script = readFileSync(SCRIPT_PATH, 'utf8');
     expect(script).toContain('--network-alias "$name"');
-    expect(script).toContain('api_upstream="fluxradar-api-$TARGET_ID:3310"');
-    expect(script).toContain('web_upstream="fluxradar-web-$TARGET_ID:80"');
+    expect(script).toContain('api_upstream="$state_api_container:3310"');
+    expect(script).toContain('web_upstream="$state_web_container:80"');
     expect(script).not.toContain('container_ip()');
   });
 
@@ -409,12 +449,10 @@ describe('DEPLOY-011 rollback-release.sh', () => {
     expect(rollback.runtimeCaddyfile()).not.toContain(RECORDED_API_UPSTREAM);
   });
 
-  it('starts the previous release again when its containers are merely stopped', () => {
+  it('recreates a stopped API with verified environment and starts the existing web', () => {
     const rollback = runRollback({ env: { STOPPED_CONTAINERS: '1' } });
     expectRestored(rollback, TARGET_API_UPSTREAM, TARGET_WEB_UPSTREAM);
-    expect(rollback.dockerCalls().some((call) => call === `start fluxradar-api-${TARGET_ID}`)).toBe(
-      true,
-    );
+    expect(rollback.dockerCalls().some((call) => call.startsWith('run -d') && call.includes(`--name fluxradar-api-${TARGET_ID}`))).toBe(true);
   });
 
   // THE REGRESSION. The previous implementation checked for exactly this file

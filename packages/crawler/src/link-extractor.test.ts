@@ -35,6 +35,31 @@ describe('extractLinks: Cloudflare email obfuscation', () => {
   });
 });
 
+// A `</noscript\n>` in <head> used to end the document as far as the parser was
+// concerned, so a crawl discovered none of the page's links — the whole site
+// behind a line Prettier wrapped. See packages/crawler/src/html-parse.ts.
+describe('extractLinks: raw text end tags', () => {
+  it('extracts a link that stands after a line-wrapped </noscript>', () => {
+    const links = extractLinks(
+      '<head><noscript><style>a{}</style></noscript\n    ></head>' +
+        '<body><a href="/articles">articles</a></body>',
+      ORIGIN,
+    );
+
+    expect(links).toEqual([`${ORIGIN}/articles`]);
+  });
+
+  it('does not extract a link written inside a script', () => {
+    const links = extractLinks(
+      '<body><script>var a = \'<a href="/fake">x</a>\';</script\n>' +
+        '<a href="/real">real</a></body>',
+      ORIGIN,
+    );
+
+    expect(links).toEqual([`${ORIGIN}/real`]);
+  });
+});
+
 describe('isCloudflareEmailObfuscationUrl', () => {
   it('accepts the exact endpoint with a nonempty even-length hexadecimal fragment', () => {
     expect(

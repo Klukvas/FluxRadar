@@ -30,6 +30,7 @@ import type { FindingLanguage } from '@fluxradar/rules';
 import type { IncomparableCode } from '../../integrations/performance/index.ts';
 
 export interface ReportCopy {
+  readonly aiGenerated: string;
   readonly documentTitle: (domain: string) => string;
   readonly preparedFor: (domain: string) => string;
   readonly generated: (timestamp: string) => string;
@@ -144,6 +145,7 @@ export interface ReportCopy {
 }
 
 const EN: ReportCopy = {
+  aiGenerated: 'AI-generated',
   documentTitle: (domain) => `FluxRadar report — ${domain}`,
   preparedFor: (domain) => `Website report for ${domain}`,
   generated: (timestamp) => `Generated ${timestamp}`,
@@ -245,6 +247,7 @@ const EN: ReportCopy = {
 };
 
 const UK: ReportCopy = {
+  aiGenerated: 'Згенеровано AI',
   documentTitle: (domain) => `Звіт FluxRadar — ${domain}`,
   preparedFor: (domain) => `Звіт про сайт ${domain}`,
   generated: (timestamp) => `Сформовано ${timestamp}`,

@@ -458,3 +458,204 @@ describe('crawl: кооперативная отмена (мок-fetcher)', () =
     expect(result.pages).toEqual([]);
   });
 });
+
+describe('crawl: urlVariants и ссылки-якоря (мок-fetcher)', () => {
+  const MOCK_ORIGIN = 'http://anchors-host.test';
+
+  function htmlResponse(url: string, body: string, status = 200): SafeFetchResult {
+    return {
+      finalUrl: url,
+      status,
+      headers: { 'content-type': 'text/html; charset=utf-8' },
+      body,
+      redirectChain: [],
+      timingMs: 1,
+      truncated: false,
+    };
+  }
+
+  /** Главная со заданным списком ссылок; robots.txt и sitemap.xml отсутствуют. */
+  function linkingFetcher(links: readonly string[]): CrawlFetcher {
+    return (url) => {
+      const pathname = new URL(url).pathname;
+      if (pathname === '/robots.txt' || pathname === '/sitemap.xml') {
+        return Promise.resolve(htmlResponse(url, '', 404));
+      }
+      if (pathname !== '/') {
+        return Promise.resolve(htmlResponse(url, '<html><body>page</body></html>'));
+      }
+      const anchors = links.map((href) => `<a href="${href}">x</a>`).join('');
+      return Promise.resolve(htmlResponse(url, `<html><body>${anchors}</body></html>`));
+    };
+  }
+
+  function anchorScope(overrides: Partial<CrawlScope> = {}): CrawlScope {
+    return { origin: MOCK_ORIGIN, includeSubdomains: false, maxPages: 20, ...overrides };
+  }
+
+  const emptyCoverage = {
+    skippedOverLimit: [],
+    blockedByRobots: [],
+    errors: [],
+    rejectedSeeds: [],
+    urlVariants: {},
+  } as const;
+
+  it('ссылки-якоря на одну страницу не дают группы дублей URL', async () => {
+    // Боевой скан fluxradar.net сообщал о 13 «вариантах» /faq ровно из-за его
+    // table of contents: fragment на сервер не уходит, поэтому /page, /page#a,
+    // /page#b и /page# — один адрес, а не четыре raw-формы одного адреса.
+    const result = await crawl(
+      anchorScope(),
+      fastOptions({
+        fetcher: linkingFetcher(['/page', '/page#a', '/page#b', '/page#']),
+        probeMedia: false,
+      }),
+    );
+
+    expect(result.pages.map((page) => page.normalizedUrl)).toContain(`${MOCK_ORIGIN}/page`);
+    expect(result.urlVariants[`${MOCK_ORIGIN}/page`]).toBeUndefined();
+  });
+
+  it('настоящий вариант с query остаётся группой, и fragment-форм в ней нет', async () => {
+    // queryPolicy 'ignore' склеивает /page и /page?lang=uk в один normalizedUrl:
+    // это дубль, о котором SEO-TECH-007 обязан сказать и после починки якорей.
+    const result = await crawl(
+      anchorScope({ queryPolicy: 'ignore' }),
+      fastOptions({
+        fetcher: linkingFetcher(['/page', '/page#a', '/page#b', '/page#', '/page?lang=uk']),
+        probeMedia: false,
+      }),
+    );
+
+    expect(result.urlVariants[`${MOCK_ORIGIN}/page`]).toEqual([
+      `${MOCK_ORIGIN}/page`,
+      `${MOCK_ORIGIN}/page?lang=uk`,
+    ]);
+  });
+
+  describe('страница, найденная по ссылке-якорю, запрашивается без fragment-а', () => {
+    /** linkingFetcher + журнал запрошенных URL: проверяем, что именно ушло в транспорт. */
+    function recordingFetcher(links: readonly string[], requested: string[]): CrawlFetcher {
+      const inner = linkingFetcher(links);
+      return (url, init) => {
+        requested.push(url);
+        return inner(url, init);
+      };
+    }
+
+    it('единственная ссылка на страницу — якорь: в фетчер и в requestedUrl идёт чистый URL', async () => {
+      // Дедуп идёт по normalizedUrl, поэтому #-форма, найденная ПЕРВОЙ, раньше
+      // становилась rawUrl записи очереди — и requestedUrl снимка.
+      const requested: string[] = [];
+      const result = await crawl(
+        anchorScope(),
+        fastOptions({ fetcher: recordingFetcher(['/page#toc'], requested), probeMedia: false }),
+      );
+
+      expect(requested).toContain(`${MOCK_ORIGIN}/page`);
+      expect(requested.filter((url) => url.includes('#'))).toEqual([]);
+      const page = result.pages.find((entry) => entry.normalizedUrl === `${MOCK_ORIGIN}/page`);
+      expect(page?.requestedUrl).toBe(`${MOCK_ORIGIN}/page`);
+    });
+
+    it('упавший запрос такой страницы даёт снимок без fragment-а в requestedUrl и finalUrl', async () => {
+      // finalUrl у ошибки — это entry.rawUrl: правила (REL-URL-001, SEO-TECH-005)
+      // печатают эти поля владельцу, и `#toc` в них выглядел бы как адрес,
+      // который обход действительно просил у сайта.
+      const result = await crawl(
+        anchorScope(),
+        fastOptions({
+          probeMedia: false,
+          fetcher: (url, init) => {
+            if (new URL(url).pathname === '/page') {
+              return Promise.reject(new Error('safe-fetch: connection reset'));
+            }
+            return linkingFetcher(['/page#toc'])(url, init);
+          },
+        }),
+      );
+
+      const failed = result.pages.find((entry) => entry.fetchError !== undefined);
+      expect(failed?.requestedUrl).toBe(`${MOCK_ORIGIN}/page`);
+      expect(failed?.finalUrl).toBe(`${MOCK_ORIGIN}/page`);
+    });
+
+    it('frontier приостановленного обхода отдаёт такую запись без fragment-а', async () => {
+      // pendingQueue уходит в checkpoint паузы и возвращается оттуда seed-ом:
+      // #-форма закрепилась бы в скане на всё время его жизни.
+      let stop = false;
+      const result = await crawl(
+        anchorScope(),
+        fastOptions({
+          probeMedia: false,
+          shouldStop: () => stop,
+          fetcher: (url, init) => {
+            // Стоп только после главной: очередь к этому моменту уже держит якорь.
+            if (new URL(url).pathname === '/') stop = true;
+            return linkingFetcher(['/page#toc'])(url, init);
+          },
+        }),
+      );
+
+      expect(result.stoppedEarly).toBe(true);
+      expect(result.pendingQueue.map((entry) => entry.url)).toEqual([`${MOCK_ORIGIN}/page`]);
+    });
+
+    it('frontier прошлой попытки с #-формой запрашивается чистым', async () => {
+      // Чекпоинты, записанные до починки, уже несут `#`-формы: resume обязан
+      // просить у сайта тот же адрес, что попросил бы непрерывный обход.
+      const requested: string[] = [];
+      const result = await crawl(
+        anchorScope(),
+        fastOptions({
+          fetcher: recordingFetcher([], requested),
+          probeMedia: false,
+          resumeSeeds: [{ url: `${MOCK_ORIGIN}/faq#q1`, depth: 1 }],
+        }),
+      );
+
+      expect(requested).toContain(`${MOCK_ORIGIN}/faq`);
+      expect(requested.filter((url) => url.includes('#'))).toEqual([]);
+      const page = result.pages.find((entry) => entry.normalizedUrl === `${MOCK_ORIGIN}/faq`);
+      expect(page?.requestedUrl).toBe(`${MOCK_ORIGIN}/faq`);
+    });
+  });
+
+  it('варианты восстановленной попытки тоже теряют fragment, осиротевшая группа исчезает', async () => {
+    // Покрытие прошлой попытки записано прежним кодом и уже несёт #-формы.
+    // Пересобранный список обязан совпасть с тем, что дал бы свежий обход, —
+    // иначе пауза сохраняла бы находку, которой у непрерывного скана нет.
+    const result = await crawl(
+      anchorScope({ queryPolicy: 'ignore' }),
+      fastOptions({
+        fetcher: linkingFetcher([]),
+        probeMedia: false,
+        restored: {
+          pages: [],
+          coverage: {
+            ...emptyCoverage,
+            urlVariants: {
+              [`${MOCK_ORIGIN}/faq`]: [
+                `${MOCK_ORIGIN}/faq`,
+                `${MOCK_ORIGIN}/faq#q1`,
+                `${MOCK_ORIGIN}/faq#q2`,
+              ],
+              [`${MOCK_ORIGIN}/blog`]: [
+                `${MOCK_ORIGIN}/blog`,
+                `${MOCK_ORIGIN}/blog#top`,
+                `${MOCK_ORIGIN}/blog?lang=uk`,
+              ],
+            },
+          },
+        },
+      }),
+    );
+
+    expect(result.urlVariants[`${MOCK_ORIGIN}/faq`]).toBeUndefined();
+    expect(result.urlVariants[`${MOCK_ORIGIN}/blog`]).toEqual([
+      `${MOCK_ORIGIN}/blog`,
+      `${MOCK_ORIGIN}/blog?lang=uk`,
+    ]);
+  });
+});

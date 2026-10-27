@@ -80,12 +80,17 @@ export const PLAN_URL_LIMIT: Readonly<Record<Plan, number>> = {
 export const PLAN_CAPABILITIES: Readonly<
   Record<
     Plan,
-    { readonly export: boolean; readonly actionPlan: boolean; readonly issueHistory: boolean }
+    {
+      readonly export: boolean;
+      readonly actionPlan: boolean;
+      readonly issueHistory: boolean;
+      readonly whiteLabel: boolean;
+    }
   >
 > = {
-  Free: { export: false, actionPlan: false, issueHistory: false },
-  Basic: { export: false, actionPlan: true, issueHistory: false },
-  Complete: { export: true, actionPlan: true, issueHistory: true },
+  Free: { export: false, actionPlan: false, issueHistory: false, whiteLabel: false },
+  Basic: { export: false, actionPlan: true, issueHistory: false, whiteLabel: false },
+  Complete: { export: true, actionPlan: true, issueHistory: true, whiteLabel: true },
 };
 
 /**
@@ -176,4 +181,8 @@ export function modulesBeyondPlan(plan: Plan | LegacyPlan): readonly LockedModul
     locked.push({ module, plan: seller });
   }
   return locked;
+}
+
+export function planIncludesWhiteLabel(plan: Plan | LegacyPlan): boolean {
+  return PLAN_CAPABILITIES[plan as Plan]?.whiteLabel ?? false;
 }

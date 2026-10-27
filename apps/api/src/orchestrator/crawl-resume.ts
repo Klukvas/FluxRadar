@@ -102,10 +102,14 @@ export async function persistCrawlEvidence(
       egressRecorded: false,
     };
   } catch (error) {
-    deps.logger.error('scan evidence could not be stored; a resume will re-crawl', {
-      scanId,
-      error: messageOf(error),
-    });
+    deps.logger.error(
+      'scan evidence could not be stored; a resume will re-crawl',
+      {
+        scanId,
+        error: messageOf(error),
+      },
+      error,
+    );
     // Nothing was kept, and the index says so: a resume re-crawls the site,
     // which is cheap and correct, instead of trusting pages that are not there.
     return { ...EMPTY_CRAWL_CHECKPOINT, truncated: true };

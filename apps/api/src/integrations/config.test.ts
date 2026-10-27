@@ -186,6 +186,28 @@ describe('production fail-closed integration checks', () => {
     expect(message).not.toContain('super-secret-value');
   });
 
+  // The DSN is a credential of sorts — it lets its holder file events — so the
+  // refusal names the variable and never repeats it.
+  it('refuses to boot on a Sentry DSN that is present but unusable', () => {
+    const dsn = 'http://0123456789abcdef0123456789abcdef@o1.ingest.de.sentry.io/42';
+    const message = messageFrom({ ...completeProductionEnv, SENTRY_DSN: dsn });
+
+    expect(message).toContain('SENTRY_DSN');
+    expect(message).toContain('https://');
+    expect(message).not.toContain('0123456789abcdef0123456789abcdef');
+  });
+
+  it('boots with a valid Sentry DSN, and with none at all', () => {
+    expect(
+      messageFrom({
+        ...completeProductionEnv,
+        SENTRY_DSN: 'https://0123456789abcdef0123456789abcdef@o1.ingest.de.sentry.io/42',
+        SENTRY_RELEASE: '655a4aa8f00dfeed',
+      }),
+    ).toBe('');
+    expect(messageFrom({ ...completeProductionEnv, SENTRY_RELEASE: '655a4aa8f00dfeed' })).toBe('');
+  });
+
   it('aggregates every misconfigured integration into one error', () => {
     const message = messageFrom({
       ...completeProductionEnv,

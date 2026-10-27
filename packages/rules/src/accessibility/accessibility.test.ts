@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import type { IssueCandidate } from '../engine/run-module.js';
 import type { SiteContext } from '../engine/types.js';
 import { renderFindingMessage } from '../messages/index.js';
+import { parsePage } from '../seo/dom.js';
 import { htmlContext, loadFixtureContext, runRule } from '../testing/fixture-harness.js';
 
 function single(candidates: readonly IssueCandidate[]): IssueCandidate {
@@ -168,6 +169,66 @@ describe('WCAG 2.2 AA static checks', () => {
     expect(finding.evidenceExcerpt).toContain('aria-labelledby=missing');
   });
 
+  // The role whitelist used to hold 57 of the 82 non-abstract roles of
+  // WAI-ARIA 1.2, so correct markup became a finding: a production scan of
+  // fluxradar.net reported `<button role="combobox">` as an unknown role on 18
+  // pages. These are the roles that were missing, one per spec category.
+  it.each([
+    [
+      'combobox on a button, as the reported page writes it',
+      '<button role="combobox">Lang</button>',
+    ],
+    ['group', '<div role="group" aria-label="Filters"></div>'],
+    ['separator', '<div role="separator"></div>'],
+    ['searchbox', '<input role="searchbox" aria-label="Search" />'],
+    ['generic', '<span role="generic"></span>'],
+    ['paragraph', '<div role="paragraph">Text</div>'],
+    ['menuitemcheckbox', '<div role="menuitemcheckbox" aria-checked="false">Wrap</div>'],
+  ])('A11Y-007 accepts the valid ARIA 1.2 role %s', (_case, body) => {
+    expect(
+      runRule(
+        'Accessibility',
+        'A11Y-007',
+        htmlContext(
+          '<!doctype html><html lang="en"><head><title>ARIA</title></head><body>' +
+            `<main><h1>Page</h1>${body}</main></body></html>`,
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  // The 12 abstract roles of WAI-ARIA 1.2 §5.3.1 are defined for the taxonomy
+  // only: the spec forbids authors to put them in markup, so role="widget" is
+  // as much a mistake as a typo and has to stay reported.
+  it.each([
+    'command',
+    'composite',
+    'input',
+    'landmark',
+    'range',
+    'roletype',
+    'section',
+    'sectionhead',
+    'select',
+    'structure',
+    'widget',
+    'window',
+    'buton',
+  ])('A11Y-007 still reports role="%s"', (role) => {
+    const finding = single(
+      runRule(
+        'Accessibility',
+        'A11Y-007',
+        htmlContext(
+          '<!doctype html><html lang="en"><head><title>ARIA</title></head><body>' +
+            `<main><h1>Page</h1><div role="${role}">Content</div></main></body></html>`,
+        ),
+      ),
+    );
+    expect(finding.messages?.evidence.code).toBe('a11y-007.evidence.unknown-role');
+    expect(finding.messages?.evidence.params).toMatchObject({ role });
+  });
+
   // aria-hidden hides an element from screen readers but not from the Tab key.
   // The check for it could never fire: the focusability helper treated every
   // aria-hidden element as unfocusable before A11Y-007 asked about it.
@@ -325,6 +386,55 @@ describe('WCAG 2.2 AA static checks', () => {
       ),
     );
     expect(result).toEqual([]);
+  });
+});
+
+// Страница целиком — копия apps/web/public/blog/index.html, какой её отдаёт
+// production.
+//
+// В её <head> стоит `<noscript\n  ><style>…</style></noscript\n    >`:
+// node-html-parser искал буквальную строку `</noscript>`, не находил её и
+// забирал ВЕСЬ остаток документа в raw text элемента. Скан fluxradar.net от
+// 2026-10-20 сообщал про каждую страницу блога «0 <h1>», «нет main landmark» и
+// «на странице вообще нет заголовков» — при том что страница отдаёт один
+// <h1>, один <main id="blog-main"> и девять <h2>. Фикстура держится на
+// parseHtml (packages/crawler/src/html-parse.ts): с прямым `parse` все три
+// finding возвращаются.
+describe('страница с перенесённым </noscript> разбирается целиком', () => {
+  const blogPage = (): SiteContext => loadFixtureContext('fx-raw-text-end-tag-negative.html');
+
+  it.each([
+    ['Accessibility', 'A11Y-003', 'a11y-003.evidence.h1-count'],
+    ['Accessibility', 'A11Y-010', 'a11y-010.evidence.missing-main'],
+    ['SEO', 'SEO-ONPAGE-003', 'seo-onpage-003.evidence.no-headings'],
+    ['Accessibility', 'A11Y-007', 'a11y-007.evidence.unknown-role'],
+  ] as const)('%s / %s не сообщает %s', (module, ruleId, evidenceCode) => {
+    const codes = runRule(module, ruleId, blogPage()).map(
+      (finding) => finding.messages?.evidence.code,
+    );
+    expect(codes).not.toContain(evidenceCode);
+  });
+
+  it('видит <main>, <h1> и роли меню, которые отдаёт страница', () => {
+    const page = blogPage().crawl.pages[0];
+    if (page === undefined) {
+      throw new Error('фикстура должна отдавать одну страницу');
+    }
+    const root = parsePage(page);
+    expect(root.querySelectorAll('main').map((main) => main.getAttribute('id'))).toEqual([
+      'blog-main',
+    ]);
+    expect(root.querySelectorAll('h1')).toHaveLength(1);
+    expect(root.querySelectorAll('h2')).toHaveLength(9);
+    expect(root.querySelectorAll('[role]').map((node) => node.getAttribute('role'))).toEqual([
+      'combobox',
+      'listbox',
+      'option',
+      'option',
+      'group',
+    ]);
+    // Содержимое <noscript> осталось raw text, а не разобранным <style>.
+    expect(root.querySelectorAll('style')).toHaveLength(0);
   });
 });
 

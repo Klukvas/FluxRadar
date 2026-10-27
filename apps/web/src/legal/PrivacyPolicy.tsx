@@ -4,6 +4,11 @@ import type { Language } from '../i18n';
 import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } from './SharedLegal';
 
 /**
+ * 23 October 2026: Sentry (Functional Software, Inc.) joined the providers as
+ * error monitoring for the site and the service, stored in its EU region. What
+ * the policy says it receives is what apps/api/src/observability/ and
+ * apps/web/src/error-monitoring*.ts send, scrubbing included.
+ *
  * 21 October 2026: the processing notice became core-ai-processing-notice-v6 —
  * the evaluator request that checks each GEO answer against the audit's
  * evidence now also judges the tone in which the answer describes the
@@ -28,7 +33,7 @@ import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } fro
  * Anthropic, Google and Perplexity becoming opt-in recipients, the AI Action
  * Plan as an AI purpose, and consent-based Google Analytics 4.
  */
-const PRIVACY_EFFECTIVE: EffectiveDate = { uk: '21 жовтня 2026 року', en: '21 October 2026' };
+const PRIVACY_EFFECTIVE: EffectiveDate = { uk: '26 жовтня 2026 року', en: '26 October 2026' };
 
 export function PrivacyPolicy({ language }: { readonly language: Language }): JSX.Element {
   return language === 'uk' ? <UkrainianPrivacy /> : <EnglishPrivacy />;
@@ -69,6 +74,10 @@ function UkrainianPrivacy(): JSX.Element {
             серверах; вони ніколи не надсилаються AI-провайдеру.
           </li>
           <li>
+            <strong>Оформлення звітів:</strong> логотип, назва, колір і рядок контактів, які ви
+            додаєте для звітів своїм клієнтам.
+          </li>
+          <li>
             <strong>Інтеграції:</strong> зашифровані Google або Bing access/refresh tokens, дозволи,
             вибрані ресурси та дані, прочитані для запитаної функції. Google може надати URL,
             пошукові запити, clicks, impressions, CTR, positions і агреговані Analytics metrics.
@@ -82,7 +91,8 @@ function UkrainianPrivacy(): JSX.Element {
           <li>
             <strong>Безпека й робота сервісу:</strong> IP‑адреса, request/error data та rate‑limit
             записи для захисту акаунтів, запобігання повторному використанню безкоштовної перевірки
-            й діагностики несправностей.
+            й діагностики несправностей. Звіти про помилки сайту й сервісу надходять до Sentry
+            (розділ 06).
           </li>
           <li>
             <strong>Аналітика сайту — лише з вашого дозволу:</strong> переглянуті сторінки
@@ -297,6 +307,19 @@ function UkrainianPrivacy(): JSX.Element {
             </a>
             .
           </li>
+          <li>
+            <strong>Sentry</strong> (Functional Software, Inc.) — моніторинг помилок сайту й
+            сервісу; дані зберігаються в європейському регіоні Sentry (Німеччина). Sentry отримує
+            звіти про помилки: текст помилки та stack trace, версію застосунку, версію браузера й
+            операційної системи, адресу сторінки без query‑параметрів разом зі сторінками,
+            відкритими раніше під час того самого візиту, і запитами, які надсилала сторінка (адреса
+            без query‑параметрів, метод і статус відповіді), а для помилок сервера — назву операції,
+            шлях запиту та внутрішні ідентифікатори. Перед надсиланням зі звіту автоматично
+            вилучаються email‑адреси, токени й паролі, які в ньому розпізнано. Sentry не встановлює
+            cookies і нічого не зберігає в браузері, IP‑адреси не зберігаються, а звіти видаляються
+            не пізніше ніж через 90 днів. Див.{' '}
+            <a href="https://sentry.io/privacy/">Privacy Policy Sentry</a>.
+          </li>
         </ul>
         <p>
           Окремі провайдери можуть обробляти дані за межами вашої країни, зокрема у США, за власними
@@ -308,6 +331,7 @@ function UkrainianPrivacy(): JSX.Element {
         <span className="legal-section__label">07 / СТРОКИ</span>
         <h2>Зберігання та видалення</h2>
         <ul>
+          <li>Оформлення звітів зберігається, доки ви його не видалите або не видалите акаунт.</li>
           <li>Free і Basic reports — 30 днів від створення scan; Complete reports — 365 днів.</li>
           <li>
             Профілі, конфігурації й інтеграції зберігаються до видалення користувачем або акаунта,
@@ -317,6 +341,7 @@ function UkrainianPrivacy(): JSX.Element {
             Звичайні application і security logs — до 30 днів. Записи конкретного security incident,
             fraud investigation, legal obligation або спору можуть зберігатися до його завершення.
           </li>
+          <li>Звіти про помилки в Sentry — до 90 днів.</li>
           <li>
             Незв’язані або відхилені payment events можуть видалятися через 30 днів. Пов’язані
             purchase records зберігаються стільки, скільки потрібно для договору, бухгалтерських,
@@ -325,10 +350,10 @@ function UkrainianPrivacy(): JSX.Element {
         </ul>
         <p>
           Після підтвердженого запиту на видалення акаунта ми видаляємо пов’язані профілі, токени,
-          активні сесії, звіти та AI records протягом 30 днів, крім мінімальних записів, які
-          необхідні за законом або для fraud/dispute defense. Backups у Hetzner перезаписуються або
-          видаляються протягом 30 днів. Дані в Creem, email‑провайдера чи іншого незалежного
-          провайдера підпорядковуються його власним строкам і правовим обов’язкам.
+          активні сесії, звіти, оформлення звітів та AI records протягом 30 днів, крім мінімальних
+          записів, які необхідні за законом або для fraud/dispute defense. Backups у Hetzner
+          перезаписуються або видаляються протягом 30 днів. Дані в Creem, email‑провайдера чи іншого
+          незалежного провайдера підпорядковуються його власним строкам і правовим обов’язкам.
         </p>
       </section>
       <section id="privacy-cookies" className="legal-section">
@@ -340,7 +365,7 @@ function UkrainianPrivacy(): JSX.Element {
           завантажує Google Analytics 4. До дозволу вона не запускається, а відкликання зупиняє її й
           видаляє її cookies. Google Signals, ads personalization і remarketing вимкнені, а user та
           event data зберігаються 2 місяці. Рекламних trackers FluxRadar не використовує. Повний
-          перелік, строки й керування наведено в <a href="/cookies?lang=uk">Політиці cookies</a>.
+          перелік, строки й керування наведено в <a href="/uk/cookies">Політиці cookies</a>.
         </p>
       </section>
       <section id="privacy-rights" className="legal-section">
@@ -398,6 +423,10 @@ function EnglishPrivacy(): JSX.Element {
             servers only; they are never sent to an AI provider.
           </li>
           <li>
+            <strong>Report branding:</strong> the logo, display name, colour and contact line you
+            add for reports to your own clients.
+          </li>
+          <li>
             <strong>Integrations:</strong> encrypted Google or Bing access and refresh tokens,
             scopes, selected properties and data read for a requested feature. Google data can
             include URLs, search queries, clicks, impressions, CTR, positions and aggregate
@@ -412,6 +441,7 @@ function EnglishPrivacy(): JSX.Element {
           <li>
             <strong>Security and operations:</strong> IP address, request/error data and rate-limit
             records used to protect accounts, prevent repeated free checks and diagnose failures.
+            Error reports from the site and the service go to Sentry (section 06).
           </li>
           <li>
             <strong>Site analytics, only if you allow it:</strong> pages viewed on fluxradar.net
@@ -626,6 +656,18 @@ function EnglishPrivacy(): JSX.Element {
             </a>
             .
           </li>
+          <li>
+            <strong>Sentry</strong> (Functional Software, Inc.) provides error monitoring for the
+            site and the service, with data stored in Sentry’s EU region (Germany). It receives
+            error reports: the error message and stack trace, the app release, the browser and
+            operating-system version, the page address without query parameters together with the
+            pages opened earlier in the same visit and the requests the page made (addresses without
+            query parameters, method and response status), and, for server errors, the operation,
+            the request path and internal identifiers. Before a report is sent, the email addresses,
+            tokens and passwords recognised in it are removed automatically. Sentry sets no cookies
+            and stores nothing in the browser, IP addresses are not stored, and reports are kept for
+            up to 90 days. See the <a href="https://sentry.io/privacy/">Sentry Privacy Policy</a>.
+          </li>
         </ul>
         <p>
           Some providers may process data outside your country, including in the United States,
@@ -637,6 +679,7 @@ function EnglishPrivacy(): JSX.Element {
         <span className="legal-section__label">07 / RETENTION</span>
         <h2>Storage and deletion</h2>
         <ul>
+          <li>Report branding is kept until you delete it or delete the account.</li>
           <li>Free and Basic reports: 30 days from scan creation; Complete reports: 365 days.</li>
           <li>
             Profiles, configurations and integrations remain until deleted by the user or with the
@@ -646,6 +689,7 @@ function EnglishPrivacy(): JSX.Element {
             Ordinary application and security logs: up to 30 days. Records of an active security
             incident, fraud investigation, legal obligation or dispute may remain until resolved.
           </li>
+          <li>Error reports in Sentry: up to 90 days.</li>
           <li>
             Unlinked or rejected payment events may be removed after 30 days. Linked purchase
             records remain as needed for contract, accounting, tax, fraud and dispute obligations.
@@ -653,10 +697,10 @@ function EnglishPrivacy(): JSX.Element {
         </ul>
         <p>
           After a verified account-deletion request, we remove linked profiles, tokens, active
-          sessions, reports and AI records within 30 days, except minimal records required by law or
-          for fraud/dispute defense. Hetzner backups are overwritten or deleted within 30 days.
-          Creem, email-provider and other independent provider records follow their own retention
-          and legal obligations.
+          sessions, reports, report branding and AI records within 30 days, except minimal records
+          required by law or for fraud/dispute defense. Hetzner backups are overwritten or deleted
+          within 30 days. Creem, email-provider and other independent provider records follow their
+          own retention and legal obligations.
         </p>
       </section>
       <section id="privacy-cookies" className="legal-section">
@@ -668,8 +712,7 @@ function EnglishPrivacy(): JSX.Element {
           loads Google Analytics 4. It does not start before you allow it, and withdrawing stops it
           and deletes its cookies. Google Signals, ads personalization and remarketing are disabled,
           and user and event data are kept for 2 months. FluxRadar uses no advertising trackers. See
-          the full inventory, durations and controls in the{' '}
-          <a href="/cookies?lang=en">Cookie Policy</a>.
+          the full inventory, durations and controls in the <a href="/cookies">Cookie Policy</a>.
         </p>
       </section>
       <section id="privacy-rights" className="legal-section">

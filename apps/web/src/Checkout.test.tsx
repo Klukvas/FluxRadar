@@ -222,15 +222,15 @@ describe('paid checkout flow', () => {
     );
     expect(within(legalNotice).getByRole('link', { name: 'Terms of service' })).toHaveAttribute(
       'href',
-      '/terms?lang=en',
+      '/terms',
     );
     expect(within(legalNotice).getByRole('link', { name: 'Privacy policy' })).toHaveAttribute(
       'href',
-      '/privacy?lang=en',
+      '/privacy',
     );
     expect(within(legalNotice).getByRole('link', { name: 'Cookie policy' })).toHaveAttribute(
       'href',
-      '/cookies?lang=en',
+      '/cookies',
     );
     expect(screen.queryByRole('checkbox', { name: /Anthropic/i })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Pay $87 and start' }));

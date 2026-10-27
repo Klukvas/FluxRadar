@@ -76,6 +76,7 @@ function makeApp(prisma: PrismaClient, overrides: Partial<PdfRouterDeps> = {}) {
       now: () => new Date('2026-09-22T12:00:00.000Z'),
       // No store: the download must work on a deployment with no archive bucket.
       objectStore: null,
+      loadBrand: async () => null,
       logger: silentLogger,
       ...overrides,
     }),
@@ -268,5 +269,44 @@ describe('GET /scans/:scanId/report.pdf', () => {
       expect(await archived).toBe('failed');
       expect(prisma.exportArtifact.upsert).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('report branding at download', () => {
+  it('loads the session brand for Complete and passes it to the renderer and filename', async () => {
+    const loadBrand = vi.fn().mockResolvedValue({
+      displayName: 'Studio Blue',
+      accent: '#123456',
+      contactLine: 'hello@example.com',
+      logo: null,
+    });
+    const response = await authed(
+      request(makeApp(makePrisma(makeScan()), { loadBrand })).get('/scans/scan_abc123/report.pdf'),
+    ).buffer(true);
+    expect(response.status).toBe(200);
+    expect(loadBrand).toHaveBeenCalledExactlyOnceWith(ACCOUNT_ID);
+    expect(response.headers['content-disposition']).toContain('report-example.com-scan_abc123.pdf');
+    expect(response.body.toString('latin1')).not.toMatch(/FluxRadar/);
+  });
+  it('does not load branding for Basic and keeps the original filename', async () => {
+    const loadBrand = vi.fn();
+    const response = await authed(
+      request(makeApp(makePrisma(makeScan({ plan: 'Basic' })), { loadBrand })).get(
+        '/scans/scan_abc123/report.pdf',
+      ),
+    );
+    expect(response.status).toBe(200);
+    expect(loadBrand).not.toHaveBeenCalled();
+    expect(response.headers['content-disposition']).toContain(
+      'fluxradar-example.com-scan_abc123.pdf',
+    );
+  });
+  it('returns 500 instead of an unbranded PDF when branding cannot be read', async () => {
+    const loadBrand = vi.fn().mockRejectedValue(new Error('database unavailable'));
+    const response = await authed(
+      request(makeApp(makePrisma(makeScan()), { loadBrand })).get('/scans/scan_abc123/report.pdf'),
+    );
+    expect(response.status).toBe(500);
+    expect(response.headers['content-type']).not.toContain('application/pdf');
   });
 });

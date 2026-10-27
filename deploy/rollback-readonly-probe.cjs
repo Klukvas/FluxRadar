@@ -59,6 +59,12 @@ const QUERY_TIMEOUT_MS = 20_000;
  */
 const BOOT_VALIDATORS = [
   {
+    module: 'auth/google-provider.js',
+    exportName: 'readGoogleAuthConfig',
+    describes: 'Google login configuration',
+    arguments: () => [process.env.FRONTEND_ORIGIN || 'https://fluxradar.net'],
+  },
+  {
     module: 'integrations/config.js',
     exportName: 'validateRuntimeConfig',
     describes: 'required production secrets and half-configured integrations',
@@ -124,7 +130,7 @@ async function runBootValidators() {
       continue;
     }
     try {
-      const result = target();
+      const result = target(...(validator.arguments?.() ?? []));
       if (validator.check !== undefined) validator.check(result);
       ran.push(`${validator.exportName} — ${validator.describes}`);
     } catch (error) {

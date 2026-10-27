@@ -74,6 +74,22 @@ if [ -z "$PREVIOUS_API_UPSTREAM" ] && [ -n "$PREVIOUS_RELEASE" ]; then
   LEGACY_WEB_CONTAINER="$(docker compose --env-file .env.production -p fluxradar ps -q web 2>/dev/null || true)"
 fi
 
+# Resolve actual active images: a host patch may differ from the current release tag.
+PREVIOUS_API_IMAGE="fluxradar-api:$PREVIOUS_RELEASE_ID"
+PREVIOUS_WEB_IMAGE="fluxradar-web:$PREVIOUS_RELEASE_ID"
+if [ -n "$PREVIOUS_API_CONTAINER" ] || [ -n "$PREVIOUS_WEB_CONTAINER" ]; then
+  PREVIOUS_API_IMAGE="$(docker inspect --format '{{.Image}}' "$PREVIOUS_API_CONTAINER")"
+  PREVIOUS_WEB_IMAGE="$(docker inspect --format '{{.Image}}' "$PREVIOUS_WEB_CONTAINER")"
+  if ! [[ "$PREVIOUS_API_IMAGE" =~ ^sha256:[a-f0-9]{64}$ && "$PREVIOUS_WEB_IMAGE" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+    echo 'Active rollback images could not be resolved; refusing tag fallback' >&2; exit 1
+  fi
+fi
+# First persisted release after the dedicated host activation; later releases use metadata.
+GOOGLE_LOGIN_REQUIRED="${FLUXRADAR_GOOGLE_LOGIN_REQUIRED:-false}"
+if [ "$PREVIOUS_API_CONTAINER" = fluxradar-api-google-login-20261026-v1 ]; then GOOGLE_LOGIN_REQUIRED=true; fi
+. "$RELEASE_DIR/deploy/google-login-env.sh"
+load_google_login_env "${FLUXRADAR_GOOGLE_LOGIN_ENV_FILE:-$APP_DIR/runtime/google-login.env}" "$GOOGLE_LOGIN_REQUIRED"
+
 API_CONTAINER="fluxradar-api-$RELEASE_ID"
 WEB_CONTAINER="fluxradar-web-$RELEASE_ID"
 ROLLBACK_PROBE="fluxradar-rollback-probe-$RELEASE_ID"
@@ -123,7 +139,13 @@ FLUXRADAR_ROLLBACK_API_UPSTREAM=$PREVIOUS_API_UPSTREAM
 FLUXRADAR_ROLLBACK_WEB_UPSTREAM=$PREVIOUS_WEB_UPSTREAM
 FLUXRADAR_ROLLBACK_API_CONTAINER=$PREVIOUS_API_CONTAINER
 FLUXRADAR_ROLLBACK_WEB_CONTAINER=$PREVIOUS_WEB_CONTAINER
+FLUXRADAR_ROLLBACK_GOOGLE_LOGIN_ENV_FILE=$GOOGLE_LOGIN_ENV_FILE
+FLUXRADAR_ROLLBACK_GOOGLE_LOGIN_REQUIRED=$GOOGLE_LOGIN_REQUIRED
 TARGET
+  # Older compose-only state keeps its legacy tag fallback, not invalid image-ID metadata.
+  if [[ "$PREVIOUS_API_IMAGE" =~ ^sha256:[a-f0-9]{64}$ && "$PREVIOUS_WEB_IMAGE" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+    printf 'FLUXRADAR_ROLLBACK_API_IMAGE=%s\nFLUXRADAR_ROLLBACK_WEB_IMAGE=%s\n' "$PREVIOUS_API_IMAGE" "$PREVIOUS_WEB_IMAGE" >> "$RUNTIME_DIR/rollback.env"
+  fi
   chmod 600 "$RUNTIME_DIR/rollback.env"
 }
 
@@ -356,8 +378,8 @@ if [ -z "$PREVIOUS_RELEASE_ID" ]; then
   # No `current` symlink at all: this is the first deploy, so there is
   # genuinely no rollback target and nothing to verify.
   echo "First deploy ($APP_DIR/current does not exist): no rollback target exists yet."
-elif ! docker image inspect "fluxradar-api:$PREVIOUS_RELEASE_ID" >/dev/null 2>&1 \
-  || ! docker image inspect "fluxradar-web:$PREVIOUS_RELEASE_ID" >/dev/null 2>&1; then
+elif ! docker image inspect "$PREVIOUS_API_IMAGE" >/dev/null 2>&1 \
+  || ! docker image inspect "$PREVIOUS_WEB_IMAGE" >/dev/null 2>&1; then
   # A rollback target IS expected — `current` points at $PREVIOUS_RELEASE
   # — but its image is gone, so its compatibility cannot be proven and a
   # rollback could not recreate it either. Silently continuing here would
@@ -392,11 +414,12 @@ else
     --name "$ROLLBACK_PROBE" \
     --network "$FLUXRADAR_NETWORK" \
     --env-file "$RELEASE_DIR/.env.production" \
+    ${GOOGLE_LOGIN_ENV_ARGS[@]+"${GOOGLE_LOGIN_ENV_ARGS[@]}"} \
     --env NODE_ENV=production \
     --env PORT=3310 \
     --env FRONTEND_ORIGIN=https://fluxradar.net \
     --entrypoint node \
-    "fluxradar-api:$PREVIOUS_RELEASE_ID" \
+    "$PREVIOUS_API_IMAGE" \
     -e "setInterval(() => {}, 1 << 30)" >/dev/null
   # fluxradar:end-rollback-probe-container
   probe_running=0
@@ -454,6 +477,7 @@ docker run -d \
   --network "$FLUXRADAR_NETWORK" \
   --network-alias "$API_CONTAINER" \
   --env-file "$RELEASE_DIR/.env.production" \
+  ${GOOGLE_LOGIN_ENV_ARGS[@]+"${GOOGLE_LOGIN_ENV_ARGS[@]}"} \
   --env NODE_ENV=production \
   --env PORT=3310 \
   --env FRONTEND_ORIGIN=https://fluxradar.net \
@@ -558,6 +582,8 @@ FLUXRADAR_API_UPSTREAM=$NEW_API_UPSTREAM
 FLUXRADAR_WEB_UPSTREAM=$NEW_WEB_UPSTREAM
 FLUXRADAR_API_CONTAINER=$API_CONTAINER
 FLUXRADAR_WEB_CONTAINER=$WEB_CONTAINER
+FLUXRADAR_GOOGLE_LOGIN_ENV_FILE=$GOOGLE_LOGIN_ENV_FILE
+FLUXRADAR_GOOGLE_LOGIN_REQUIRED=$GOOGLE_LOGIN_REQUIRED
 STATE
 chmod 600 "$STATE_FILE"
 if [ -n "$PREVIOUS_API_CONTAINER" ] || [ -n "$PREVIOUS_WEB_CONTAINER" ]; then

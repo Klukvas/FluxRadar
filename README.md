@@ -130,3 +130,104 @@ Such a scan writes no `Purchase` or `Entitlement` (the response says
 `billing: "internal-free"`), so refunds, receipts and the reachability gate in front of a sale are
 not exercised this way — the Creem tests (`apps/api/src/billing/creem`) cover the webhook, refunds
 and disputes without an account. Any account not on the list gets `402` from that route.
+
+
+### Google registration and sign-in
+
+Google login uses a backend OpenID Connect authorization-code exchange. It is separate from the
+account-bound Google Search Console / Analytics integrations and requests only `openid email`.
+The login button stays disabled when the login provider is unconfigured; email/password login
+continues to work. Configure these server environment variables (never expose the secret through
+`VITE_*`): `GOOGLE_LOGIN_CLIENT_ID`, `GOOGLE_LOGIN_CLIENT_SECRET`, and
+`GOOGLE_LOGIN_REDIRECT_URI`. Set `FRONTEND_ORIGIN` to the exact frontend origin used by the browser.
+
+Create a **Web application** OAuth client in your Google Cloud project and configure its consent
+screen / audience. Add your exact API callback as an authorized redirect URI, for example
+`http://localhost:3310/auth/google/callback` locally, or
+`https://api.example.com/auth/google/callback` in production. The path must be exactly
+`/auth/google/callback` for a direct API, or `/api/auth/google/callback` behind the production
+FluxRadar proxy (`https://fluxradar.net/api/auth/google/callback`), with no query, fragment or credentials. HTTPS is required in production;
+HTTP is permitted only for localhost development. The frontend origin must contain no path,
+query, fragment or credentials. Match the frontend URL's scheme and host with the API deployment
+so the existing cookie session policy works (same-site frontend and API; use `localhost` for both
+local hosts). No browser JavaScript origin or frontend client secret is needed for this server flow.
+If the consent screen is in testing mode, add the intended test users in Google Cloud.
+
+The three login keys may all be empty to disable Google login. Partial or unsafe configuration
+fails when the auth router is constructed. Before enabling Google login on a new installation,
+configure a dedicated OAuth client and apply the repository's normal reviewed migration
+process for `20261026120000_google_login`, then build/restart the API and web application.
+
+Security and account behavior:
+
+- The official Google auth library verifies token signatures, issuer, audience and expiry; the
+  application also validates nonce, authorized party and a strict current expiry. The server
+  exchanges the authorization code with PKCE. A hashed, browser-bound state is consumed atomically
+  once, expires after ten minutes, and is shared in the database across API replicas. Provider
+  access/refresh tokens are not stored. Callbacks redirect to a clean frontend URL, with only a
+  fixed success/error flag; callback pages use `no-store` and `no-referrer` headers.
+- The stable Google `sub` identifies returning users. The original account email is preserved. If the Google email changes, Google login fails closed
+  rather than retaining stale email-based privileges; use a password or contact support.
+  A new Google identity is never automatically attached to an existing email/password account,
+  even when the email matches. Use that account's password or its email reset link instead.
+  Deliberate account linking is not included in this feature.
+- New Google accounts require Google-authoritative email ownership: Gmail, or a signed Google
+  Workspace `hd` matching the email domain. Google accounts using another third-party email
+  without Workspace must register/sign in through email instead. `email_verified` alone cannot
+  prove continuing ownership of such an address. See [Google's server verification guidance](https://developers.google.com/identity/sign-in/web/backend-auth).
+- Google-only accounts have a null password hash, which password login and password change refuse.
+  The existing email password-reset flow can establish a password after mailbox proof and retains
+  its existing session/token revocation. Account deletion removes the Google subject together with
+  the account; short-lived login attempts contain no account relation and expire independently.
+- Google entry uses the existing session-cookie default. Its API accepts boolean `rememberMe`
+  using the same seven-day session behavior as password login. A short-lived per-tab navigation
+  hint restores the selected site/plan or scan after Google login. Blocked browser storage falls
+  back to Profiles. No hint grants access or starts a scan automatically.
+
+Local verification uses mocked provider responses and locally signed ID tokens. A real consent
+round trip requires a configured OAuth client and the account owner's interaction.
+For rollback, use the nonsecret `GOOGLE_LOGIN_ENABLED=false` switch with a compatible API.
+Do **not** restore the password hash NOT NULL constraint
+while Google-only accounts have null passwords; retain the nullable column until those accounts
+have established passwords through verified recovery or a reviewed account migration.
+
+`GOOGLE_LOGIN_ENABLED=false` is the nonsecret emergency disable switch. If set, it must be exactly
+`true` or `false`; empty/unset retains configuration-based availability. Disabling ignores stored
+login credentials and does not require changing secret files. After Google-only accounts exist,
+retain the compatible API and additive schema during rollback; the older required-password Prisma
+client is not safe for those accounts.
+
+### Google login across deployments
+
+Production releases reuse the human-managed Google login overlay at
+`/opt/fluxradar/runtime/google-login.env`. It is a
+mode600 regular file owned by the deploying account (root for root-run releases),
+containing only `GOOGLE_LOGIN_CLIENT_ID`,
+`GOOGLE_LOGIN_CLIENT_SECRET` and `GOOGLE_LOGIN_REDIRECT_URI`. Never commit or
+copy its values into a release. Docker receives it after the base environment
+for the API and inert rollback probe; web and migration containers do not receive it.
+The deployment account must be able to traverse its parent directories. For an
+existing root-only setup, the owner must move the credential file once to this
+stable path without overwriting an existing destination, then hand ownership to
+the deploying account while preserving mode600. Use a same-filesystem move so
+its inode and contents remain intact; do not copy, print or rewrite values or
+change unrelated parent-directory permissions. Automated releases never move
+or change ownership or permissions of this file.
+The overlay is optional on an unconfigured installation. Once configured, its
+path and requirement are retained in runtime and rollback metadata: a missing,
+unreadable, unsafe or incomplete file stops deployment before traffic switches.
+
+The optional **nonsecret** GitHub repository variable `PRODUCTION_GOOGLE_LOGIN_ENABLED`
+accepts `true` or `false`. `false` disables new Google sign-ins while retaining
+password/email access and the compatible database/client. Empty preserves the
+base environment setting, or enables configured Google login by default.
+The three-key credential overlay cannot override this switch. Provider
+availability is exposed by `/api/auth/google/status`.
+
+Rollback records the immutable API/web image IDs of the actual active containers,
+including a host-patched release, and recreates their recorded names/upstreams
+from those same images. Once the Google migration is applied, the rollback gate
+requires a Prisma client with nullable `Account.passwordHash` and `googleSubject`.
+Keep the additive schema and a compatible API; never restore NOT NULL or an older
+required-password client after Google-only accounts exist. The migration source
+must retain its original checksum on subsequent deployments.

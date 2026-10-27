@@ -16,6 +16,8 @@ import { sendOk } from '../http/envelope.ts';
 import { parseInput } from '../http/validate.ts';
 import { accountDeletionHash, deleteAccountData } from '../data-retention.ts';
 import { accountIdFrom, requireAuth } from './middleware.ts';
+import { googleAuthRouter } from './google-routes.ts';
+import type { GoogleLoginProvider } from './google-provider.ts';
 import { hashPassword, verifyPassword } from './passwords.ts';
 import {
   EMAIL_ACTION_LIMIT,
@@ -42,6 +44,7 @@ import type { ApiLogger } from '../http/logger.ts';
 
 export interface AuthRouterDeps {
   readonly prisma: PrismaClient;
+  readonly googleProvider?: GoogleLoginProvider;
   readonly loginRateLimiter: LoginRateLimiter;
   readonly now: () => Date;
   readonly internalFreeEmails: ReadonlySet<string>;
@@ -144,6 +147,9 @@ async function attachSessionCookie(
 export function authRouter(deps: AuthRouterDeps): Router {
   const router = Router();
   const { prisma } = deps;
+  router.use(googleAuthRouter(deps, (res, accountId, rememberMe) =>
+    attachSessionCookie(deps, res, accountId, rememberMe),
+  ));
   const requestRateLimiter = deps.requestRateLimiter ?? new RequestRateLimiter();
 
   router.post('/auth/register', async (req, res) => {

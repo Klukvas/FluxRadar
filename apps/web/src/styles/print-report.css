@@ -191,3 +191,26 @@
   margin-bottom: var(--sp-3);
   break-inside: avoid;
 }
+
+.print-brand__logo {
+  max-height: 56px;
+  max-width: 220px;
+  object-fit: contain;
+}
+.print-brand__name {
+  color: var(--print-brand, #111);
+  font: 700 14px var(--mono-font);
+}
+.print-cover--branded {
+  border-bottom: 2px solid var(--print-brand, #111);
+  padding-bottom: var(--sp-3);
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
+}
+@media print {
+  .print-document--branded {
+    padding: 16mm 14mm;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+  }
+}
