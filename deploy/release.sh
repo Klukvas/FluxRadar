@@ -182,6 +182,7 @@ discard_new_containers() {
 prune_old_releases() {
   local app_dir="$1" keep_extra=1
   local live="" target="" resolved candidate old_id count=0
+  local old_container container_state
   if [ -L "$app_dir/current" ] || [ -e "$app_dir/current" ]; then
     live="$(cd "$app_dir/current" 2>/dev/null && pwd -P || true)"
   fi
@@ -209,6 +210,27 @@ prune_old_releases() {
     fi
     old_id="${resolved##*/}"
     rm -rf -- "$resolved" || echo "WARNING: could not remove $resolved; left in place" >&2
+    # A container still references its image, so the `docker image rm` below
+    # fails silently and the layers stay on the host for good — which is how
+    # the disk filled up and refused an upload. Only this release's own
+    # containers are touched, only once its directory is actually gone (a
+    # directory that refused to be removed is still a rollback candidate),
+    # and never while the container is running.
+    if [ ! -d "$resolved" ]; then
+      for old_container in "fluxradar-api-$old_id" "fluxradar-web-$old_id" \
+        "fluxradar-rollback-probe-$old_id"; do
+        container_state="$(docker inspect --type container --format '{{.State.Status}}' \
+          "$old_container" 2>/dev/null || true)"
+        case "$container_state" in
+          exited|created|dead)
+            docker rm "$old_container" >/dev/null 2>&1 \
+              || echo "WARNING: could not remove container $old_container; left in place" >&2
+            ;;
+          '') ;;
+          *) echo "WARNING: $old_container is $container_state; left in place with its image" >&2 ;;
+        esac
+      done
+    fi
     docker image rm "fluxradar-api:$old_id" "fluxradar-web:$old_id" >/dev/null 2>&1 || true
   done < <(ls -1td "$app_dir"/releases/*/ 2>/dev/null)
 }

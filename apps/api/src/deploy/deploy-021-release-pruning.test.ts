@@ -35,6 +35,13 @@ import { API_PACKAGE_ROOT } from '../test-utils/template-db.ts';
 // the recorded target, and one older spare. This runs that function —
 // extracted from the real script — against a fake releases/ tree where
 // later, failed uploads are newer than the target.
+//
+// It also removes the pruned release's own containers. A container pins its
+// image, so the `docker image rm` that follows used to fail silently and the
+// layers stayed on the host for good — the leak that filled the production
+// disk and refused an api-image upload at "8.5 GB free, 12.9 GB required".
+// A running container is never touched, and neither is one whose directory
+// refused to be removed, because that is still a rollback candidate.
 
 const REPO_ROOT = join(API_PACKAGE_ROOT, '..', '..');
 const RELEASE_SCRIPT_PATH = join(REPO_ROOT, 'deploy', 'release.sh');
@@ -68,11 +75,16 @@ interface Layout {
   readonly quoteTarget?: boolean;
   /** A release name whose directory refuses to be removed. */
   readonly unremovable?: string;
+  /** Container name → `docker inspect` state; anything else is "not there". */
+  readonly containers?: Readonly<Record<string, string>>;
+  /** Container names whose `docker rm` fails. */
+  readonly containerRemovalFails?: readonly string[];
 }
 
 function prune(layout: Layout): {
   readonly remaining: readonly string[];
   readonly imageRmCalls: string[];
+  readonly containerRmCalls: string[];
   readonly exitCode: number;
   readonly stderr: string;
 } {
@@ -100,8 +112,37 @@ function prune(layout: Layout): {
   mkdirSync(binDir, { recursive: true });
   const dockerLog = join(workspace, 'docker.log');
   writeFileSync(dockerLog, '');
+  // `docker inspect` answers with the container's state, the way the real one
+  // does: nothing and a non-zero exit for a container that is not there.
+  const states = join(workspace, 'container-states');
+  writeFileSync(
+    states,
+    Object.entries(layout.containers ?? {})
+      .map(([name, state]) => `${name} ${state}\n`)
+      .join(''),
+  );
+  writeFileSync(
+    join(workspace, 'failing-containers'),
+    (layout.containerRemovalFails ?? []).map((name) => `${name}\n`).join(''),
+  );
   const docker = join(binDir, 'docker');
-  writeFileSync(docker, `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >> "${dockerLog}"\nexit 0\n`);
+  writeFileSync(
+    docker,
+    `#!/usr/bin/env bash
+printf '%s\\n' "$*" >> "${dockerLog}"
+case "$1" in
+  inspect)
+    name=''
+    for arg; do name="$arg"; done
+    state="$(awk -v name="$name" '$1 == name { print $2 }' "${states}")"
+    [ -n "$state" ] || exit 1
+    printf '%s\\n' "$state"
+    ;;
+  rm) grep -Fxq -- "$2" "${workspace}/failing-containers" && exit 1 ;;
+esac
+exit 0
+`,
+  );
   chmodSync(docker, 0o755);
 
   if (layout.unremovable) {
@@ -132,6 +173,10 @@ function prune(layout: Layout): {
     imageRmCalls: readFileSync(dockerLog, 'utf8')
       .split('\n')
       .filter((line) => line.startsWith('image rm')),
+    containerRmCalls: readFileSync(dockerLog, 'utf8')
+      .split('\n')
+      .filter((line) => /^rm \S+$/.test(line))
+      .map((line) => line.slice('rm '.length)),
     exitCode: result.status ?? 1,
     stderr: result.stderr ?? '',
   };
@@ -194,6 +239,85 @@ describe('DEPLOY-021 release pruning', () => {
 
     expect(remaining).toContain('R2'); // recorded target, quotes and all
     expect(remaining).toContain('R3'); // live
+  });
+
+  it('removes the pruned release\u2019s own stopped containers, so its image can go', () => {
+    const { remaining, containerRmCalls, imageRmCalls } = prune({
+      onDisk: ['R1', 'R2', 'R3', 'R4'],
+      live: 'R4',
+      rollbackTarget: 'R3',
+      containers: {
+        'fluxradar-api-R1': 'exited',
+        'fluxradar-web-R1': 'exited',
+        'fluxradar-rollback-probe-R1': 'created',
+      },
+    });
+
+    expect(remaining).not.toContain('R1');
+    expect(containerRmCalls).toEqual([
+      'fluxradar-api-R1',
+      'fluxradar-web-R1',
+      'fluxradar-rollback-probe-R1',
+    ]);
+    expect(imageRmCalls.some((call) => call.includes('R1'))).toBe(true);
+  });
+
+  it('leaves the containers of the live release, the recorded target and the spare alone', () => {
+    const { containerRmCalls } = prune({
+      onDisk: ['R1', 'R2', 'R3', 'R4'],
+      live: 'R4',
+      rollbackTarget: 'R3',
+      containers: {
+        'fluxradar-api-R1': 'exited',
+        'fluxradar-api-R2': 'exited',
+        'fluxradar-api-R3': 'exited',
+        'fluxradar-api-R4': 'running',
+      },
+    });
+
+    // R4 is live, R3 is the recorded target and R2 is the newest spare; only
+    // R1 is pruned, so only R1's container may be removed.
+    expect(containerRmCalls).toEqual(['fluxradar-api-R1']);
+  });
+
+  it('never removes a running container, and says why its image stays', () => {
+    const { containerRmCalls, stderr } = prune({
+      onDisk: ['R1', 'R2', 'R3', 'R4'],
+      live: 'R4',
+      rollbackTarget: 'R3',
+      containers: { 'fluxradar-api-R1': 'running', 'fluxradar-web-R1': 'exited' },
+    });
+
+    expect(containerRmCalls).toEqual(['fluxradar-web-R1']);
+    expect(stderr).toContain('fluxradar-api-R1 is running; left in place with its image');
+  });
+
+  it('keeps the containers of a release directory that refused to be removed', () => {
+    const { remaining, containerRmCalls } = prune({
+      onDisk: ['R1', 'R2', 'R3', 'R4'],
+      live: 'R4',
+      rollbackTarget: 'R3',
+      unremovable: 'R1',
+      containers: { 'fluxradar-api-R1': 'exited' },
+    });
+
+    // The directory is still there, so R1 is still something to roll back to.
+    expect(remaining).toContain('R1');
+    expect(containerRmCalls).toEqual([]);
+  });
+
+  it('does not fail the release step when a container cannot be removed', () => {
+    const { exitCode, remaining, stderr } = prune({
+      onDisk: ['R1', 'R2', 'R3', 'R4'],
+      live: 'R4',
+      rollbackTarget: 'R3',
+      containers: { 'fluxradar-api-R1': 'exited' },
+      containerRemovalFails: ['fluxradar-api-R1'],
+    });
+
+    expect(exitCode).toBe(0);
+    expect(remaining).not.toContain('R1');
+    expect(stderr).toContain('could not remove container fluxradar-api-R1');
   });
 
   it('does not fail the release step when a release directory cannot be removed, and still prunes the others', () => {
