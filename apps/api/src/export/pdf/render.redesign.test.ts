@@ -64,6 +64,24 @@ describe('the redesigned report', () => {
     expect(text).not.toContain(REPORT_COPY.en.glossary.heading);
   });
 
+  it.each([
+    ['en', 'WebsiteAudit', 'Website Audit (archived)'],
+    ['uk', 'WebsiteAudit', 'Website Audit (архів)'],
+  ] as const)(
+    'keeps a retired plan name whole in the %s fact row',
+    async (language, plan, expectedName) => {
+      const { prisma } = fakePrisma([]);
+      const result = await renderReportPdf({
+        prisma,
+        scan: { ...scanWithModules([{ module: 'SEO', score: 54 }]), plan },
+        language,
+        now: RENDERED_AT,
+      });
+      // A column of a quarter of the page wrapped this name onto two lines.
+      expect(extractPdfPages(result.bytes).join('\n')).toContain(expectedName);
+    },
+  );
+
   it('says what to do first, with the weakest section, from the severity counts', async () => {
     const issues = Array.from({ length: 8 }, (_, index) => issueAt(index));
     const text = flat(await pagesOf({ issues, language: 'uk' }));

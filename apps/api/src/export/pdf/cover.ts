@@ -36,6 +36,10 @@ const TITLE_SIZES = { max: 22, min: 16 } as const;
 /** A status sentence wider than this leaves the fact row for a line of its own. */
 const STATUS_INLINE_MAX = 118;
 const FACT_COLUMNS = 4;
+/** The gap kept to the right of every fact column. */
+const FACT_GAP = 8;
+/** Caps labels are letter-spaced, so they measure wider than plain bold text. */
+const LABEL_SPACING_FACTOR = 1.2;
 
 /**
  * Draws page one. Returns where the first-step line was kept, for the page
@@ -83,6 +87,27 @@ function plainHeader(doc: ReportDocument): number {
 }
 
 /**
+ * Equal columns, widened where a value would otherwise wrap: a retired plan's
+ * name such as "Website Audit (archived)" is wider than a quarter of the page,
+ * and a wrapped name no longer reads as one. Falls back to equal columns when
+ * the values together do not fit the page.
+ */
+function factColumnWidths(doc: ReportDocument, row: readonly Fact[]): readonly number[] {
+  const equal = doc.contentWidth / FACT_COLUMNS;
+  const natural = row.map(
+    (fact) =>
+      Math.max(
+        doc.widthOf(fact.value, 'body', 10),
+        doc.widthOf(fact.label, 'bold', 7) * LABEL_SPACING_FACTOR,
+      ) + FACT_GAP,
+  );
+  const total = natural.reduce((sum, width) => sum + width, 0);
+  if (total > doc.contentWidth) return row.map(() => equal);
+  const spare = (doc.contentWidth - total) / row.length;
+  return natural.map((width) => width + spare);
+}
+
+/**
  * The scan's facts in one row. The agency report leaves out the tariff: its
  * name is ours, and the agency's client did not buy it from us.
  */
@@ -93,15 +118,15 @@ function factRow({ doc, copy, header, language, now, brand }: CoverContext): voi
     { label: copy.scanned, value: timestamp(header.scan.completedAt ?? header.scan.createdAt) },
     { label: copy.generatedLabel, value: timestamp(now) },
   ];
-  const columnWidth = doc.contentWidth / FACT_COLUMNS;
   const statusInline = doc.widthOf(status, 'body', 10) <= STATUS_INLINE_MAX;
   const row = statusInline ? [...facts, { label: copy.status, value: status }] : facts;
+  const widths = factColumnWidths(doc, row);
   const top = doc.y + 2;
   const bottoms = row.map((fact, index) => {
-    const x = doc.contentLeft + index * columnWidth;
-    const width = index === row.length - 1 ? doc.contentLeft + doc.contentWidth - x : columnWidth;
-    doc.capsLabelAt(fact.label, x, top, width - 8);
-    return doc.textAt(fact.value, x, top + 11, { size: 10, width: width - 8 });
+    const x = doc.contentLeft + widths.slice(0, index).reduce((sum, width) => sum + width, 0);
+    const width = widths[index] ?? 0;
+    doc.capsLabelAt(fact.label, x, top, width - FACT_GAP);
+    return doc.textAt(fact.value, x, top + 11, { size: 10, width: width - FACT_GAP });
   });
   doc.moveTo(Math.max(...bottoms) + 8);
   if (!statusInline) {
