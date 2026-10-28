@@ -29,6 +29,12 @@ export interface ScanRequest {
    */
   readonly optInAiProviders: readonly AiProcessingOptInProvider[];
   readonly internalFreeAccess: boolean;
+  /**
+   * The per-draft idempotency key the form minted for this launch. Sent on the
+   * paid checkout request only: a retry of the same draft reuses the key, and
+   * the server replays the stored session instead of opening a second one.
+   */
+  readonly idempotencyKey?: string | undefined;
   readonly onCheckoutStarted: (pending: PendingCheckout) => void;
 }
 
@@ -68,6 +74,10 @@ export async function requestScan(request: ScanRequest): Promise<Scan | null> {
   }
   const session = await apiRequest<CheckoutSession>('/billing/checkout-session', {
     method: 'POST',
+    headers:
+      request.idempotencyKey === undefined
+        ? undefined
+        : { 'Idempotency-Key': request.idempotencyKey },
     body: JSON.stringify({ ...purchase, ...aiConsent }),
   });
   // Creem hosts the checkout page: this tab is sent there, and Creem sends the

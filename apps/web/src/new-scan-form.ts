@@ -4,6 +4,7 @@ import { flushSync } from 'react-dom';
 
 import {
   apiRequest,
+  mintIdempotencyKey,
   type CheckoutConfig,
   type EgressLocation,
   type Scan,
@@ -31,7 +32,7 @@ import {
 } from './new-scan-configuration';
 import { usePlanSelected } from './funnel-analytics';
 import { requestScan } from './new-scan-request';
-import { PAID_PLAN_ORDER, PLAN_MODULES, type Plan } from './plan-modules';
+import { PAID_PLAN_ORDER, PLAN_MODULES, type PaidPlan, type Plan } from './plan-modules';
 import {
   DEFAULT_SCOPE_FORM,
   clampScopeToPlan,
@@ -166,6 +167,12 @@ export interface NewScanForm {
   readonly plan: Plan;
   /** The plans this form can run right now, cheapest first. */
   readonly planOptions: readonly Plan[];
+  /**
+   * The paid plans this deployment can open a checkout for, cheapest first.
+   * The plan step's skeletons reserve exactly these slots while the checkout
+   * configuration is still on its way — the same predicate the real grid draws.
+   */
+  readonly paidPlanOptions: readonly PaidPlan[];
   readonly robotsUnconfirmed: boolean;
   /**
    * True while the saved profile carries a robots.txt override that has not
@@ -338,6 +345,16 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     setExpertChoice(null);
   }, [target]);
   const [busy, setBusy] = useState(false);
+  // One idempotency key per draft of the paid launch (§18 contract, client
+  // half). Minted on the first submission attempt and reused across retries of
+  // the same draft — `finally` deliberately does NOT clear it, so a retry
+  // after a lost response replays the server's stored checkout instead of
+  // opening a second payable one. Cleared on success and whenever the draft
+  // changes what it asks for.
+  const checkoutKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    checkoutKeyRef.current = null;
+  }, [target, plan, scope, optInAiProviders]);
   const [savingConfiguration, setSavingConfiguration] = useState(false);
   const [savedConfigFingerprint, setSavedConfigFingerprint] = useState<string | null>(() =>
     props.selectedProfile?.scanConfig == null
@@ -620,6 +637,12 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
         : await persistProfileConfiguration(profileId);
       const expectedProfileConfigVersion = rememberSavedConfiguration(updated ?? null);
       await refreshProfiles();
+      // First attempt mints the key; a retry of the same draft reuses it. The
+      // payload is identical on retry because an unchanged configuration save
+      // does not bump the profile's configuration version, so the server's
+      // stored hash still matches.
+      const checkoutKey = checkoutKeyRef.current ?? mintIdempotencyKey();
+      checkoutKeyRef.current = checkoutKey;
       const scan = await requestScan({
         accountId: props.accountId,
         profileId,
@@ -641,8 +664,13 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
         // inaccuracy as the notice promising a transfer that does not happen.
         optInAiProviders: selectedOptInAiProviders,
         internalFreeAccess: props.internalFreeAccess,
+        idempotencyKey: checkoutKey,
         onCheckoutStarted: props.onCheckoutStarted,
       });
+      // The draft is consumed either way: the Free scan now exists, or the
+      // paid checkout took over. The key is cleared so the next launch is a
+      // new draft with its own key.
+      checkoutKeyRef.current = null;
       // Null means a paid checkout took over and no scan exists yet.
       if (scan !== null) {
         setHasUnsavedChanges(false);
@@ -755,6 +783,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     paidScopeControls,
     plan,
     planOptions,
+    paidPlanOptions,
     robotsUnconfirmed,
     robotsOverrideStale,
     savingConfiguration,

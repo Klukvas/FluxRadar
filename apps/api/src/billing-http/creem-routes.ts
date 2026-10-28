@@ -25,8 +25,15 @@ import {
   scanActionRules,
 } from '../auth/rate-limit.ts';
 import { aiConsentSchema } from '../billing/checkout-metadata.ts';
+import {
+  checkoutRequestHash,
+  IDEMPOTENCY_KEY_HEADER,
+  readIdempotencyKey,
+} from '../billing/checkout-idempotency.ts';
+import { openCheckoutSessionWhere } from '../billing/checkout-lifecycle.ts';
 import { findCheckoutStatus } from '../billing/checkout-status.ts';
 import {
+  CHECKOUT_SESSION_STATUSES,
   CHECKOUT_UNAVAILABLE_REASONS,
   type CheckoutUnavailableReason,
 } from '../billing/constants.ts';
@@ -39,13 +46,18 @@ import {
   type CreemConfig,
   type CreemConfigResult,
 } from '../billing/creem/index.ts';
+import {
+  checkoutSessionViewFromRow,
+  type CreemCheckoutSessionView,
+} from '../billing/creem/checkout-session.ts';
 import { BillingUnavailableError } from '../billing/errors.ts';
+import { isUniqueViolation } from '../billing/prisma-errors.ts';
 import type { FetchLike } from '../billing/fetch-like.ts';
 import { WEBHOOK_OUTCOMES } from '../billing/webhook-outcomes.ts';
 import { assertOptInProvidersAvailable } from '../billing/opt-in-consent.ts';
 import { PAID_PLANS, planPriceUsd, planUrlLimit } from '../billing/plans.ts';
 import { sendOk } from '../http/envelope.ts';
-import { validationError } from '../http/errors.ts';
+import { ApiError, conflict, validationError } from '../http/errors.ts';
 import { requiredParam } from '../http/params.ts';
 import { parseInput } from '../http/validate.ts';
 import type { EgressLocationMonitor } from '../integrations/crawl-egress-monitor.ts';
@@ -170,33 +182,87 @@ export function creemRouter(deps: CreemRouterDeps): Router {
 
   router.post('/billing/checkout-session', auth, async (req, res) => {
     const config = requireConfig(deps.creem);
+    // One key per draft (§18 idempotency contract): a retry after a lost
+    // response must find its own session, never open a second payable one.
+    const clientKey = readIdempotencyKey(req.get(IDEMPOTENCY_KEY_HEADER));
     const input = parseInput(checkoutSessionInputSchema, req.body);
-    // Before the session exists, and long before a card is charged.
-    assertOptInProvidersAvailable(input.aiConsent, optInAiProviders);
     const accountId = accountIdFrom(res);
     requestRateLimiter.assertAllowedAll(
       scanActionRules('checkout', accountId, req.ip ?? 'unknown'),
     );
+    const requestHash = checkoutRequestHash(input);
+
+    if (clientKey !== null) {
+      const replayed = await replayCheckoutIfAny(deps, accountId, clientKey, requestHash);
+      if (replayed !== null) {
+        sendOk(res, replayed, { status: 201 });
+        return;
+      }
+      // No row for this account holds the key. If another account does, that is
+      // deliberate cross-account reuse of someone else's draft key — refuse
+      // rather than mint a second checkout under it.
+      const foreign = await deps.prisma.checkoutSession.findFirst({
+        where: { clientKey },
+        select: { accountId: true },
+      });
+      if (foreign !== null) {
+        throw conflict(
+          'CHECKOUT_IDEMPOTENCY_CONFLICT',
+          'This checkout attempt was already started under this key. Reload and try again.',
+        );
+      }
+    }
+
+    // Before the session exists, and long before a card is charged.
+    assertOptInProvidersAvailable(input.aiConsent, optInAiProviders);
     // Before a session row exists or the provider is called: a buyer must not
     // pay for a scan from a country whose network is down right now.
     const egress = await resolveLaunchEgressLocation(deps.egress, input.scope.egressLocation);
-    const session = await createCreemCheckoutSession(
-      {
-        prisma: deps.prisma,
-        config,
-        now: deps.now,
-        ...(deps.fetchImpl !== undefined ? { fetchImpl: deps.fetchImpl } : {}),
-      },
-      {
-        accountId,
-        siteProfileId: input.siteProfileId,
-        plan: input.plan,
-        scope: input.scope,
-        egress,
-        aiConsent: input.aiConsent,
-        expectedProfileConfigVersion: input.expectedProfileConfigVersion,
-      },
-    );
+    let session: CreemCheckoutSessionView;
+    try {
+      session = await createCreemCheckoutSession(
+        {
+          prisma: deps.prisma,
+          config,
+          now: deps.now,
+          ...(deps.fetchImpl !== undefined ? { fetchImpl: deps.fetchImpl } : {}),
+        },
+        {
+          accountId,
+          siteProfileId: input.siteProfileId,
+          plan: input.plan,
+          scope: input.scope,
+          egress,
+          aiConsent: input.aiConsent,
+          expectedProfileConfigVersion: input.expectedProfileConfigVersion,
+          clientKey: clientKey ?? undefined,
+          // The hash only matters next to its key: a headerless request stores
+          // neither, exactly as it did before the contract existed.
+          requestHash: clientKey === null ? undefined : requestHash,
+        },
+      );
+    } catch (error) {
+      // A concurrent retry of the same draft can race this create into the
+      // per-account unique index. Re-read and follow the state machine instead
+      // of answering 500. `raced === null` means the re-read took the adoption
+      // path (a closed row released the key) or found no row at all; either
+      // way this loser of the create race answers 409, and the client's next
+      // retry converges: it finds the winner's row and replays it, or finds no
+      // keyed row and creates fresh. Refusing loudly here is what keeps the
+      // race from ever creating twice.
+      if (clientKey !== null && isUniqueViolation(error, 'clientKey')) {
+        const raced = await replayCheckoutIfAny(deps, accountId, clientKey, requestHash);
+        if (raced !== null) {
+          sendOk(res, raced, { status: 201 });
+          return;
+        }
+        throw conflict(
+          'CHECKOUT_IDEMPOTENCY_CONFLICT',
+          'This checkout attempt was already started under this key. Reload and try again.',
+        );
+      }
+      throw error;
+    }
     sendOk(res, session, { status: 201 });
   });
 
@@ -210,6 +276,75 @@ export function creemRouter(deps: CreemRouterDeps): Router {
   });
 
   return router;
+}
+
+/**
+ * The idempotent replay of a draft that already reached the server.
+ *
+ * Looked up by (accountId, clientKey): the unique index is per account, and a
+ * key minted by another account is theirs, never a replay of ours (the route
+ * refuses cross-account reuse before any create).
+ *
+ * - Same hash, session still open or already completed, provider view present:
+ *   the stored view comes back verbatim — no provider call, no new payable
+ *   session, and none of the launch preconditions re-run, because the row
+ *   already captured the facts they would re-derive (the profile version lock
+ *   included). The view's mode is the row's own, not the current config's.
+ * - Same hash, session still open, provider view MISSING: the row was inserted
+ *   but the process died before the provider fields were stored. That window
+ *   covers both "died before the provider call" and "died after it" —
+ *   indistinguishable from the row — so neither replay nor adoption is safe.
+ *   A retryable coded error keeps the draft free of a bare 500, and the row's
+ *   deadline decides when the key can be adopted.
+ * - Same hash, session closed (rejected or expired): the draft's checkout is
+ *   dead. The key is released from the old row and the caller falls through to
+ *   create a fresh session under the SAME key, so the next repeat dedupes
+ *   against the new row. If that fresh creation fails, the next repeat either
+ *   finds no row under the key (create failed before the insert) or finds the
+ *   freshly closed row and adopts again — the same end state either way: one
+ *   fresh attempt per retry, never two payable sessions.
+ * - Different hash: a client bug; refused loudly rather than silently
+ *   creating a second session for one key.
+ * - No row: null — create as if the key were new.
+ */
+async function replayCheckoutIfAny(
+  deps: CreemRouterDeps,
+  accountId: string,
+  clientKey: string,
+  requestHash: string,
+): Promise<CreemCheckoutSessionView | null> {
+  const existing = await deps.prisma.checkoutSession.findFirst({
+    where: { accountId, clientKey },
+  });
+  if (existing === null) return null;
+  if (existing.requestHash !== requestHash) {
+    throw conflict(
+      'CHECKOUT_IDEMPOTENCY_CONFLICT',
+      'This checkout attempt was already started with different settings. Reload and try again.',
+    );
+  }
+  const stillOpen =
+    (await deps.prisma.checkoutSession.findFirst({
+      where: { id: existing.id, ...openCheckoutSessionWhere(deps.now()) },
+    })) !== null;
+  const hasProviderView =
+    existing.providerSessionId !== null && existing.checkoutUrl !== null;
+  if (stillOpen && !hasProviderView) {
+    throw new ApiError(
+      409,
+      'CHECKOUT_STILL_OPENING',
+      'The checkout is still opening. Try again in a moment.',
+      5,
+    );
+  }
+  if (stillOpen || existing.status === CHECKOUT_SESSION_STATUSES.completed) {
+    return checkoutSessionViewFromRow(existing);
+  }
+  await deps.prisma.checkoutSession.updateMany({
+    where: { id: existing.id, clientKey },
+    data: { clientKey: null },
+  });
+  return null;
 }
 
 /** Mounted in index.ts before express.json so the HMAC sees the wire bytes. */

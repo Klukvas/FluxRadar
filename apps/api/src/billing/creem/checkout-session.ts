@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { PrismaClient } from '@prisma/client';
+import type { CheckoutSession, PrismaClient } from '@prisma/client';
 import type { ScanScopeInput } from '@fluxradar/contracts';
 
 import { captureExecutionConfig, lockOwnProfile } from '../../profiles/execution-config.ts';
@@ -70,6 +70,14 @@ export interface CreemCheckoutSessionParams {
   readonly egress: LaunchEgress;
   readonly aiConsent?: AiConsentInput | undefined;
   readonly expectedProfileConfigVersion?: number | undefined;
+  /**
+   * The browser's per-draft idempotency key, persisted so a retry of the same
+   * draft finds this row and replays it instead of opening a second payable
+   * checkout.
+   */
+  readonly clientKey?: string | undefined;
+  /** sha256 of the canonical request payload, persisted next to the key. */
+  readonly requestHash?: string | undefined;
 }
 
 /** Exactly what the browser is allowed to learn about a checkout session. */
@@ -152,6 +160,8 @@ export async function createCreemCheckoutSession(
           captureExecutionConfig(lockedProfile, params.plan, scope),
         ),
         aiConsentJson: params.aiConsent === undefined ? null : JSON.stringify(params.aiConsent),
+        clientKey: params.clientKey ?? null,
+        requestHash: params.requestHash ?? null,
         createdAt,
         expiresAt,
       },
@@ -190,10 +200,12 @@ export async function createCreemCheckoutSession(
   }
 
   // Creem does not quote the session back; the tariff is the only price and the
-  // webhook checks the charge against it, so the quote columns stay empty.
+  // webhook checks the charge against it, so the quote columns stay empty. The
+  // hosted URL is stored here so an idempotent replay can answer from the row
+  // alone, without asking the provider to open anything new.
   await deps.prisma.checkoutSession.update({
     where: { id: row.id },
-    data: { providerSessionId: checkout.checkoutId },
+    data: { providerSessionId: checkout.checkoutId, checkoutUrl: checkout.checkoutUrl },
   });
 
   return {
@@ -205,5 +217,43 @@ export async function createCreemCheckoutSession(
     currency: 'USD',
     mode: deps.config.mode,
     expiresAt: expiresAt.toISOString(),
+  };
+}
+
+/**
+ * The stored view of a keyed session, rebuilt for an idempotent replay.
+ *
+ * The route only reaches this with rows whose provider fields are present: a
+ * keyed row still waiting for them is answered with a retryable coded error
+ * instead. A missing URL here is therefore an invariant violation — and lying
+ * about a URL would send a buyer to the wrong place, so it is refused rather
+ * than patched. The mode comes from the row's own `liveMode`, not from the
+ * configuration serving the replay: the row recorded the world it was opened
+ * in, and a test↔live flip between create and replay must not mislabel it.
+ */
+export function checkoutSessionViewFromRow(
+  row: Pick<
+    CheckoutSession,
+    | 'reference'
+    | 'providerSessionId'
+    | 'checkoutUrl'
+    | 'plan'
+    | 'expectedAmountUsd'
+    | 'expiresAt'
+    | 'liveMode'
+  >,
+): CreemCheckoutSessionView {
+  if (row.providerSessionId === null || row.checkoutUrl === null) {
+    throw new Error('a keyed checkout session row is missing its stored provider view');
+  }
+  return {
+    reference: row.reference,
+    sessionId: row.providerSessionId,
+    checkoutUrl: row.checkoutUrl,
+    plan: row.plan as PaidPlan,
+    amount: row.expectedAmountUsd,
+    currency: 'USD',
+    mode: row.liveMode ? 'live' : 'test',
+    expiresAt: row.expiresAt?.toISOString() ?? null,
   };
 }

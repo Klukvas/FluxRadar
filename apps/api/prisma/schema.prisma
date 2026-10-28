@@ -255,6 +255,27 @@ model CheckoutSession {
   status            String    @default("created")
   statusReason      String?
   /**
+   * The browser's per-draft idempotency key (§18 contract, client half): one
+   * checkout per draft, so a retry after a lost response replays the stored
+   * session instead of opening a second payable one. Unique per account:
+   * lookups and replays are always scoped to the owning account, and a key
+   * another account already holds is refused by the route before a create.
+   * Nullable: rows created before this column existed, and clients that send
+   * no key, stay unmatched.
+   */
+  clientKey         String?
+  /**
+   * sha256 of the canonical JSON of the validated checkout request the session
+   * was opened for. A repeated key with a different hash is a client bug and
+   * is refused rather than silently creating another session.
+   */
+  requestHash       String?
+  /**
+   * The Creem-hosted checkout URL, persisted at create time so a replayed
+   * idempotent retry can return the same view without a second provider call.
+   */
+  checkoutUrl       String?
+  /**
    * What the buyer was actually charged, echoed from the completed order.
    */
   settledAmount     Float?
@@ -278,6 +299,10 @@ model CheckoutSession {
   purchase    Purchase?   @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
 
   @@index([accountId, createdAt])
+  // One key per (account, draft): the unique pair is what makes a concurrent
+  // retry of the same draft fail into the route's P2002 handler instead of
+  // opening a second payable checkout.
+  @@unique([accountId, clientKey])
   @@index([provider, providerSessionId])
   /// "Does this profile have a checkout that can still be paid?" — asked before
   /// a profile is deleted and before its domain may be changed.

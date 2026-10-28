@@ -67,6 +67,36 @@ export class ApiRequestError extends Error {
   }
 }
 
+/**
+ * Whether a failure never reached the API: the fetch itself rejected (status 0)
+ * instead of the server answering with a refusal. Screens that must say
+ * something different about a dead connection vs a server problem branch on
+ * this.
+ */
+export function isNetworkError(error: unknown): boolean {
+  return error instanceof ApiRequestError && error.status === 0;
+}
+
+/**
+ * The connection status the fetch layer observed, for the global offline
+ * banner. A `true` signal means a request never reached the API; a `false`
+ * signal means a request completed a network round-trip, which is the honest
+ * recovery observation. `navigator.onLine` is only a hint — these signals are
+ * what actually happened. Nothing here queues or retries anything.
+ */
+const networkStatusListeners = new Set<(offline: boolean) => void>();
+
+export function subscribeNetworkStatus(listener: (offline: boolean) => void): () => void {
+  networkStatusListeners.add(listener);
+  return () => {
+    networkStatusListeners.delete(listener);
+  };
+}
+
+function reportNetworkStatus(offline: boolean): void {
+  for (const listener of networkStatusListeners) listener(offline);
+}
+
 export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   return (await apiRequestWithMeta<T>(path, init)).data;
 }
@@ -86,11 +116,13 @@ export async function apiDownload(
   try {
     response = await fetch(`${API_URL}${path}`, { credentials: 'include' });
   } catch {
+    reportNetworkStatus(true);
     throw new ApiRequestError('FluxRadar is temporarily unavailable. Try again in a moment.', {
       code: null,
       status: 0,
     });
   }
+  reportNetworkStatus(false);
   if (!response.ok) {
     let envelope: ApiResult<unknown> | null = null;
     try {
@@ -117,6 +149,22 @@ function filenameFrom(response: Response): string | null {
 }
 
 /**
+ * A fresh per-draft idempotency key for the paid checkout launch.
+ *
+ * 16 random bytes as 32 lowercase hex characters. `crypto.randomUUID()` is NOT
+ * used: it is undefined on insecure origins (e.g. `http://192.168.x.x:5173`),
+ * while `crypto.getRandomValues` exists in every secure context and in Node's
+ * webcrypto under tests. The key is minted once per form draft and reused
+ * across retries of that draft, so the server can replay the stored checkout
+ * instead of opening a second payable session.
+ */
+export function mintIdempotencyKey(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+/**
  * The same request as `apiRequest`, keeping the envelope's `meta` instead of
  * dropping it. Only list screens that page need it; everything else stays on
  * `apiRequest` and is unaffected by this existing.
@@ -129,15 +177,20 @@ export async function apiRequestWithMeta<T>(
   try {
     response = await fetch(`${API_URL}${path}`, {
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json', ...(init.headers ?? {}) },
       ...init,
+      // The caller's headers extend the default Content-Type rather than
+      // replacing it (a bare `...init` after this object used to drop the
+      // Content-Type the moment a caller passed any headers at all).
+      headers: { 'Content-Type': 'application/json', ...(init.headers ?? {}) },
     });
   } catch {
+    reportNetworkStatus(true);
     throw new ApiRequestError('FluxRadar is temporarily unavailable. Try again in a moment.', {
       code: null,
       status: 0,
     });
   }
+  reportNetworkStatus(false);
   const contentType = response.headers.get('content-type') ?? '';
   if (contentType.includes('text/csv') && response.ok) {
     return { data: (await response.text()) as T, meta: null };
