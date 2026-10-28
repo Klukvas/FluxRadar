@@ -39,7 +39,7 @@ import { issueStatusText, moduleResultText, scanStatusText } from './status-text
 describe('the report’s own words', () => {
   it('renders the Ukrainian document in Ukrainian, headings and all', async () => {
     const audit = performanceAudit();
-    const { prisma } = fakePrisma([issueAt(0)]);
+    const { prisma } = fakePrisma([issueAt(0), issueAt(1, { status: 'Reopened' })]);
     const result = await renderReportPdf({
       prisma,
       scan: scanWithModules([
@@ -69,8 +69,10 @@ describe('the report’s own words', () => {
     // carries evidence its sentence cannot be rebuilt from, so it keeps the
     // stored English, and that sentence states the same figure in the API's units.
     //
-    // Where the finding stands, in the same words the Issue Center uses.
-    expect(text).toContain(issueStatusText('New', 'uk'));
+    // Where the finding stands, in the same words the Issue Center uses. "New"
+    // is what nearly every finding is, so only a different state is printed.
+    expect(text).toContain(issueStatusText('Reopened', 'uk'));
+    expect(text).not.toContain(issueStatusText('New', 'uk'));
     expect(text).not.toContain('days reported');
     expect(text).not.toContain('Runs');
     expect(text).not.toContain('New');

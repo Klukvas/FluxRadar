@@ -11,7 +11,6 @@
 // entirely rather than rendered empty.
 
 import type { PrismaClient, Scan, ScanModule } from '@prisma/client';
-import { isLegacyPlan, readStoredPlan } from '@fluxradar/contracts';
 import type { FindingLanguage } from '@fluxradar/rules';
 
 import type { BingDataSnapshot } from '../../integrations/bing/types.ts';
@@ -22,19 +21,19 @@ import {
 } from '../../integrations/performance/index.ts';
 import { bingFindingText, storedBingFindings, type StoredBingFinding } from './bing-findings.ts';
 import type { ReportBrand } from '../../branding/load.ts';
-import { brandPalette, brandedCopy, brandedCover, brandedProvenance } from './branding.ts';
+import { brandPalette, brandedCopy } from './branding.ts';
 import { REPORT_COPY, type ReportCopy } from './copy.ts';
-import { ReportDocument, type ReportColour } from './document.ts';
-import { moduleLabel, ruleTitle } from './names.ts';
+import { coverPage } from './cover.ts';
+import { ReportDocument } from './document.ts';
+import { fillIndexPages, findingsIndex } from './findings-index.ts';
+import { findingWriter, severityColour } from './findings-section.ts';
+import { glossarySection } from './glossary.ts';
 import { performanceFindingText, storedPerformanceFindings } from './performance-findings.ts';
+import { actionPlanSection, loadPlan } from './plan-section.ts';
 import { bingStateText, googleStateText } from './provider-state.ts';
-import {
-  forEachFindingPage,
-  loadReportHeader,
-  type PdfReportHeader,
-  type ReportFinding,
-} from './report-data.ts';
-import { issueStatusText, moduleResultText, scanStatusText } from './status-text.ts';
+import { forEachFindingPage, loadReportHeader } from './report-data.ts';
+import { displayDomain } from './report-format.ts';
+import { writeFirstStep } from './summary-tiles.ts';
 
 /**
  * The action plan, rendered if — and only if — a ready one is supplied.
@@ -129,29 +128,6 @@ export interface RenderReportOptions {
   readonly loadActionPlan?: ActionPlanLoader;
 }
 
-const SEVERITY_COLOUR: Readonly<Record<string, ReportColour>> = {
-  Critical: 'critical',
-  High: 'high',
-  Medium: 'medium',
-  Low: 'low',
-};
-
-function displayDomain(domain: string): string {
-  try {
-    return new URL(domain).host;
-  } catch {
-    return domain;
-  }
-}
-
-function timestamp(value: Date | null): string {
-  return value === null ? '—' : value.toISOString().replace('T', ' ').slice(0, 16);
-}
-
-function percent(value: number | null): string {
-  return value === null ? '—' : `${Math.round(value * 100)}%`;
-}
-
 function parseMetadata(module: ScanModule | undefined): Readonly<Record<string, unknown>> | null {
   if (module === undefined) return null;
   try {
@@ -162,87 +138,6 @@ function parseMetadata(module: ScanModule | undefined): Readonly<Record<string, 
   } catch {
     return null;
   }
-}
-
-function coverPage(
-  doc: ReportDocument,
-  header: PdfReportHeader,
-  copy: ReportCopy,
-  language: FindingLanguage,
-  now: Date,
-  brand?: ReportBrand | null,
-): void {
-  const domain = displayDomain(header.scan.domain);
-  if (brand) brandedCover(doc, brand, language);
-  else doc.text('FluxRadar', { font: 'bold', size: 9, colour: 'accent' });
-  doc.heading(copy.preparedFor(domain), 1);
-  doc.paragraph(copy.generated(timestamp(now)), { colour: 'muted', size: 9 });
-  doc.fact(copy.plan, planText(header.scan.plan, copy));
-  doc.fact(copy.scanned, timestamp(header.scan.completedAt ?? header.scan.createdAt));
-  doc.fact(copy.status, scanStatusText(header.scan, language, brand ? 'neutral' : 'fluxradar'));
-}
-
-/** The plan as the report names it; a retired plan is named as archived. */
-function planText(storedPlan: string, copy: ReportCopy): string {
-  const plan = readStoredPlan(storedPlan);
-  return isLegacyPlan(plan) ? copy.legacyPlans[plan] : plan;
-}
-
-function summarySection(doc: ReportDocument, header: PdfReportHeader, copy: ReportCopy): void {
-  doc.heading(copy.summaryHeading, 2);
-  doc.paragraph(
-    header.openFindings === 0
-      ? copy.summaryNone
-      : copy.summaryLine(header.openFindings, header.ruleGroupCount),
-  );
-  doc.table(
-    [
-      { heading: copy.severity.Critical, width: 0.25 },
-      { heading: copy.severity.High, width: 0.25 },
-      { heading: copy.severity.Medium, width: 0.25 },
-      { heading: copy.severity.Low, width: 0.25 },
-    ],
-    [
-      [
-        String(header.bySeverity.Critical),
-        String(header.bySeverity.High),
-        String(header.bySeverity.Medium),
-        String(header.bySeverity.Low),
-      ],
-    ],
-  );
-}
-
-function modulesSection(
-  doc: ReportDocument,
-  header: PdfReportHeader,
-  copy: ReportCopy,
-  language: FindingLanguage,
-  voice: 'fluxradar' | 'neutral' = 'fluxradar',
-): void {
-  doc.heading(copy.sectionsHeading, 2);
-  doc.table(
-    [
-      // The result column is the widest: it carries the status and, where the
-      // section ended early, the clause that says why. Cells wrap, so a long
-      // reason grows its row rather than being cut.
-      { heading: copy.section, width: 0.28 },
-      { heading: copy.result, width: 0.44 },
-      { heading: copy.score, width: 0.14, align: 'right' },
-      { heading: copy.coverage, width: 0.14, align: 'right' },
-    ],
-    // Named, then ordered by the name the reader sees: a Ukrainian table sorted
-    // by the API's `module` would read as unsorted to the person holding it.
-    [...header.modules]
-      .map((module) => ({ module, label: moduleLabel(module.module, language) }))
-      .sort((left, right) => left.label.localeCompare(right.label, language))
-      .map(({ module, label }) => [
-        label,
-        moduleResultText(module, language, voice),
-        module.score === null ? copy.noScore : String(Math.round(module.score)),
-        percent(module.coverage),
-      ]),
-  );
 }
 
 /**
@@ -380,7 +275,7 @@ function performanceSection(
     const severity = capitalised(finding.severity);
     doc.badge(
       copy.severity[severity as keyof ReportCopy['severity']] ?? finding.severity,
-      SEVERITY_COLOUR[severity] ?? 'muted',
+      severityColour(severity),
     );
     doc.text(text.summary, { font: 'bold', size: 10 });
     doc.text(text.recommendation, { size: 9 });
@@ -536,94 +431,6 @@ function propertyMismatch(
   return { property, domain: reportDomain };
 }
 
-function findingBlock(
-  doc: ReportDocument,
-  finding: ReportFinding,
-  copy: ReportCopy,
-  language: FindingLanguage,
-): void {
-  doc.reserve(110);
-  const severityLabel =
-    copy.severity[finding.severity as keyof ReportCopy['severity']] ?? finding.severity;
-  doc.badge(severityLabel, SEVERITY_COLOUR[finding.severity] ?? 'muted');
-  // The problem, in the reader's words, over the line the Issue Center puts
-  // under the same heading. The id keeps its place there rather than losing it:
-  // it is what a reader quotes to support and what the rule registry is keyed
-  // by, and a rule this build has no title for still prints it as the heading.
-  doc.text(ruleTitle(finding.ruleId, language), { font: 'bold', size: 11 });
-  doc.text(
-    `${finding.ruleId} · ${moduleLabel(finding.module, language)} · ${copy.affectedPages(finding.affectedTargets)}/${finding.applicableTargets} · ${issueStatusText(finding.status, language)}`,
-    { size: 8, colour: 'muted' },
-  );
-  doc.text(finding.targetUrl, { font: 'mono', size: 8, colour: 'accent' });
-  if (finding.evidenceExcerpt !== null && finding.evidenceExcerpt !== '') {
-    doc.text(`${copy.evidence}:`, { font: 'bold', size: 9 });
-    // In full, however long it is. The document says every finding is included
-    // and nothing was left out; an excerpt cut at a round number would make that
-    // sentence false on exactly the findings a reader most needs to see. The
-    // only bound on this document's size is the route's refusal above
-    // PDF_FINDING_LIMIT, which renders nothing rather than something partial.
-    //
-    // The excerpt itself is already bounded where it is produced — the rules
-    // engine stores at most EVIDENCE_EXCERPT_MAX_CHARS (2 048) of it — so this
-    // is not an unbounded layout: 2 048 characters with no break in them measure
-    // in about 30 ms, and the same length as ordinary text in under 10 ms.
-    doc.text(finding.evidenceExcerpt, { font: 'mono', size: 8 });
-  }
-  doc.text(`${copy.recommendation}:`, { font: 'bold', size: 9 });
-  doc.text(finding.recommendation, { size: 9, gapAfter: 0.8 });
-}
-
-async function actionPlanSection(
-  doc: ReportDocument,
-  options: RenderReportOptions,
-  copy: ReportCopy,
-): Promise<void> {
-  const plan = await options.loadActionPlan?.({
-    scanId: options.scan.id,
-    accountId: options.scan.accountId,
-    language: options.language,
-  });
-  if (plan === undefined || plan === null || plan.actions.length === 0) return;
-  doc.heading(copy.actionPlanHeading, 2);
-  doc.paragraph(plan.overview);
-  // What the plan does NOT cover, stated before the actions rather than after:
-  // a plan that addresses a fifth of the open findings is useful, and a reader
-  // who thinks it addresses all of them has been misled by its confidence.
-  doc.paragraph(copy.actionPlanReach(plan.reach.addressedOpenIssues, plan.reach.totalOpenIssues), {
-    colour: 'muted',
-    size: 9,
-  });
-  // And what the scan could not see at all when the plan was written. The web
-  // report states these above the plan; a document that dropped them would read
-  // as the more confident of the two for no reason.
-  if (plan.caveats.length > 0) doc.bullets(plan.caveats, { colour: 'muted', size: 9 });
-  plan.actions.forEach((action, index) => {
-    doc.reserve(90);
-    doc.text(`${index + 1}. ${action.title}`, { font: 'bold', size: 10 });
-    doc.text(action.why, { size: 9 });
-    if (action.steps.length > 0) doc.bullets(action.steps);
-    doc.text(
-      [
-        copy.actionPlanEffort[action.effort],
-        action.settled
-          ? copy.actionPlanSettled
-          : copy.actionPlanProgress(action.openIssues, action.totalIssues),
-        action.ruleIds.join(', '),
-      ]
-        .filter((part) => part !== '')
-        .join(' · '),
-      { size: 8, colour: 'muted', gapAfter: 0.4 },
-    );
-  });
-  const provenance = options.brand
-    ? brandedProvenance(copy, plan.metadata.generatedAt)
-    : [plan.metadata.modelId, plan.metadata.promptVersion, plan.metadata.generatedAt]
-        .filter((value): value is string => typeof value === 'string' && value !== '')
-        .join(' · ');
-  if (provenance !== '') doc.paragraph(provenance, { colour: 'muted', size: 8, font: 'mono' });
-}
-
 /**
  * The complete report as PDF bytes. Returns the byte count alongside so the
  * caller can record what it stored without re-measuring the buffer.
@@ -639,10 +446,22 @@ export async function renderReportPdf(
     undefined,
     options.brand ? { palette: brandPalette(options.brand), info: { Title: title } } : {},
   );
-  coverPage(doc, header, copy, options.language, options.now, options.brand);
-  summarySection(doc, header, copy);
-  modulesSection(doc, header, copy, options.language, options.brand ? 'neutral' : 'fluxradar');
-  await actionPlanSection(doc, options, copy);
+  // Read first: page one says whether a plan follows, and names its first step.
+  const plan = await loadPlan(options);
+  const firstStep = coverPage({
+    doc,
+    header,
+    copy,
+    language: options.language,
+    now: options.now,
+    brand: options.brand ?? null,
+    plan,
+  });
+  if (plan !== null) {
+    const planPage = actionPlanSection(doc, plan, copy);
+    if (firstStep !== null) writeFirstStep(doc, copy, firstStep, planPage);
+  }
+  const indexSlots = findingsIndex(doc, header, copy, options.language);
   performanceSection(doc, header.modules, copy, options.language);
   searchDataSection(
     doc,
@@ -652,26 +471,30 @@ export async function renderReportPdf(
     options.scan.domain,
     options.brand ? 'neutral' : 'fluxradar',
   );
-  doc.heading(copy.problemsHeading, 2);
-  if (header.totalFindings === 0) {
-    doc.paragraph(copy.noFindings);
-  } else {
-    doc.paragraph(copy.problemsLead, { colour: 'muted', size: 9 });
-    doc.paragraph(copy.completeNote(header.totalFindings), { colour: 'muted', size: 9 });
-  }
+  // The writer opens the chapter at its first finding, when it knows how much
+  // room that finding's card needs; with none, it is opened after the loop.
+  const writer = findingWriter(doc, header, copy, options.language);
   const written = await forEachFindingPage(
     options.prisma,
     options.scan.id,
     options.language,
     (page) => {
-      for (const finding of page) findingBlock(doc, finding, copy, options.language);
+      for (const finding of page) writer.write(finding);
     },
   );
+  writer.ensureChapter();
+  fillIndexPages(doc, copy, indexSlots, writer.firstPages);
+  // Only a report with findings uses the terms it explains.
+  if (header.totalFindings > 0) glossarySection(doc, copy);
   // Last, because only now is it known whether it is needed: the document states
   // the escape convention, in its own language, exactly when it had to use one.
   if (doc.escapedCharacterCount > 0) {
     doc.heading(copy.unsupportedGlyphsHeading, 2);
     doc.paragraph(copy.unsupportedGlyphs(doc.escapedCharacterCount), { colour: 'muted', size: 9 });
   }
-  return { bytes: await doc.finish(copy.footer), findingCount: written };
+  const runningHeader = {
+    left: copy.preparedFor(displayDomain(options.scan.domain)),
+    right: options.brand ? options.brand.displayName : 'FluxRadar',
+  };
+  return { bytes: await doc.finish(copy.footer, runningHeader), findingCount: written };
 }

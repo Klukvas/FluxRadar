@@ -28,12 +28,14 @@ import type { LegacyPlan } from '@fluxradar/contracts';
 import type { FindingLanguage } from '@fluxradar/rules';
 
 import type { IncomparableCode } from '../../integrations/performance/index.ts';
+import { ukAfterCount, ukPlural, ukStillOpen } from './plural.ts';
 
 export interface ReportCopy {
   readonly aiGenerated: string;
   readonly documentTitle: (domain: string) => string;
   readonly preparedFor: (domain: string) => string;
-  readonly generated: (timestamp: string) => string;
+  /** The fact-row label above the moment the document was written. */
+  readonly generatedLabel: string;
   readonly plan: string;
   /** A retired plan's name on an old report (stored-plan.ts). */
   readonly legacyPlans: Readonly<Record<LegacyPlan, string>>;
@@ -42,16 +44,61 @@ export interface ReportCopy {
   readonly noScore: string;
   readonly coverage: string;
   readonly summaryHeading: string;
-  readonly summaryLine: (open: number, groups: number) => string;
+  /** Under the open count: what that number counts, agreed with it. */
+  readonly openCaption: (open: number, groups: number) => string;
   readonly summaryNone: string;
+  readonly openLabel: string;
+  readonly bySeverityLabel: string;
+  /** "64 of 100": never a spaced slash, which the footer counter is read by. */
+  readonly scoreOutOf: (score: number) => string;
+  /** The caps label over the overall score: the tile says which score it is. */
+  readonly overallScoreLabel: string;
+  /** Under a provisional overall score: too few checks ran to call it settled. */
+  readonly overallProvisional: string;
+  /** Instead of the overall score when too few checks ran to compute one. */
+  readonly overallInsufficient: string;
+  /** "First step: <action> (plan, p. 2)", under the verdict when a plan prints. */
+  readonly firstStep: (title: string, page: number) => string;
+  /** The index's page reference for the first card of a problem. */
+  readonly pageRef: (page: number) => string;
+  /**
+   * One sentence under the summary that says what to do first, chosen by the
+   * worst severity present, then the weakest scored section.
+   */
+  readonly verdict: {
+    readonly critical: (count: number) => string;
+    readonly high: (count: number) => string;
+    readonly minor: string;
+    readonly clear: string;
+    readonly weakest: (label: string, score: number) => string;
+  };
+  /** What each severity asks of the reader, in the browser report's words. */
+  readonly severityMeaning: string;
+  /** The orientation box on page one, for a reader who is not technical. */
+  readonly howToRead: string;
+  /** The same note for a report that has no action plan to point to. */
+  readonly howToReadNoPlan: string;
   readonly sectionsHeading: string;
+  readonly sectionsLead: (sections: number) => string;
+  readonly scoreLegend: string;
+  /** Appended to the score legend when it fits: what the ticks on the bars mark. */
+  readonly scoreTicks: string;
+  readonly coverageLegend: string;
+  readonly findingsIndexHeading: string;
+  /** Plain one-line meanings of the terms the findings use, for the last page. */
+  readonly glossary: {
+    readonly heading: string;
+    readonly entries: readonly { readonly term: string; readonly meaning: string }[];
+  };
   readonly section: string;
   readonly result: string;
   readonly problemsHeading: string;
   readonly problemsLead: string;
   readonly noFindings: string;
   readonly completeNote: (total: number) => string;
-  readonly affectedPages: (count: number) => string;
+  readonly affectedPages: (affected: number, applicable: number) => string;
+  /** Instead of the page count, for a finding about the site as a whole (TLS, DNS). */
+  readonly wholeSite: string;
   readonly evidence: string;
   readonly recommendation: string;
   readonly status: string;
@@ -89,6 +136,8 @@ export interface ReportCopy {
   readonly actionPlanHeading: string;
   readonly actionPlanReach: (addressed: number, total: number) => string;
   readonly actionPlanProgress: (open: number, total: number) => string;
+  /** Which rule ids an action closes: the link from the plan to the findings. */
+  readonly actionPlanCovers: (ruleIds: string) => string;
   readonly actionPlanSettled: string;
   readonly actionPlanEffort: Readonly<Record<'small' | 'medium' | 'large', string>>;
   readonly performanceComparisonNone: (reason: string) => string;
@@ -145,31 +194,122 @@ export interface ReportCopy {
 }
 
 const EN: ReportCopy = {
-  aiGenerated: 'AI-generated',
+  aiGenerated: 'Prepared by our AI agent',
   documentTitle: (domain) => `FluxRadar report — ${domain}`,
   preparedFor: (domain) => `Website report for ${domain}`,
-  generated: (timestamp) => `Generated ${timestamp}`,
+  generatedLabel: 'Generated',
   plan: 'Plan',
   legacyPlans: { WebsiteAudit: 'Website Audit (archived)', Legacy: 'Archived plan' },
   scanned: 'Scanned',
   score: 'Score',
   noScore: 'Not scored',
-  coverage: 'Coverage',
+  coverage: 'Checks done',
   summaryHeading: 'Summary',
-  summaryLine: (open, groups) => `${open} open findings across ${groups} distinct problems.`,
+  openCaption: (open, groups) =>
+    groups < open
+      ? `findings in ${groups} different ${groups === 1 ? 'problem' : 'problems'}`
+      : open === 1
+        ? 'finding'
+        : 'findings',
   summaryNone: 'No open findings.',
+  openLabel: 'Open',
+  bySeverityLabel: 'By severity',
+  scoreOutOf: (score) => `${score} of 100`,
+  overallScoreLabel: 'Overall score',
+  overallProvisional: 'provisional',
+  overallInsufficient: 'Not enough data for an overall score',
+  firstStep: (title, page) => `First step: ${title} (plan, p. ${page})`,
+  pageRef: (page) => `p. ${page}`,
+  verdict: {
+    critical: (count) =>
+      count === 1
+        ? 'There is 1 critical finding. Fix it first; the rest can wait.'
+        : `There are ${count} critical findings. Fix those first; the rest can wait.`,
+    high: (count) =>
+      count === 1
+        ? 'Nothing critical, but 1 important finding is worth fixing soon.'
+        : `Nothing critical, but ${count} important findings are worth fixing soon.`,
+    minor: 'No serious findings. What remains can be fixed at a normal pace.',
+    clear: 'No open findings: on these checks the site is in order.',
+    weakest: (label, score) => `Weakest section: ${label} (${score} of 100).`,
+  },
+  severityMeaning:
+    'Critical: fix it before anything else. High: fix it soon. Medium: worth fixing. Low: can wait.',
+  howToRead:
+    'How to read this report. Page 1: how the site is doing. After that: the action plan and ' +
+    'every problem with its page, evidence and fix, for whoever maintains the site. A code such ' +
+    'as SEO-TECH-015 is for the developer only.',
+  howToReadNoPlan:
+    'How to read this report. Page 1: how the site is doing. After that: every problem with its ' +
+    'page, evidence and fix, for whoever maintains the site. A code such as SEO-TECH-015 is for ' +
+    'the developer only.',
   sectionsHeading: 'Sections',
+  sectionsLead: (sections) =>
+    sections === 1
+      ? '1 area checked.'
+      : `${sections} areas checked. Look at the lowest scores first.`,
+  scoreLegend:
+    'Score 0–100, higher is better. 0–49: needs attention. 50–74: room to fix. 75–100: good.',
+  scoreTicks: 'Ticks on the bars: 50 and 75.',
+  coverageLegend:
+    "Checks done: the share of this section's checks that could run. Not the share of pages checked.",
+  findingsIndexHeading: 'Findings index',
+  glossary: {
+    heading: 'Terms used in this report',
+    entries: [
+      {
+        term: 'TLS certificate',
+        meaning:
+          'The digital document that lets the browser show a padlock and encrypt the connection to the site.',
+      },
+      {
+        term: 'robots.txt',
+        meaning: 'A file with rules for search engine crawlers: which pages they may read.',
+      },
+      { term: 'title', meaning: 'The page name shown in the browser tab and in search results.' },
+      {
+        term: 'meta description',
+        meaning: 'A short summary of the page that search engines may show under its title.',
+      },
+      { term: 'viewport', meaning: 'A setting that fits the page to the width of a phone screen.' },
+      {
+        term: 'SPF/DMARC',
+        meaning: 'Domain records that confirm email sent in your name is genuine.',
+      },
+      { term: 'H1', meaning: 'The main heading on the page itself; usually one per page.' },
+      {
+        term: 'Open Graph',
+        meaning: 'Tags that messengers and social networks read to build a link preview.',
+      },
+      {
+        term: 'cookies',
+        meaning:
+          "Small files a site stores in the visitor's browser; some need the visitor's consent.",
+      },
+      {
+        term: 'contrast',
+        meaning: 'The difference between text and background colour; too little is hard to read.',
+      },
+      {
+        term: 'LocalBusiness',
+        meaning:
+          "Markup that tells search engines and AI assistants a business's name, address and opening hours.",
+      },
+    ],
+  },
   section: 'Section',
   result: 'Result',
   problemsHeading: 'Findings',
   problemsLead:
-    'Every finding of this scan, worst first, with the page it was found on, the evidence and the fix.',
-  noFindings: 'This scan produced no findings.',
+    'Each problem: where it was found, what the check saw, and what to do. Hand these pages to whoever maintains the site.',
+  noFindings: 'The check found no problems on the pages it read.',
   completeNote: (total) =>
     `All ${total} findings are included below; nothing was left out of this document.`,
-  affectedPages: (count) => `${count} affected`,
-  evidence: 'Evidence',
-  recommendation: 'Fix',
+  affectedPages: (affected, applicable) =>
+    `on ${affected} of ${applicable} ${applicable === 1 ? 'page' : 'pages'}`,
+  wholeSite: 'whole site',
+  evidence: 'What the check saw',
+  recommendation: 'What to do',
   status: 'Status',
   severity: { Critical: 'Critical', High: 'High', Medium: 'Medium', Low: 'Low', Info: 'Note' },
   performanceHeading: 'Performance',
@@ -193,10 +333,17 @@ const EN: ReportCopy = {
   noData: 'No data',
   actionPlanHeading: 'Action plan',
   actionPlanReach: (addressed, total) =>
-    `This plan addresses ${addressed} of the ${total} open findings in this report.`,
+    addressed >= total
+      ? `The plan covers all ${total} open ${total === 1 ? 'finding' : 'findings'}.`
+      : `The plan covers ${addressed} of ${total} findings; the rest are listed under Findings.`,
   actionPlanProgress: (open, total) => `${open} of ${total} findings still open`,
+  actionPlanCovers: (ruleIds) => `Covers: ${ruleIds}`,
   actionPlanSettled: 'every finding this addresses is closed',
-  actionPlanEffort: { small: 'small effort', medium: 'medium effort', large: 'large effort' },
+  actionPlanEffort: {
+    small: 'small amount of work',
+    medium: 'medium amount of work',
+    large: 'large amount of work',
+  },
   performanceComparisonNone: (reason) => `Not compared with the previous scan: ${reason}.`,
   incomparable: {
     AuditVersionChanged: (previous, current) =>
@@ -247,36 +394,143 @@ const EN: ReportCopy = {
 };
 
 const UK: ReportCopy = {
-  aiGenerated: 'Згенеровано AI',
+  aiGenerated: 'Підготовлено ШІ-агентом',
   documentTitle: (domain) => `Звіт FluxRadar — ${domain}`,
   preparedFor: (domain) => `Звіт про сайт ${domain}`,
-  generated: (timestamp) => `Сформовано ${timestamp}`,
+  generatedLabel: 'Сформовано',
   plan: 'Тариф',
   legacyPlans: { WebsiteAudit: 'Website Audit (архів)', Legacy: 'Архівний тариф' },
   scanned: 'Проскановано',
   score: 'Оцінка',
   noScore: 'Без оцінки',
-  coverage: 'Покриття',
+  coverage: 'Виконано перевірок',
   summaryHeading: 'Підсумок',
-  summaryLine: (open, groups) => `${open} відкритих знахідок у ${groups} різних проблемах.`,
+  openCaption: (open, groups) => {
+    const noun = ukPlural(open, { one: 'знахідка', few: 'знахідки', many: 'знахідок' });
+    return groups < open
+      ? `${noun} у ${groups} ${ukAfterCount(groups, 'різній проблемі', 'різних проблемах')}`
+      : noun;
+  },
   summaryNone: 'Відкритих знахідок немає.',
+  openLabel: 'Відкрито',
+  bySeverityLabel: 'За важливістю',
+  scoreOutOf: (score) => `${score} зі 100`,
+  overallScoreLabel: 'Загальна оцінка',
+  overallProvisional: 'попередня',
+  overallInsufficient: 'Недостатньо даних для загальної оцінки',
+  firstStep: (title, page) => `Перший крок: ${title} (план, с. ${page})`,
+  pageRef: (page) => `с. ${page}`,
+  verdict: {
+    critical: (count) =>
+      `Є ${count} ${ukPlural(count, {
+        one: 'критична знахідка',
+        few: 'критичні знахідки',
+        many: 'критичних знахідок',
+      })}. ${ukAfterCount(count, 'Виправте її першою', 'Виправте їх першими')}, решта може почекати.`,
+    high: (count) =>
+      `Критичних знахідок немає, але ${count} ${ukPlural(count, {
+        one: 'важливу знахідку',
+        few: 'важливі знахідки',
+        many: 'важливих знахідок',
+      })} варто виправити найближчим часом.`,
+    minor:
+      'Серйозних знахідок немає. Залишилися дрібниці, їх можна виправити у звичайному порядку.',
+    clear: 'Відкритих знахідок немає: за цими перевірками сайт у порядку.',
+    weakest: (label, score) => `Найслабший розділ: ${label} (${score} зі 100).`,
+  },
+  severityMeaning:
+    'Критична: виправляйте насамперед. Висока: виправте найближчим часом. Середня: варто виправити. Низька: може почекати.',
+  howToRead:
+    'Як читати цей звіт. Сторінка 1: стан сайту. Далі: план дій і кожна знайдена проблема зі ' +
+    'сторінкою, доказом і виправленням, для того, хто веде сайт. Код на кшталт SEO-TECH-015 ' +
+    'потрібен лише розробнику.',
+  howToReadNoPlan:
+    'Як читати цей звіт. Сторінка 1: стан сайту. Далі: кожна знайдена проблема зі сторінкою, ' +
+    'доказом і виправленням, для того, хто веде сайт. Код на кшталт SEO-TECH-015 потрібен лише ' +
+    'розробнику.',
   sectionsHeading: 'Розділи',
+  sectionsLead: (sections) => {
+    const lead = `Перевірено ${sections} ${ukPlural(sections, {
+      one: 'напрям',
+      few: 'напрями',
+      many: 'напрямів',
+    })}.`;
+    return sections === 1 ? lead : `${lead} Дивіться спочатку на найнижчі оцінки.`;
+  },
+  scoreLegend:
+    'Оцінка від 0 до 100: що вище, то краще. 0–49: потребує уваги. 50–74: є що виправити. 75–100: добре.',
+  scoreTicks: 'Позначки на смугах: 50 і 75.',
+  coverageLegend:
+    'Виконано перевірок: яку частку перевірок розділу вдалося виконати. Не плутати з часткою перевірених сторінок.',
+  findingsIndexHeading: 'Зміст знахідок',
+  glossary: {
+    heading: 'Терміни цього звіту',
+    entries: [
+      {
+        term: 'TLS-сертифікат',
+        meaning:
+          'Цифровий документ, завдяки якому браузер показує замок і шифрує з’єднання з сайтом.',
+      },
+      {
+        term: 'robots.txt',
+        meaning: 'Файл із правилами для пошукових роботів: які сторінки їм можна читати.',
+      },
+      {
+        term: 'title',
+        meaning: 'Заголовок сторінки, який видно у вкладці браузера та в результатах пошуку.',
+      },
+      {
+        term: 'meta description',
+        meaning: 'Короткий опис сторінки, який пошуковик може показати під заголовком.',
+      },
+      {
+        term: 'viewport',
+        meaning: 'Налаштування, яке підганяє сторінку під ширину екрана телефона.',
+      },
+      {
+        term: 'SPF/DMARC',
+        meaning: 'Записи домену, які підтверджують, що листи від вашого імені справжні.',
+      },
+      { term: 'H1', meaning: 'Головний заголовок на самій сторінці; зазвичай один на сторінку.' },
+      {
+        term: 'Open Graph',
+        meaning:
+          'Теги, з яких месенджери та соцмережі беруть картинку й текст для прев’ю посилання.',
+      },
+      {
+        term: 'cookies',
+        meaning:
+          'Невеликі файли, які сайт зберігає в браузері відвідувача; для деяких потрібна його згода.',
+      },
+      {
+        term: 'контраст',
+        meaning: 'Різниця між кольором тексту й тла; за замалого контрасту текст важко читати.',
+      },
+      {
+        term: 'LocalBusiness',
+        meaning:
+          'Розмітка, яка повідомляє пошуковикам і ШІ-асистентам назву, адресу й години роботи закладу.',
+      },
+    ],
+  },
   section: 'Розділ',
   result: 'Результат',
   problemsHeading: 'Знахідки',
   problemsLead:
-    'Усі знахідки цього сканування, починаючи з найважливіших: сторінка, доказ і спосіб виправлення.',
-  noFindings: 'Це сканування не виявило знахідок.',
-  completeNote: (total) => `Нижче наведено всі ${total} знахідок — нічого не пропущено.`,
-  affectedPages: (count) => `${count} уражено`,
-  evidence: 'Доказ',
-  recommendation: 'Виправлення',
+    'Кожна проблема: де знайдено, що побачила перевірка і що зробити. Передайте ці сторінки тому, хто веде сайт.',
+  noFindings: 'Перевірка не знайшла проблем на прочитаних сторінках.',
+  completeNote: (total) => `Нижче наведено всі знахідки (${total}); нічого не пропущено.`,
+  affectedPages: (affected, applicable) =>
+    `на ${affected} з ${applicable} ${ukAfterCount(applicable, 'сторінки', 'сторінок')}`,
+  wholeSite: 'весь сайт',
+  evidence: 'Що побачила перевірка',
+  recommendation: 'Що зробити',
   status: 'Статус',
   severity: {
-    Critical: 'Критично',
-    High: 'Високо',
-    Medium: 'Середньо',
-    Low: 'Низько',
+    Critical: 'Критична',
+    High: 'Висока',
+    Medium: 'Середня',
+    Low: 'Низька',
     Info: 'Примітка',
   },
   performanceHeading: 'Швидкодія',
@@ -300,10 +554,17 @@ const UK: ReportCopy = {
   noData: 'Немає даних',
   actionPlanHeading: 'План дій',
   actionPlanReach: (addressed, total) =>
-    `Цей план охоплює ${addressed} з ${total} відкритих знахідок цього звіту.`,
-  actionPlanProgress: (open, total) => `${open} з ${total} знахідок ще відкриті`,
+    addressed >= total
+      ? `План охоплює всі відкриті знахідки (${total}).`
+      : `План охоплює ${addressed} з ${total} ${ukAfterCount(total, 'знахідки', 'знахідок')}; решта наведена в розділі «Знахідки».`,
+  actionPlanProgress: ukStillOpen,
+  actionPlanCovers: (ruleIds) => `Закриває: ${ruleIds}`,
   actionPlanSettled: 'усі знахідки, яких це стосується, закриті',
-  actionPlanEffort: { small: 'невеликий обсяг', medium: 'середній обсяг', large: 'великий обсяг' },
+  actionPlanEffort: {
+    small: 'невеликий обсяг робіт',
+    medium: 'середній обсяг робіт',
+    large: 'великий обсяг робіт',
+  },
   performanceComparisonNone: (reason) => `Порівняння з попереднім скануванням немає: ${reason}.`,
   incomparable: {
     AuditVersionChanged: (previous, current) =>

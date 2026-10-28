@@ -26,6 +26,8 @@ export interface ReportFinding {
   readonly module: string;
   readonly severity: string;
   readonly status: string;
+  /** `page`, or `site`/`api`/`environment` for a check about the site as a whole. */
+  readonly targetKind: string;
   readonly targetUrl: string;
   readonly evidenceExcerpt: string | null;
   readonly recommendation: string;
@@ -41,13 +43,31 @@ export interface ReportSeverityCounts {
   readonly Low: number;
 }
 
+/** How many findings one rule produced, at one severity, in one section. */
+export interface ReportRuleGroup {
+  readonly ruleId: string;
+  readonly severity: string;
+  readonly module: string;
+  readonly count: number;
+}
+
 export interface PdfReportHeader {
   readonly scan: Scan;
   readonly modules: readonly ScanModule[];
   readonly totalFindings: number;
   readonly openFindings: number;
+  /** Every finding listed, by severity: what the findings chapter's group headers count. */
   readonly bySeverity: ReportSeverityCounts;
+  /**
+   * Open findings only (New, Reopened), by severity: the population page one
+   * states, so its verdict and severity bar agree with its open count.
+   */
+  readonly openBySeverity: ReportSeverityCounts;
   readonly ruleGroupCount: number;
+  /** Distinct rules among the open findings: the page-one tile's problem count. */
+  readonly openRuleCount: number;
+  /** One entry per (rule, severity, section): what the findings index lists. */
+  readonly ruleGroups: readonly ReportRuleGroup[];
 }
 
 /** A keyset cursor over the findings of one scan. */
@@ -65,12 +85,28 @@ function localise(issue: Issue, language: FindingLanguage): ReportFinding {
     module: issue.module,
     severity: issue.severity,
     status: issue.status,
+    targetKind: issue.targetKind,
     targetUrl: issue.targetUrl,
     evidenceExcerpt: localized?.evidenceExcerpt ?? issue.evidenceExcerpt,
     recommendation: localized?.recommendation ?? issue.recommendation,
     applicableTargets: issue.applicableTargets,
     affectedTargets: issue.affectedTargets,
     observedAt: issue.observedAt,
+  };
+}
+
+/** The statuses a finding is still open in: the same filter the open count uses. */
+const OPEN_STATUSES = ['New', 'Reopened'] as const;
+
+function severityCounts(
+  rows: readonly { readonly severity: string; readonly _count: { readonly _all: number } }[],
+): ReportSeverityCounts {
+  const counted = new Map(rows.map((row) => [row.severity, row._count._all]));
+  return {
+    Critical: counted.get('Critical') ?? 0,
+    High: counted.get('High') ?? 0,
+    Medium: counted.get('Medium') ?? 0,
+    Low: counted.get('Low') ?? 0,
   };
 }
 
@@ -82,29 +118,47 @@ export async function loadReportHeader(
   prisma: PrismaClient,
   scan: Scan & { readonly modules: ScanModule[] },
 ): Promise<PdfReportHeader> {
-  const [total, open, severities, groups] = await Promise.all([
+  const [total, open, severities, openSeverities, groups, openRules] = await Promise.all([
     prisma.issue.count({ where: { scanId: scan.id } }),
-    prisma.issue.count({ where: { scanId: scan.id, status: { in: ['New', 'Reopened'] } } }),
+    prisma.issue.count({ where: { scanId: scan.id, status: { in: [...OPEN_STATUSES] } } }),
     prisma.issue.groupBy({
       by: ['severity'],
       where: { scanId: scan.id },
       _count: { _all: true },
     }),
-    prisma.issue.groupBy({ by: ['ruleId'], where: { scanId: scan.id }, _count: { _all: true } }),
+    prisma.issue.groupBy({
+      by: ['severity'],
+      where: { scanId: scan.id, status: { in: [...OPEN_STATUSES] } },
+      _count: { _all: true },
+    }),
+    prisma.issue.groupBy({
+      by: ['ruleId', 'severity', 'module'],
+      where: { scanId: scan.id },
+      _count: { _all: true },
+    }),
+    prisma.issue.groupBy({
+      by: ['ruleId'],
+      where: { scanId: scan.id, status: { in: [...OPEN_STATUSES] } },
+      _count: { _all: true },
+    }),
   ]);
-  const counted = new Map(severities.map((row) => [row.severity, row._count._all]));
+  const counted = severityCounts(severities);
+  const ruleGroups = groups.map((row) => ({
+    ruleId: row.ruleId,
+    severity: row.severity,
+    module: row.module,
+    count: row._count._all,
+  }));
   return {
     scan,
     modules: scan.modules,
     totalFindings: total,
     openFindings: open,
-    bySeverity: {
-      Critical: counted.get('Critical') ?? 0,
-      High: counted.get('High') ?? 0,
-      Medium: counted.get('Medium') ?? 0,
-      Low: counted.get('Low') ?? 0,
-    },
-    ruleGroupCount: groups.length,
+    bySeverity: counted,
+    openBySeverity: severityCounts(openSeverities),
+    ruleGroupCount: new Set(ruleGroups.map((group) => group.ruleId)).size,
+    ruleGroups,
+    openRuleCount: openRules.length,
   };
 }
 
