@@ -392,6 +392,163 @@ describe('owner dashboard accounts list', () => {
   });
 });
 
+describe('owner dashboard accounts list — test filter and sorting', () => {
+  it('hides test accounts while the checkbox is on, and shows them again', async () => {
+    const fetchMock = stubApi((search) => envelope(pageOf(search)));
+    openDashboard();
+    await screen.findByText('person-0@example.com');
+
+    const checkbox = screen.getByLabelText('Hide test accounts');
+    expect(checkbox).not.toBeChecked();
+    fireEvent.click(checkbox);
+
+    await waitFor(() => expect(accountRequests(fetchMock).at(-1)).toBe('?page=1&test=exclude'));
+    expect(checkbox).toBeChecked();
+
+    fireEvent.click(checkbox);
+    await waitFor(() => expect(accountRequests(fetchMock).at(-1)).toBe('?page=1'));
+    expect(checkbox).not.toBeChecked();
+  });
+
+  it('sorts by the column clicked, toggles its direction, and marks the header', async () => {
+    const fetchMock = stubApi((search) => envelope(pageOf(search)));
+    openDashboard();
+    await screen.findByText('person-0@example.com');
+
+    // The default order is "Registered" descending, marked from the first render.
+    const registered = screen.getByRole('columnheader', { name: 'Registered' });
+    expect(registered).toHaveAttribute('aria-sort', 'descending');
+    expect(within(registered).getByText('↓')).toBeInTheDocument();
+
+    // Clicking the column that already orders the list flips it to ascending.
+    fireEvent.click(screen.getByRole('button', { name: 'Registered' }));
+    await waitFor(() =>
+      expect(accountRequests(fetchMock).at(-1)).toBe('?page=1&sort=registered&dir=asc'),
+    );
+    await screen.findByText('person-0@example.com');
+    expect(screen.getByRole('columnheader', { name: 'Registered' })).toHaveAttribute(
+      'aria-sort',
+      'ascending',
+    );
+    expect(
+      within(screen.getByRole('columnheader', { name: 'Registered' })).getByText('↑'),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Scans' }));
+    await waitFor(() =>
+      expect(accountRequests(fetchMock).at(-1)).toBe('?page=1&sort=scans&dir=asc'),
+    );
+    await screen.findByText('person-0@example.com');
+    const scansAscending = screen.getByRole('columnheader', { name: 'Scans' });
+    expect(scansAscending).toHaveAttribute('aria-sort', 'ascending');
+    expect(within(scansAscending).getByText('↑')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Registered' })).not.toHaveAttribute(
+      'aria-sort',
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Scans' }));
+    await waitFor(() =>
+      expect(accountRequests(fetchMock).at(-1)).toBe('?page=1&sort=scans&dir=desc'),
+    );
+    await screen.findByText('person-0@example.com');
+    const scansDescending = screen.getByRole('columnheader', { name: 'Scans' });
+    expect(scansDescending).toHaveAttribute('aria-sort', 'descending');
+    expect(within(scansDescending).getByText('↓')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Email' }));
+    await waitFor(() =>
+      expect(accountRequests(fetchMock).at(-1)).toBe('?page=1&sort=email&dir=asc'),
+    );
+    await screen.findByText('person-0@example.com');
+    const email = screen.getByRole('columnheader', { name: 'Email' });
+    expect(email).toHaveAttribute('aria-sort', 'ascending');
+    expect(screen.getByRole('columnheader', { name: 'Scans' })).not.toHaveAttribute('aria-sort');
+  });
+
+  it('returns to page 1 when the sort or the test filter changes', async () => {
+    const fetchMock = stubApi((search) => envelope(pageOf(search)));
+    openDashboard();
+    await screen.findByText('person-0@example.com');
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await screen.findByText('person-50@example.com');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Scans' }));
+    await waitFor(() =>
+      expect(accountRequests(fetchMock).at(-1)).toBe('?page=1&sort=scans&dir=asc'),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    await screen.findByText('person-50@example.com');
+    fireEvent.click(screen.getByLabelText('Hide test accounts'));
+    await waitFor(() =>
+      expect(accountRequests(fetchMock).at(-1)).toBe('?page=1&test=exclude&sort=scans&dir=asc'),
+    );
+  });
+
+  it('keeps the sort and the test filter through a search', async () => {
+    const fetchMock = stubApi((search) => envelope(pageOf(search)));
+    openDashboard();
+    await screen.findByText('person-0@example.com');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Scans' }));
+    fireEvent.click(screen.getByLabelText('Hide test accounts'));
+    await waitFor(() =>
+      expect(accountRequests(fetchMock).at(-1)).toBe('?page=1&test=exclude&sort=scans&dir=asc'),
+    );
+
+    const field = screen.getByLabelText('Search by email');
+    fireEvent.change(field, { target: { value: 'person-1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+
+    await waitFor(() =>
+      expect(accountRequests(fetchMock).at(-1)).toBe(
+        '?page=1&q=person-1&test=exclude&sort=scans&dir=asc',
+      ),
+    );
+  });
+
+  it('Clear removes only the search, keeping the sort and the test filter', async () => {
+    const fetchMock = stubApi((search) => envelope(pageOf(search)));
+    openDashboard();
+    await screen.findByText('person-0@example.com');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Scans' }));
+    fireEvent.click(screen.getByLabelText('Hide test accounts'));
+    await waitFor(() =>
+      expect(accountRequests(fetchMock).at(-1)).toBe('?page=1&test=exclude&sort=scans&dir=asc'),
+    );
+
+    const field = screen.getByLabelText('Search by email');
+    fireEvent.change(field, { target: { value: 'person-1' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
+    await waitFor(() =>
+      expect(accountRequests(fetchMock).at(-1)).toBe(
+        '?page=1&q=person-1&test=exclude&sort=scans&dir=asc',
+      ),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
+    await waitFor(() =>
+      expect(accountRequests(fetchMock).at(-1)).toBe('?page=1&test=exclude&sort=scans&dir=asc'),
+    );
+    expect(screen.getByLabelText('Search by email')).toHaveValue('');
+  });
+
+  it('says accounts do not match when the test filter hides them all', async () => {
+    stubApi((search) =>
+      new URLSearchParams(search).has('test')
+        ? envelope({ page: 1, pageSize: 50, total: 0, rows: [] })
+        : envelope(pageOf(search)),
+    );
+    openDashboard();
+    await screen.findByText('person-0@example.com');
+
+    fireEvent.click(screen.getByLabelText('Hide test accounts'));
+    expect(await screen.findByText('No accounts match')).toBeInTheDocument();
+    expect(screen.queryByText('No accounts')).not.toBeInTheDocument();
+  });
+});
+
 describe('reading the accounts answer', () => {
   it('keeps only the documented fields and refuses a fractional count or a bad date', () => {
     const page = pageOf('?page=1');

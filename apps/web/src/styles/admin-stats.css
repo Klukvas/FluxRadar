@@ -135,3 +135,29 @@
     inset 1px 1px 0 var(--plat-300),
     inset -1px -1px 0 #fff;
 }
+
+/* "Hide test accounts" sits on the search row's button line, a little apart
+   from the Search/Clear actions it must not be mistaken for. */
+.admin-accounts__test-filter {
+  margin-left: var(--sp-2);
+}
+
+/* Sortable column headings: the button keeps the header's own face instead of
+   the bevelled control face, and the arrow marks the column and direction the
+   list is ordered by. */
+.admin-accounts__sort {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+.admin-accounts__sort:hover,
+.admin-accounts__sort:focus-visible {
+  text-decoration: underline;
+}
+.admin-accounts__sort-arrow {
+  margin-left: 2px;
+}

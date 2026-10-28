@@ -7,8 +7,8 @@
 // non-admin account, an unconfirmed admin address, or a deployment with the list
 // empty all fall through to the same handler an unknown route reaches, so the
 // response cannot be told apart from a path nobody ever mounted. That is also
-// why `days`, `page` and `q` are validated only after access is settled — a 400
-// to a stranger would confirm the route is there.
+// why `days`, `page`, `q`, `test`, `sort` and `dir` are validated only after
+// access is settled — a 400 to a stranger would confirm the route is there.
 
 import { Router } from 'express';
 import { z } from 'zod';
@@ -17,7 +17,7 @@ import { sendOk } from '../http/envelope.ts';
 import type { ApiLogger } from '../http/logger.ts';
 import { notFound } from '../http/errors.ts';
 import { parseInput } from '../http/validate.ts';
-import { readAccountList, setTestAccount } from './accounts.ts';
+import { ACCOUNT_SORTS, readAccountList, setTestAccount } from './accounts.ts';
 import { isAdminRequest, type AdminAccessDeps } from './admin-access.ts';
 import { ADMIN_EMAILS_ENV } from './admin-emails.ts';
 import { readBusinessStats } from './stats.ts';
@@ -48,21 +48,34 @@ const statsQuerySchema = z.object({
 /**
  * A page number with no sign, no leading zero and no fraction; a repeated
  * parameter arrives as an array and is refused like a repeated `days`. A blank
- * or whitespace-only `q` means no search rather than a 400.
+ * or whitespace-only `q` means no search rather than a 400. `test=exclude` is
+ * the only spelling that hides test accounts — anything else is refused, not
+ * read as "show them". `sort` takes exactly the sort keys `accounts.ts` lists,
+ * and `dir` is refused on its own: a direction with no column would sort by
+ * nothing.
  */
-const accountsQuerySchema = z.object({
-  page: z
-    .string()
-    .regex(/^[1-9]\d{0,5}$/)
-    .default('1')
-    .transform(Number),
-  q: z
-    .string()
-    .trim()
-    .max(MAX_EMAIL_QUERY_LENGTH)
-    .optional()
-    .transform((query) => (query === undefined || query === '' ? null : query)),
-});
+const accountsQuerySchema = z
+  .object({
+    page: z
+      .string()
+      .regex(/^[1-9]\d{0,5}$/)
+      .default('1')
+      .transform(Number),
+    q: z
+      .string()
+      .trim()
+      .max(MAX_EMAIL_QUERY_LENGTH)
+      .optional()
+      .transform((query) => (query === undefined || query === '' ? null : query)),
+    test: z.enum(['exclude']).optional(),
+    sort: z.enum(ACCOUNT_SORTS).optional(),
+    dir: z.enum(['asc', 'desc']).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.dir !== undefined && value.sort === undefined) {
+      ctx.addIssue({ code: 'custom', path: ['dir'], message: 'dir requires sort' });
+    }
+  });
 
 /**
  * The test flag of one account, keyed by the exact address the list showed.
@@ -107,8 +120,14 @@ export function adminStatsRouter(deps: AdminStatsRouterDeps): Router {
       next();
       return;
     }
-    const { page, q } = parseInput(accountsQuerySchema, req.query);
-    const accounts = await readAccountList(deps.prisma, { page, query: q });
+    const { page, q, test, sort, dir } = parseInput(accountsQuerySchema, req.query);
+    const accounts = await readAccountList(deps.prisma, {
+      page,
+      query: q,
+      excludeTest: test === 'exclude',
+      sort: sort ?? null,
+      dir: dir ?? 'asc',
+    });
     // Email addresses: never kept by a shared cache or the browser's.
     res.setHeader('Cache-Control', 'private, no-store');
     sendOk(res, accounts);

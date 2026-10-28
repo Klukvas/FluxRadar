@@ -12,17 +12,42 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import {
   loadAdminAccounts,
   setTestAccount,
+  type AccountSort,
   type AdminAccountRow,
   type AdminAccounts,
   type AdminAccountsRequest,
   type AdminAccountsResult,
+  type SortDirection,
 } from './admin-accounts';
 import { RetryPanel } from './AdminRetryPanel';
-import { Button, DataTable, EmptyState, Field, SkeletonRows } from './components';
+import { Button, Checkbox, DataTable, EmptyState, Field, SkeletonRows } from './components';
 
 const countFormat = new Intl.NumberFormat('en');
-const FIRST_PAGE: AdminAccountsRequest = { page: 1, query: '' };
+const FIRST_PAGE: AdminAccountsRequest = {
+  page: 1,
+  query: '',
+  excludeTest: false,
+  sort: null,
+  dir: 'asc',
+};
 const MAX_EMAIL_LENGTH = 254;
+
+/** The columns in the order the table draws them; the sort key each one orders by. */
+const SORTABLE_COLUMNS: readonly {
+  readonly key: AccountSort;
+  readonly label: string;
+  readonly numeric?: boolean;
+}[] = [
+  { key: 'email', label: 'Email' },
+  { key: 'registered', label: 'Registered' },
+  { key: 'confirmed', label: 'Confirmed' },
+  { key: 'tutorial', label: 'Tutorial' },
+  { key: 'freeCheck', label: 'Free check' },
+  { key: 'scans', label: 'Scans', numeric: true },
+  { key: 'purchases', label: 'Purchases', numeric: true },
+  { key: 'lastActivity', label: 'Last activity' },
+  { key: 'testAccount', label: 'Test account' },
+];
 
 type LoadState = { readonly kind: 'loading' } | AdminAccountsResult;
 
@@ -108,31 +133,58 @@ export function AccountsSection() {
   if (state.kind === 'unavailable') return null;
 
   const clear = (): void => {
+    // "Clear" is the search's clear button: the chosen sort and the test-account
+    // filter are the owner's view of the list and survive it.
     setDraft('');
-    ask(FIRST_PAGE);
+    ask({ ...request, page: 1, query: '' });
+  };
+
+  /**
+   * The order the table actually draws, with the API's default read as the
+   * "Registered" column descending: the indicator can mark it from the first
+   * render, and clicking it once flips to ascending like every other column.
+   */
+  const sort: AccountSort = request.sort ?? 'registered';
+  const dir: SortDirection = request.sort === null ? 'desc' : request.dir;
+  const chooseSort = (key: AccountSort): void => {
+    ask({
+      ...request,
+      page: 1,
+      sort: key,
+      dir: sort === key ? (dir === 'asc' ? 'desc' : 'asc') : 'asc',
+    });
+  };
+  const chooseTestFilter = (excludeTest: boolean): void => {
+    ask({ ...request, page: 1, excludeTest });
   };
 
   return (
     <section className="admin-stats__section" aria-label="Accounts">
       <h2 className="section-heading">Accounts</h2>
       <p className="muted">
-        Every registered account, newest first. Purchases leave out test-mode orders, and an account
-        marked as a test account is never counted in the numbers above — free checks cannot be
-        attributed to an account and still count.
+        Every registered account. Click a column heading to sort by it. Purchases leave out
+        test-mode orders, and an account marked as a test account is never counted in the numbers
+        above — free checks cannot be attributed to an account and still count.
       </p>
       <SearchForm
         draft={draft}
         isQueryActive={request.query !== ''}
+        excludeTest={request.excludeTest}
         onDraft={setDraft}
-        onSearch={() => ask({ page: 1, query: draft.trim() })}
+        onSearch={() => ask({ ...request, page: 1, query: draft.trim() })}
         onClear={clear}
+        onExcludeTest={chooseTestFilter}
       />
       <AccountsBody
         state={state}
         query={request.query}
+        excludeTest={request.excludeTest}
+        sort={sort}
+        dir={dir}
         pending={pending}
         onPage={(page) => ask({ ...request, page })}
         onRetry={retry}
+        onSort={chooseSort}
         onMarkTest={markTest}
       />
     </section>
@@ -142,9 +194,11 @@ export function AccountsSection() {
 function SearchForm(props: {
   draft: string;
   isQueryActive: boolean;
+  excludeTest: boolean;
   onDraft: (draft: string) => void;
   onSearch: () => void;
   onClear: () => void;
+  onExcludeTest: (excludeTest: boolean) => void;
 }) {
   const submit = (event: FormEvent<HTMLFormElement>): void => {
     event.preventDefault();
@@ -163,6 +217,12 @@ function SearchForm(props: {
       <div className="button-row">
         <Button type="submit">Search</Button>
         {props.isQueryActive ? <Button onClick={props.onClear}>Clear</Button> : null}
+        <Checkbox
+          className="admin-accounts__test-filter"
+          label="Hide test accounts"
+          checked={props.excludeTest}
+          onChange={props.onExcludeTest}
+        />
       </div>
     </form>
   );
@@ -171,9 +231,13 @@ function SearchForm(props: {
 function AccountsBody(props: {
   state: Exclude<LoadState, { readonly kind: 'unavailable' }>;
   query: string;
+  excludeTest: boolean;
+  sort: AccountSort;
+  dir: SortDirection;
   pending: ReadonlySet<string>;
   onPage: (page: number) => void;
   onRetry: () => void;
+  onSort: (sort: AccountSort) => void;
   onMarkTest: (email: string, testAccount: boolean) => void;
 }) {
   const { state } = props;
@@ -189,9 +253,11 @@ function AccountsBody(props: {
   }
   const { accounts } = state;
   if (accounts.rows.length === 0) {
+    // A filter that hid everything is not an empty table: the accounts exist.
+    const filtered = props.query !== '' || props.excludeTest;
     return (
       <EmptyState
-        title={props.query === '' ? 'No accounts' : 'No accounts match'}
+        title={filtered ? 'No accounts match' : 'No accounts'}
         action={
           accounts.page > 1 ? <Button onClick={() => props.onPage(1)}>First page</Button> : null
         }
@@ -200,7 +266,14 @@ function AccountsBody(props: {
   }
   return (
     <>
-      <AccountsTable rows={accounts.rows} pending={props.pending} onMarkTest={props.onMarkTest} />
+      <AccountsTable
+        rows={accounts.rows}
+        sort={props.sort}
+        dir={props.dir}
+        pending={props.pending}
+        onSort={props.onSort}
+        onMarkTest={props.onMarkTest}
+      />
       <Pager accounts={accounts} onPage={props.onPage} />
     </>
   );
@@ -208,22 +281,43 @@ function AccountsBody(props: {
 
 function AccountsTable(props: {
   rows: readonly AdminAccountRow[];
+  sort: AccountSort;
+  dir: SortDirection;
   pending: ReadonlySet<string>;
+  onSort: (sort: AccountSort) => void;
   onMarkTest: (email: string, testAccount: boolean) => void;
 }) {
   return (
     <DataTable>
       <thead>
         <tr>
-          <th>Email</th>
-          <th>Registered</th>
-          <th>Confirmed</th>
-          <th>Tutorial</th>
-          <th>Free check</th>
-          <th className="admin-stats__num">Scans</th>
-          <th className="admin-stats__num">Purchases</th>
-          <th>Last activity</th>
-          <th>Test account</th>
+          {SORTABLE_COLUMNS.map((column) => {
+            const active = column.key === props.sort;
+            return (
+              <th
+                key={column.key}
+                className={column.numeric ? 'admin-stats__num' : undefined}
+                aria-sort={
+                  active
+                    ? props.dir === 'asc'
+                      ? ('ascending' as const)
+                      : ('descending' as const)
+                    : undefined
+                }
+              >
+                <button
+                  type="button"
+                  className="admin-accounts__sort"
+                  onClick={() => props.onSort(column.key)}
+                >
+                  {column.label}
+                  <span aria-hidden="true" className="admin-accounts__sort-arrow">
+                    {active ? (props.dir === 'asc' ? '↑' : '↓') : null}
+                  </span>
+                </button>
+              </th>
+            );
+          })}
         </tr>
       </thead>
       <tbody>

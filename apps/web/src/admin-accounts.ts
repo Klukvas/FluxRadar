@@ -18,6 +18,25 @@ export const ACCOUNTS_PAGE_SIZE = 50;
 
 export type TutorialStatus = 'pending' | 'completed' | 'skipped';
 
+/**
+ * The columns the list can be ordered by; the API accepts exactly these
+ * spellings. This must match the API's `ACCOUNT_SORTS`
+ * (apps/api/src/admin/accounts.ts) — a key that drifted would be refused there.
+ */
+export const ACCOUNT_SORTS = [
+  'email',
+  'registered',
+  'confirmed',
+  'tutorial',
+  'freeCheck',
+  'scans',
+  'purchases',
+  'lastActivity',
+  'testAccount',
+] as const;
+export type AccountSort = (typeof ACCOUNT_SORTS)[number];
+export type SortDirection = 'asc' | 'desc';
+
 export interface AdminAccountRow {
   readonly email: string;
   readonly createdAt: string;
@@ -42,6 +61,11 @@ export interface AdminAccountsRequest {
   readonly page: number;
   /** Part of an email address; empty asks for every account. */
   readonly query: string;
+  /** Leave out the accounts the owner marked as test accounts. */
+  readonly excludeTest: boolean;
+  /** The column to order by, or null for the API's default order. */
+  readonly sort: AccountSort | null;
+  readonly dir: SortDirection;
 }
 
 export type AdminAccountsResult =
@@ -56,6 +80,8 @@ export function adminAccountsUrl(request: AdminAccountsRequest): string {
   const params = new URLSearchParams({
     page: String(request.page),
     ...(query === '' ? {} : { q: query }),
+    ...(request.excludeTest ? { test: 'exclude' } : {}),
+    ...(request.sort === null ? {} : { sort: request.sort, dir: request.dir }),
   });
   return `${ADMIN_ACCOUNTS_PATH}?${params.toString()}`;
 }

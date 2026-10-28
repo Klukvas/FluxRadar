@@ -93,21 +93,27 @@ describe('GET /admin/accounts access', () => {
     expect(response.status).toBe(404);
   });
 
-  it.each(['?page=0', '?page=abc', '?page=1&page=2', '?q=a&q=b', `?q=${'a'.repeat(255)}`])(
-    'does not tell a stranger that %s was wrong: the 404 comes first',
-    async (search) => {
-      const stranger = await seedStranger();
-      const app = appFor();
-      const response = await request(app)
-        .get(`/admin/accounts${search}`)
-        .set('Cookie', stranger.cookie);
+  it.each([
+    '?page=0',
+    '?page=abc',
+    '?page=1&page=2',
+    '?q=a&q=b',
+    `?q=${'a'.repeat(255)}`,
+    '?sort=bogus',
+    '?dir=desc',
+    '?test=keep&sort=email&dir=desc',
+  ])('does not tell a stranger that %s was wrong: the 404 comes first', async (search) => {
+    const stranger = await seedStranger();
+    const app = appFor();
+    const response = await request(app)
+      .get(`/admin/accounts${search}`)
+      .set('Cookie', stranger.cookie);
 
-      expect({ status: response.status, body: response.body }).toEqual(
-        await unknownRouteAnswer(app, stranger.cookie),
-      );
-      expect(response.status).toBe(404);
-    },
-  );
+    expect({ status: response.status, body: response.body }).toEqual(
+      await unknownRouteAnswer(app, stranger.cookie),
+    );
+    expect(response.status).toBe(404);
+  });
 
   it('refuses a listed address that was never confirmed', async () => {
     const owner = await seedAccount(db.prisma, {
@@ -141,6 +147,23 @@ describe('GET /admin/accounts access', () => {
   it('rejects a repeated q parameter', async () => {
     const owner = await seedOwner();
     const response = await getAccounts(owner.cookie, '?q=a&q=b');
+
+    expect(response.status).toBe(400);
+    expect(response.body).toMatchObject({ success: false, error: { code: 'VALIDATION' } });
+  });
+
+  it.each([
+    '?sort=bogus',
+    '?sort=email&dir=sideways',
+    '?dir=desc',
+    '?dir=desc&sort=bogus',
+    '?dir=desc&dir=desc',
+    '?sort=email&sort=email',
+    '?test=keep',
+    '?test=exclude&test=exclude',
+  ])('rejects %s from the admin with the usual 400', async (search) => {
+    const owner = await seedOwner();
+    const response = await getAccounts(owner.cookie, search);
 
     expect(response.status).toBe(400);
     expect(response.body).toMatchObject({ success: false, error: { code: 'VALIDATION' } });
@@ -256,7 +279,7 @@ describe('GET /admin/accounts rows', () => {
     expect(response.body.data.total).toBe(3);
   });
 
-  it('reads a page in four statements however many accounts it holds, and an empty one in two', async () => {
+  it('reads a page in two statements — one page query, one count — however many accounts it holds', async () => {
     await seedSmallBusiness();
     // A client of its own: the shared one does not emit query events.
     const counted = new PrismaClient({
@@ -269,12 +292,24 @@ describe('GET /admin/accounts rows', () => {
     });
     try {
       await counted.$connect();
-      await readAccountList(counted, { page: 1, query: null });
+      await readAccountList(counted, {
+        page: 1,
+        query: null,
+        excludeTest: false,
+        sort: null,
+        dir: 'asc',
+      });
       const fullPage = statements;
       statements = 0;
-      await readAccountList(counted, { page: 1, query: 'nobody' });
+      await readAccountList(counted, {
+        page: 1,
+        query: 'nobody',
+        excludeTest: false,
+        sort: null,
+        dir: 'asc',
+      });
 
-      expect({ fullPage, emptyPage: statements }).toEqual({ fullPage: 4, emptyPage: 2 });
+      expect({ fullPage, emptyPage: statements }).toEqual({ fullPage: 2, emptyPage: 2 });
     } finally {
       await counted.$disconnect();
     }
@@ -307,6 +342,258 @@ describe('GET /admin/accounts rows', () => {
       ADMIN_EMAIL,
     ]);
     expect(beyond.body.data).toEqual({ page: 3, pageSize: 50, total: 53, rows: [] });
+  });
+});
+
+describe('GET /admin/accounts test-account exclusion', () => {
+  it('leaves accounts marked as test out of the rows and the total, and showing them restores both', async () => {
+    const owner = await seedSmallBusiness();
+    await db.prisma.account.updateMany({
+      where: { email: 'buyer@example.com' },
+      data: { isTestAccount: true },
+    });
+
+    const every = await getAccounts(owner.cookie);
+    expect(every.body.data.total).toBe(3);
+    expect(every.body.data.rows.map((row: { email: string }) => row.email)).toContain(
+      'buyer@example.com',
+    );
+
+    const hidden = await getAccounts(owner.cookie, '?test=exclude');
+    expect(hidden.status).toBe(200);
+    expect(hidden.body.data.total).toBe(2);
+    expect(hidden.body.data.rows.map((row: { email: string }) => row.email)).toEqual([
+      'quiet@Example.org',
+      ADMIN_EMAIL,
+    ]);
+  });
+
+  it('combines the exclusion with a search and with pages', async () => {
+    const owner = await seedOwner();
+    const buyer = await seedAccount(db.prisma, {
+      email: 'buyer@example.com',
+      verified: true,
+      createdAt: at('2026-09-16T09:00:00Z'),
+    });
+    await db.prisma.account.update({
+      where: { id: buyer.accountId },
+      data: { isTestAccount: true },
+    });
+    const bulkEmails = Array.from(
+      { length: 50 },
+      (_, index) => `bulk-${String(index).padStart(2, '0')}@example.net`,
+    );
+    await db.prisma.account.createMany({
+      data: bulkEmails.map((email) => ({
+        email,
+        passwordHash: 'test-hash',
+        createdAt: at('2026-09-10T10:00:00Z'),
+      })),
+    });
+
+    const found = await getAccounts(owner.cookie, '?q=buyer&test=exclude');
+    expect(found.body.data).toEqual({ page: 1, pageSize: 50, total: 0, rows: [] });
+
+    const second = await getAccounts(owner.cookie, '?test=exclude&page=2');
+    expect(second.body.data).toMatchObject({ page: 2, pageSize: 50, total: 51 });
+    expect(second.body.data.rows.map((row: { email: string }) => row.email)).toEqual([ADMIN_EMAIL]);
+  });
+});
+
+describe('GET /admin/accounts sorting', () => {
+  it('sorts by email in both directions, case-insensitive', async () => {
+    const owner = await seedSmallBusiness();
+
+    const asc = await getAccounts(owner.cookie, '?sort=email&dir=asc');
+    expect(asc.body.data.rows.map((row: { email: string }) => row.email)).toEqual([
+      'buyer@example.com',
+      ADMIN_EMAIL,
+      'quiet@Example.org',
+    ]);
+
+    // A sort with no direction means ascending, like the page default is 1.
+    const defaulted = await getAccounts(owner.cookie, '?sort=email');
+    expect(defaulted.body.data.rows.map((row: { email: string }) => row.email)).toEqual(
+      asc.body.data.rows.map((row: { email: string }) => row.email),
+    );
+
+    const desc = await getAccounts(owner.cookie, '?sort=email&dir=desc');
+    expect(desc.body.data.rows.map((row: { email: string }) => row.email)).toEqual([
+      'quiet@Example.org',
+      ADMIN_EMAIL,
+      'buyer@example.com',
+    ]);
+  });
+
+  it('sorts by registration in both directions, ties broken by address', async () => {
+    const owner = await seedSmallBusiness();
+
+    const asc = await getAccounts(owner.cookie, '?sort=registered&dir=asc');
+    expect(asc.body.data.rows.map((row: { email: string }) => row.email)).toEqual([
+      ADMIN_EMAIL,
+      'buyer@example.com',
+      'quiet@Example.org',
+    ]);
+    // The default order is the same list reversed.
+    expect(
+      asc.body.data.rows
+        .slice()
+        .reverse()
+        .map((row: { email: string }) => row.email),
+    ).toEqual(
+      (await getAccounts(owner.cookie)).body.data.rows.map((row: { email: string }) => row.email),
+    );
+  });
+
+  it('sorts by scans in both directions', async () => {
+    const owner = await seedSmallBusiness();
+
+    const desc = await getAccounts(owner.cookie, '?sort=scans&dir=desc');
+    expect(desc.body.data.rows.map((row: { email: string }) => row.email)).toEqual([
+      'buyer@example.com',
+      ADMIN_EMAIL,
+      'quiet@Example.org',
+    ]);
+
+    const asc = await getAccounts(owner.cookie, '?sort=scans&dir=asc');
+    expect(asc.body.data.rows.map((row: { email: string }) => row.email)).toEqual([
+      'quiet@Example.org',
+      ADMIN_EMAIL,
+      'buyer@example.com',
+    ]);
+  });
+
+  it('sorts by purchases, test-mode orders never counted', async () => {
+    const owner = await seedSmallBusiness();
+    // The buyer's test-mode order (2026-09-21) must not outrank the other rows.
+
+    const desc = await getAccounts(owner.cookie, '?sort=purchases&dir=desc');
+    const rows = desc.body.data.rows;
+    expect(rows[0]).toMatchObject({ email: 'buyer@example.com', purchases: 3 });
+    expect(rows.slice(1).every((row: { purchases: number }) => row.purchases === 0)).toBe(true);
+  });
+
+  it('sorts by last activity, the latest of sign-up, scans and real orders', async () => {
+    const owner = await seedSmallBusiness();
+
+    const desc = await getAccounts(owner.cookie, '?sort=lastActivity&dir=desc');
+    expect(desc.body.data.rows.map((row: { email: string }) => row.email)).toEqual([
+      'quiet@Example.org', // 2026-09-20T23:59 sign-up
+      'buyer@example.com', // 2026-09-20T12:00 legacy order, not the test-mode one
+      ADMIN_EMAIL, // 2026-09-02 scan
+    ]);
+  });
+
+  it('sorts by confirmation with unconfirmed rows last in both directions', async () => {
+    const owner = await seedSmallBusiness();
+
+    const desc = await getAccounts(owner.cookie, '?sort=confirmed&dir=desc');
+    expect(desc.body.data.rows.map((row: { email: string }) => row.email)).toEqual([
+      'buyer@example.com', // verified 2026-09-16
+      ADMIN_EMAIL, // verified 2026-09-01
+      'quiet@Example.org', // never confirmed, nulls last
+    ]);
+
+    const asc = await getAccounts(owner.cookie, '?sort=confirmed&dir=asc');
+    expect(asc.body.data.rows.map((row: { email: string }) => row.email)).toEqual([
+      ADMIN_EMAIL,
+      'buyer@example.com',
+      'quiet@Example.org',
+    ]);
+  });
+
+  it('sorts by free check with never-used rows last in both directions', async () => {
+    const owner = await seedSmallBusiness();
+
+    // buyer used one on the 17th; the two nulls keep the default newest-first order.
+    const asc = await getAccounts(owner.cookie, '?sort=freeCheck&dir=asc');
+    expect(asc.body.data.rows.map((row: { email: string }) => row.email)).toEqual([
+      'buyer@example.com',
+      'quiet@Example.org',
+      ADMIN_EMAIL,
+    ]);
+
+    const desc = await getAccounts(owner.cookie, '?sort=freeCheck&dir=desc');
+    expect(desc.body.data.rows.map((row: { email: string }) => row.email)).toEqual([
+      'buyer@example.com',
+      'quiet@Example.org',
+      ADMIN_EMAIL,
+    ]);
+  });
+
+  it('sorts by tutorial status alphabetically, ties by the default order', async () => {
+    const owner = await seedOwner();
+    await db.prisma.account.createMany({
+      data: [
+        {
+          email: 'done@example.com',
+          passwordHash: 'test-hash',
+          onboardingCompletedAt: at('2026-09-10T10:00:00Z'),
+          createdAt: at('2026-09-10T09:00:00Z'),
+        },
+        {
+          email: 'skipped@example.com',
+          passwordHash: 'test-hash',
+          onboardingSkippedAt: at('2026-09-10T10:00:00Z'),
+          createdAt: at('2026-09-10T09:00:00Z'),
+        },
+        {
+          email: 'pending@example.com',
+          passwordHash: 'test-hash',
+          createdAt: at('2026-09-10T09:00:00Z'),
+        },
+      ],
+    });
+
+    const asc = await getAccounts(owner.cookie, '?sort=tutorial&dir=asc&q=example.com');
+    expect(asc.body.data.rows.map((row: { email: string }) => row.email)).toEqual([
+      'done@example.com',
+      'pending@example.com',
+      ADMIN_EMAIL,
+      'skipped@example.com',
+    ]);
+
+    const desc = await getAccounts(owner.cookie, '?sort=tutorial&dir=desc&q=example.com');
+    expect(desc.body.data.rows.map((row: { email: string }) => row.email)).toEqual([
+      'skipped@example.com',
+      'pending@example.com',
+      ADMIN_EMAIL,
+      'done@example.com',
+    ]);
+  });
+
+  it('sorts by the test flag, marked rows after unmarked', async () => {
+    const owner = await seedSmallBusiness();
+    await db.prisma.account.updateMany({
+      where: { email: 'quiet@Example.org' },
+      data: { isTestAccount: true },
+    });
+
+    const asc = await getAccounts(owner.cookie, '?sort=testAccount&dir=asc');
+    const emails = asc.body.data.rows.map((row: { email: string }) => row.email);
+    expect(emails.slice(0, 2)).toEqual(['buyer@example.com', ADMIN_EMAIL]);
+    expect(emails[2]).toBe('quiet@Example.org');
+
+    const desc = await getAccounts(owner.cookie, '?sort=testAccount&dir=desc');
+    expect(desc.body.data.rows[0]).toMatchObject({
+      email: 'quiet@Example.org',
+      testAccount: true,
+    });
+  });
+
+  it('applies a search and the test-account exclusion before ordering', async () => {
+    const owner = await seedSmallBusiness();
+    await db.prisma.account.updateMany({
+      where: { email: 'quiet@Example.org' },
+      data: { isTestAccount: true },
+    });
+
+    const response = await getAccounts(owner.cookie, '?q=example&sort=email&dir=asc&test=exclude');
+    expect(response.body.data.total).toBe(2);
+    expect(response.body.data.rows.map((row: { email: string }) => row.email)).toEqual([
+      'buyer@example.com',
+      ADMIN_EMAIL,
+    ]);
   });
 });
 
