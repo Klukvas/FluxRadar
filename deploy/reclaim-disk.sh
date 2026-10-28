@@ -22,8 +22,8 @@
 # of what is live.
 #
 # What it removes, and ONLY this:
-#   1. fluxradar-api / fluxradar-web containers whose image tag is a release id
-#      with no directory under APP_DIR/releases:
+#   1. fluxradar-api / fluxradar-web containers of a release with no directory
+#      under APP_DIR/releases:
 #        - state exited, created or dead: always. The release they belong to is
 #          gone, so nothing can ever start them again, yet they hold their
 #          image down and made every `docker image rm` below fail.
@@ -46,10 +46,18 @@
 #          *rollback-probe* are never forced either, and neither is a running
 #          container whose image ID docker refuses to report, since nothing then
 #          proves it is not the rollback target.
-#   2. fluxradar-api / fluxradar-web images whose tag is a release id (strict
-#      hex, like the tags the deploy writes) that has no directory under
-#      APP_DIR/releases, that no container — running or stopped — uses, and
-#      whose image ID none of the live evidence records.
+#   2. fluxradar-api / fluxradar-web images with no directory under
+#      APP_DIR/releases that no container — running or stopped — uses, whose
+#      image ID none of the live evidence records, and whose repository:tag
+#      string none of it names. The deploy tags releases with their commit id,
+#      but an orphan image tagged by hand — `google-login-20261026-v1`,
+#      `latest` — is the same dead weight on a 38 GB disk, so the tag shape is
+#      no longer a reason to keep it; every one of the three proofs above
+#      still must clear first. When the live evidence cannot be read at all,
+#      or `docker ps -a` will not answer, the image sweep stops entirely: only
+#      the stopped-container sweep, the dangling prune and the build-cache
+#      prune still run — removing an image nothing could be checked against is
+#      a rollback risk no amount of freed space is worth.
 #
 # Why image IDs and not only tags. release.sh resolves the rollback target's
 # images with `docker inspect --format '{{.Image}}'` and records them as
@@ -113,14 +121,6 @@ show_docker_usage() {
 }
 
 show_docker_usage "before reclaiming"
-
-# A tag is only ours to remove when it looks like a release id.
-is_release_tag() {
-  case "$1" in
-    ''|*[!0-9a-f]*) return 1 ;;
-  esac
-  [ "${#1}" -ge 7 ] && [ "${#1}" -le 64 ]
-}
 
 # Value of a KEY=VALUE line, last occurrence wins and surrounding quotes are
 # stripped — the same way contract-phase-gate.sh reads runtime/rollback.env.
@@ -308,7 +308,6 @@ while IFS=$'\t' read -r container_id container_names container_image container_s
     *) continue ;;
   esac
   release_id="${container_image#*:}"
-  is_release_tag "$release_id" || continue
   [ -d "$RELEASES_DIR/$release_id" ] && continue
   candidate_image_id="$(container_image_id "$container_id" || true)"
   if ! may_remove_container "$container_names" "$container_image" "$container_state" "$release_id" \
@@ -316,7 +315,7 @@ while IFS=$'\t' read -r container_id container_names container_image container_s
     echo "keeping container $container_id ($container_names, $container_image): $KEEP_REASON"
     continue
   fi
-  echo "removing $container_state container $container_id ($container_names, $container_image): release $release_id has no directory and nothing live points at it"
+  echo "removing $container_state container $container_id ($container_names, $container_image): release $release_id has no directory"
   if remove_container "$container_id" "$container_state"; then
     removed_containers=$((removed_containers + 1))
   else
@@ -327,19 +326,34 @@ echo "removed $removed_containers container(s) of releases that are gone"
 
 # Everything a container references, by image name:tag, AFTER the sweep above.
 # `ps -a` on purpose: a stopped container of a release that still has its
-# directory is how a rollback gets its images.
-in_use="$(docker ps -a --format '{{.Image}}' 2>/dev/null || true)"
+# directory is how a rollback gets its images. An answer that never comes is an
+# answer of "unknown", and the image sweep below refuses to run on unknown.
+IN_USE_UNKNOWN=0
+if ! in_use="$(docker ps -a --format '{{.Image}}' 2>/dev/null)"; then
+  in_use=""
+  IN_USE_UNKNOWN=1
+fi
 
 echo "----- removing release images with no release directory -----"
 removed=0
+if [ "$REMOVE_LIVE_ORPHANS" -ne 1 ]; then
+  echo "keeping every release image: $FALLBACK_REASON"
+elif [ "$IN_USE_UNKNOWN" -eq 1 ]; then
+  echo "keeping every release image: docker ps -a failed, so nothing proves an image is unused"
+else
 while IFS= read -r image; do
   case "$image" in
     fluxradar-api:*|fluxradar-web:*) ;;
     *) continue ;;
   esac
   release_id="${image#*:}"
-  is_release_tag "$release_id" || continue
   [ -d "$RELEASES_DIR/$release_id" ] && continue
+  # A rollback target recorded by repository:tag rather than by image ID —
+  # release.sh records IDs, but a hand-patched host may record a name.
+  if printf '%s\n' "$LIVE_REFS" | grep -Fq -- "$image"; then
+    echo "keeping $image (the live evidence references it)"
+    continue
+  fi
   if printf '%s\n' "$in_use" | grep -Fxq -- "$image"; then
     echo "keeping $image (a container uses it)"
     continue
@@ -363,6 +377,7 @@ while IFS= read -r image; do
   fi
 done < <(docker image ls --format '{{.Repository}}:{{.Tag}}' 2>/dev/null || true)
 echo "removed $removed release image(s)"
+fi
 
 echo "----- pruning dangling images and the build cache -----"
 docker image prune --force || echo "dangling image prune failed; continuing" >&2

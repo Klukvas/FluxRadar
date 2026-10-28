@@ -39,6 +39,18 @@ import { API_PACKAGE_ROOT } from '../test-utils/template-db.ts';
 // `docker inspect`, not as repository:tag, so both halves also match candidates
 // by image ID: a container running a recorded digest under a name nothing knows
 // stays, and no `docker image rm` may delete a digest rollback-release.sh needs.
+//
+// The upload was refused a third time at "10.3 GB free, 12.9 GB required" with
+// everything above reclaimed: the disk still held orphans tagged by hand —
+// `google-login-20261026-v1` (7.2 GB), `latest`, `analytics-*`, `content-*` —
+// which the strict release-id gate skipped. The deploy tags releases with their
+// commit ids, so ANY fluxradar-api / fluxradar-web tag now goes through the
+// same proofs — no release directory under APP_DIR/releases, no container
+// using it, and no repository:tag or image ID in the live evidence — before it
+// is removed. Other projects' images and containers stay untouched. When the
+// live evidence cannot be read, or `docker ps -a` fails, the image sweep stops
+// entirely: with nothing to check a removal against, no image is removed —
+// the tests below pin that fail-closed half too.
 
 const REPO_ROOT = join(API_PACKAGE_ROOT, '..', '..');
 const SCRIPT_PATH = join(REPO_ROOT, 'deploy', 'reclaim-disk.sh');
@@ -110,6 +122,8 @@ type Host = {
   readonly imageIds?: Readonly<Record<string, string>>;
   /** Container ids and `repository:tag`s whose `docker inspect` fails. */
   readonly inspectFails?: readonly string[];
+  /** Whether the fake docker's `ps -a` fails instead of answering. */
+  readonly psFails?: boolean;
   /** What the host says is live; defaults to a healthy LIVE release. */
   readonly runtime?: Runtime;
 };
@@ -208,6 +222,7 @@ function reclaim(host: Host): { exitCode: number; output: string; dockerCalls: r
     join(workspace, 'failing-containers'),
     (host.containerRemovalFails ?? []).map((id) => `${id}\n`).join(''),
   );
+  writeFileSync(join(workspace, 'ps-fails'), host.psFails === true ? 'yes\n' : '');
   // `docker ps -a` and `docker image ls` answer with the columns the caller
   // asked for: the sweep reads id, name, image and state; the "is this image in
   // use" list reads images; the before/after usage report reads sizes.
@@ -227,6 +242,7 @@ case "$1 $2" in
   "inspect --format") lookup_id "$4" ;;
   "image inspect") lookup_id "$5" ;;
   "ps -a")
+    [ -s "${workspace}/ps-fails" ] && { echo "simulated ps failure" >&2; exit 1; }
     case "$4" in
       *'{{.ID}}'*) cat "${workspace}/containers" ;;
       *) cut -f3 "${workspace}/containers" ;;
@@ -590,10 +606,30 @@ describe('DEPLOY-020 reclaim server disk', () => {
       expect(exitCode).toBe(0);
       // The stopped half of the old behaviour still runs.
       expect(removedContainers(dockerCalls)).toEqual(['stopped1']);
-      expect(removedImages(dockerCalls)).toEqual([`fluxradar-web:${ORPHAN}`]);
+      // No image is removed without readable evidence to check it against.
+      expect(removedImages(dockerCalls)).toEqual([]);
       expect(output).toContain('keeping every running container');
+      expect(output).toContain('keeping every release image');
       expect(output).toContain('active.env is missing or unreadable');
       expect(output).toContain('keeping container running1');
+    });
+
+    it('keeps every release image when the evidence cannot be read, even one a rollback names', () => {
+      // A readable rollback.env may record the rollback image by repository:tag
+      // while active.env is missing; with the evidence incomplete the image
+      // sweep stays off rather than removing what it cannot check.
+      const { dockerCalls, output } = reclaim({
+        releases: [LIVE],
+        images: [`fluxradar-api:google-login-20261026-v1`],
+        runtime: {
+          state: null,
+          rollback: `FLUXRADAR_ROLLBACK_API_IMAGE=fluxradar-api:google-login-20261026-v1`,
+        },
+      });
+
+      expect(removedImages(dockerCalls)).toEqual([]);
+      expect(output).toContain('keeping every release image');
+      expect(output).toContain('active.env is missing or unreadable');
     });
 
     it.skipIf(isRoot)('keeps every running container when the state file is unreadable', () => {
@@ -655,7 +691,7 @@ describe('DEPLOY-020 reclaim server disk', () => {
     });
   });
 
-  it('never removes a container of another project, or one on a tag that is not a release id', () => {
+  it('removes containers of vanished releases on hand-made tags, but never another project', () => {
     const { dockerCalls } = reclaim({
       releases: [LIVE],
       images: [],
@@ -675,7 +711,7 @@ describe('DEPLOY-020 reclaim server disk', () => {
       ],
     });
 
-    expect(removedContainers(dockerCalls)).toEqual([]);
+    expect(removedContainers(dockerCalls)).toEqual(['latest1', 'short1']);
   });
 
   it('carries on and exits 0 when a container cannot be removed', () => {
@@ -694,7 +730,7 @@ describe('DEPLOY-020 reclaim server disk', () => {
     expect(output).toContain('could not remove container stale1');
   });
 
-  it('never touches an image that is not a FluxRadar release image', () => {
+  it('removes hand-tagged orphan images, but never an image of another project', () => {
     const { dockerCalls } = reclaim({
       releases: [LIVE],
       images: [
@@ -705,11 +741,100 @@ describe('DEPLOY-020 reclaim server disk', () => {
         'fluxradar-web:not-a-release-id',
         'fluxradar-api:abc',
         'fluxradar-api:' + 'e'.repeat(65),
-        'fluxradar-api:<none>',
+        'fluxradar-api:Google-Login-V1',
+        'fluxradar-web:abcdef0',
       ],
     });
 
+    expect(removedImages(dockerCalls)).toEqual([
+      'fluxradar-api:latest',
+      'fluxradar-web:not-a-release-id',
+      'fluxradar-api:abc',
+      'fluxradar-api:' + 'e'.repeat(65),
+      'fluxradar-api:Google-Login-V1',
+      'fluxradar-web:abcdef0',
+    ]);
+  });
+
+  it('keeps a <none>-tagged image the daemon would not report an ID for', () => {
+    // Real `docker image ls` never lists a repository with a <none> tag, but if
+    // it did, `docker image inspect` refuses it — the sweep keeps what it
+    // cannot prove, and the fake docker mirrors that refusal here.
+    const { dockerCalls, output } = reclaim({
+      releases: [LIVE],
+      images: [`fluxradar-api:<none>`],
+      inspectFails: [`fluxradar-api:<none>`],
+    });
+
     expect(removedImages(dockerCalls)).toEqual([]);
+    expect(output).toContain('docker would not report its image id');
+  });
+
+  it('does not confuse a hyphenated container name with a colon tag', () => {
+    const { dockerCalls } = reclaim({
+      releases: [LIVE],
+      images: [`fluxradar-web:latest`],
+      containers: [{ id: 'latestc1', name: 'fluxradar-web-latest', image: `fluxradar-web:latest` }],
+    });
+
+    expect(removedContainers(dockerCalls)).toEqual(['latestc1']);
+    expect(removedImages(dockerCalls)).toEqual([`fluxradar-web:latest`]);
+  });
+
+  it('keeps every release image when docker ps -a fails', () => {
+    // Without the container list there is no "nothing uses it" proof, so the
+    // image sweep refuses to run at all rather than trusting the daemon's
+    // in-use refusal.
+    const { dockerCalls, output } = reclaim({
+      releases: [LIVE],
+      images: [`fluxradar-api:${ORPHAN}`],
+      psFails: true,
+    });
+
+    expect(removedImages(dockerCalls)).toEqual([]);
+    expect(output).toContain('docker ps -a failed');
+  });
+
+  it('keeps a hand-tagged image, and its container, while its release directory exists', () => {
+    // The same protection a rollback candidate gets: the directory is still
+    // there, so the deploy can start this release again.
+    const { dockerCalls } = reclaim({
+      releases: [LIVE, 'google-login-20261026-v1'],
+      images: [`fluxradar-api:google-login-20261026-v1`],
+      containers: [
+        { id: 'pins1', image: `fluxradar-api:google-login-20261026-v1`, state: 'exited' },
+      ],
+    });
+
+    expect(removedContainers(dockerCalls)).toEqual([]);
+    expect(removedImages(dockerCalls)).toEqual([]);
+  });
+
+  it('keeps a hand-tagged image the recorded rollback target names', () => {
+    // release.sh records rollback images as sha256: IDs, but a hand-patched
+    // host may record the repository:tag instead; removing it would delete the
+    // image a rollback starts from.
+    const { dockerCalls, output } = reclaim({
+      releases: [LIVE],
+      images: [`fluxradar-api:google-login-20261026-v1`],
+      runtime: { rollback: `FLUXRADAR_ROLLBACK_API_IMAGE=fluxradar-api:google-login-20261026-v1` },
+    });
+
+    expect(removedImages(dockerCalls)).toEqual([]);
+    expect(output).toContain('the live evidence references it');
+  });
+
+  it('force-removes a running container on a hand-made tag nothing live points at, then its image', () => {
+    const { dockerCalls, output } = reclaim({
+      releases: [LIVE],
+      images: [`fluxradar-web:analytics-20261025-1a3b36a3`],
+      containers: [{ id: 'orphan2', image: `fluxradar-web:analytics-20261025-1a3b36a3` }],
+    });
+
+    expect(removedContainers(dockerCalls)).toEqual(['orphan2']);
+    expect(forcedContainers(dockerCalls)).toEqual(['orphan2']);
+    expect(removedImages(dockerCalls)).toEqual([`fluxradar-web:analytics-20261025-1a3b36a3`]);
+    expect(output).toContain('release analytics-20261025-1a3b36a3 has no directory');
   });
 
   it('keeps an image the rollback target records by ID with no container left to pin it', () => {
