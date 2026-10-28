@@ -161,3 +161,29 @@
 .admin-accounts__sort-arrow {
   margin-left: 2px;
 }
+/* The owner dashboard's loading shell: the tiles row, the revenue pair, the
+   daily chart and the breakdowns section drawn at their final sizes. */
+.admin-stats__skeleton {
+  display: grid;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+}
+.admin-stats__skeleton-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
+  gap: var(--sp-3);
+}
+.admin-stats__skeleton-tile {
+  min-height: 64px;
+}
+.admin-stats__skeleton-table {
+  min-height: 132px;
+}
+/* The Breakdowns pair of three small tables closes the dashboard; its shell
+   reserves about the same height as one revenue table. */
+.admin-stats__skeleton-breakdowns {
+  min-height: 132px;
+}
+.admin-stats__skeleton-chart {
+  min-height: 160px;
+}

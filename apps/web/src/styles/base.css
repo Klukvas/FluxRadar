@@ -102,7 +102,7 @@ summary:focus-visible {
 .menubar__item {
   border: 0;
   background: transparent;
-  min-height: 22px;
+  min-height: 24px;
   cursor: pointer;
   padding: 0 10px;
 }
@@ -124,7 +124,7 @@ summary:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  min-height: 22px;
+  min-height: 24px;
   padding: 0 10px 0 4px !important;
   color: inherit;
   font-weight: 700;
@@ -213,6 +213,9 @@ summary:focus-visible {
   gap: var(--sp-2) var(--sp-4);
   margin-top: var(--sp-6);
   padding-top: var(--sp-4);
+  /* Page-end clearance: the clamped sticky footer is the last thing above the
+     home indicator on a short page. */
+  padding-bottom: max(0px, var(--safe-bottom));
   border-top: 1px solid #8c9bb3;
   color: #d5deeb;
   font: 10px var(--mono-font);
@@ -331,19 +334,24 @@ summary:focus-visible {
   z-index: 20;
   display: grid;
   place-items: center;
-  padding: 24px;
+  /* Safe-aware padding: with viewport-fit=cover the window must never reach
+     under a notch or the home indicator. */
+  padding-top: max(24px, var(--safe-top));
+  padding-right: max(24px, var(--safe-right));
+  padding-bottom: max(24px, var(--safe-bottom));
+  padding-left: max(24px, var(--safe-left));
   background: rgba(16, 20, 16, 0.58);
 }
 .auth-modal {
   width: min(100%, 520px);
-  max-height: calc(100vh - 48px);
+  max-height: calc(100vh - max(48px, var(--safe-top) + var(--safe-bottom)));
   overflow-y: auto;
 }
 .auth-modal .window--dialog {
   margin: 0;
 }
 .auth-modal .window__content {
-  max-height: calc(100vh - 96px);
+  max-height: calc(100vh - max(96px, var(--safe-top) + var(--safe-bottom)));
   overflow-y: auto;
 }
 
@@ -1174,8 +1182,15 @@ code,
 .field-row > span {
   color: var(--plat-600);
 }
+/* Digits that update in place or line up in a column keep the width of the
+   widest figure, so a counter or a table of numbers does not jiggle as its
+   value changes. */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
 .field-row strong {
   overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
 }
 /* A chip never wraps in a table cell, but a field row's value column can be
    narrower than a long label — "Перевірено з обмеженнями" — and a chip that
@@ -1234,6 +1249,21 @@ code,
   display: flex;
   justify-content: end;
   margin-top: var(--sp-2);
+}
+/* The paused-checkout banner: a status note with its two actions, shaped like
+   the app's other notices — plain text, one border, room for the buttons. */
+.checkout-recovery {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  align-items: center;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--selection);
+  background: #e1e1f2;
+}
+.checkout-recovery p {
+  flex: 1 1 100%;
+  margin: 0;
 }
 .alert details {
   font-size: 11px;
@@ -1904,8 +1934,9 @@ code,
 .launch-form__launch {
   position: sticky;
   /* Nothing is pinned to the top of the workspace, so this is breathing room
-     rather than clearance for a bar. */
-  top: var(--sp-4);
+     rather than clearance for a bar — but it must still not slide under a
+     notch, so the safe-top inset raises it where the viewport has one. */
+  top: max(var(--sp-4), var(--safe-top));
   display: flex;
   flex-direction: column;
   gap: var(--sp-3);
@@ -2157,6 +2188,123 @@ code,
   height: 12px;
   background: var(--plat-300);
 }
+/* A standalone placeholder block, used where the placeholder is not a
+   `.skeleton-row` cell: field rows, plan cards, dials, print pages. */
+.skeleton-block {
+  display: block;
+  height: 12px;
+  background: var(--plat-300);
+}
+/* A placeholder shell: the bordered, shimmering face of a card, dial or page
+   whose contents are not there yet. Sized by the surface that uses it. */
+.skeleton-shell {
+  border: 1px solid var(--plat-300);
+  background: linear-gradient(90deg, var(--plat-200), var(--plat-50), var(--plat-200));
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.2s linear infinite;
+}
+/* Field-row placeholders: the same 180px label / value split as `.field-row`,
+   so the rows that replace them land in the same columns. */
+.skeleton-field-row {
+  border-bottom-color: var(--plat-200);
+}
+.skeleton-field-row__label {
+  width: 70%;
+}
+.skeleton-field-row__value {
+  width: 45%;
+}
+/* The report's loading shell: heading + dial beside it, then module cards. */
+.report-skeleton__heading {
+  width: min(340px, 60%);
+  height: 20px;
+  margin-bottom: var(--sp-2);
+}
+.report-skeleton__meta {
+  width: 45%;
+}
+/* Sized to the real `.score-dial` BOX, not its inner circle: min-width 180px
+   plus its padding (2×sp-4), border and the number/label/coverage lines come
+   to ~100px tall. The old 96px circle sat in a column the real dial (min-width
+   180px) doubles, shifting the split when data landed. */
+.report-skeleton__dial {
+  width: min(180px, 100%);
+  min-height: 100px;
+}
+.report-skeleton__module {
+  min-height: 72px;
+}
+/* Integration list placeholders: one Google group at the settled sizes of the
+   real row (name line, three-line why, services line, chip, button) and of the
+   property-picker panel it carries, so the list lands without moving anything
+   below it. Heights measured in Chromium at a 1280px viewport with the en copy
+   and fonts settled; the uk copy can wrap the why to four lines, which the
+   static placeholder cannot mirror — the mismatch is one line tall. */
+.integration-skeleton__name {
+  width: 150px;
+  height: 18.84px;
+}
+.integration-skeleton__why {
+  width: 73%;
+  height: 56.53px;
+  margin-top: 5px;
+}
+.integration-skeleton__services {
+  width: 26%;
+  height: 18.84px;
+  margin-top: 5px;
+}
+.integration-skeleton__chip {
+  width: 71.42px;
+  height: 19.39px;
+  border-radius: 10px;
+}
+.integration-skeleton__button {
+  width: 95.27px;
+  height: 24px;
+}
+/* The detail panel placeholder sits inside the real .integration-group__detail
+   wrapper (same margins, indent and border) and mirrors the loaded
+   GoogleProperties Panel child for child: uppercase label, two-line read-only
+   note, three label+select fields with the one-line analytics note between the
+   first and second field, save row. Panel padding 12px mirrors .panel; margins
+   mirror the real elements (label mb 8, note mt 12/mb 13, fields mt 12/mb 0,
+   analytics note mt 5/mb 13, button mt 12) so every inter-child gap matches. */
+.integration-skeleton__panel {
+  border: 1px solid var(--plat-300);
+  background: #fff;
+  padding: 12px;
+}
+.integration-skeleton__title {
+  width: 150px;
+  height: 15px;
+  margin-bottom: 8px;
+}
+.integration-skeleton__readonly {
+  height: 37.69px;
+  margin: 12px 0 13px;
+}
+.integration-skeleton__field {
+  height: 45.84px;
+  margin: 12px 0 0;
+}
+.integration-skeleton__field-label {
+  width: 30%;
+  height: 15px;
+}
+.integration-skeleton__field-box {
+  height: 24px;
+  margin-top: 6.84px;
+}
+.integration-skeleton__note {
+  height: 18.84px;
+  margin: 5px 0 13px;
+}
+.integration-skeleton__detail-button {
+  width: 88px;
+  height: 24px;
+  margin-top: 12px;
+}
 .issue-detail-row {
   /* The detail row is only present in the DOM when expanded; no animation needed. */
 }
@@ -2255,6 +2403,7 @@ code,
   margin: 0 0 20px;
   font: bold clamp(30px, 3.6vw, 46px)/1.12 var(--ui-font);
   letter-spacing: -0.01em;
+  text-wrap: balance;
 }
 .home h2 em {
   color: var(--term-green);
@@ -2629,6 +2778,7 @@ code,
   gap: 16px;
   margin-top: 42px;
   padding-top: 16px;
+  padding-bottom: max(0px, var(--safe-bottom));
   border-top: 1px solid #8c9bb3;
   color: #d5deeb;
   font: 10px var(--mono-font);
@@ -2657,7 +2807,7 @@ code,
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  min-height: 22px;
+  min-height: 24px;
   padding: 0 8px;
   color: var(--plat-600);
   font: 10px var(--mono-font);
@@ -2820,15 +2970,15 @@ code,
 .tour-dialog--docked {
   top: auto;
   left: auto;
-  right: 24px;
-  bottom: 24px;
+  right: max(24px, var(--safe-right));
+  bottom: max(24px, var(--safe-bottom));
   transform: none;
 }
 @media (max-width: 699px) {
   .tour-dialog--docked {
-    right: 16px;
-    bottom: 16px;
-    left: 16px;
+    right: max(16px, var(--safe-right));
+    bottom: max(16px, var(--safe-bottom));
+    left: max(16px, var(--safe-left));
     width: auto;
   }
 }
@@ -2979,7 +3129,7 @@ code,
 }
 .legal-index {
   position: sticky;
-  top: 24px;
+  top: max(24px, var(--safe-top));
   display: grid;
   gap: 8px;
   padding: 14px;
@@ -3205,6 +3355,7 @@ code,
   gap: 16px;
   margin-top: 42px;
   padding-top: 16px;
+  padding-bottom: max(0px, var(--safe-bottom));
   border-top: 1px solid #8c9bb3;
   color: #d5deeb;
   font: 10px var(--mono-font);
@@ -3629,14 +3780,17 @@ code,
   }
   .modal-backdrop {
     align-items: start;
-    padding: 12px;
+    padding-top: max(12px, var(--safe-top));
+    padding-right: max(12px, var(--safe-right));
+    padding-bottom: max(12px, var(--safe-bottom));
+    padding-left: max(12px, var(--safe-left));
     overflow-y: auto;
   }
   .auth-modal {
-    max-height: calc(100vh - 24px);
+    max-height: calc(100vh - max(24px, var(--safe-top) + var(--safe-bottom)));
   }
   .auth-modal .window__content {
-    max-height: calc(100vh - 72px);
+    max-height: calc(100vh - max(72px, var(--safe-top) + var(--safe-bottom)));
   }
   .legal-main {
     padding: 28px 12px 48px;
@@ -3703,7 +3857,8 @@ code,
     inset: 0;
     z-index: 50;
     background: var(--plat-100);
-    padding: 0 0 var(--sp-4);
+    /* The last link must clear the home indicator on notched devices. */
+    padding: 0 0 max(var(--sp-4), var(--safe-bottom));
     overflow-y: auto;
     animation: open-window 140ms ease-out;
   }
@@ -3735,13 +3890,19 @@ code,
      from a different mix of padding and margin, so their text started at 16px,
      23px and 30px in the same column. `--sheet-inset` is that edge, and the
      3px active rail is subtracted from the padding rather than added in front
-     of it, so a selected row's label stays on the line as the others. */
+     of it, so a selected row's label stays on the line as the others. On a
+     landscape notched phone the side insets are wider than the shared inset,
+     so each edge takes the larger of the two. */
   .menubar__links.is-open {
     --sheet-inset: var(--sp-4);
+    --sheet-inset-left: max(var(--sheet-inset), var(--safe-left));
+    --sheet-inset-right: max(var(--sheet-inset), var(--safe-right));
     --sheet-rail: 3px;
   }
   .menubar__sheet-head {
-    padding: 0 var(--sheet-inset);
+    /* The dark head extends through the notch so its brand and close button
+       stay below the status bar on notched devices. */
+    padding: max(0px, var(--safe-top)) var(--sheet-inset-right) 0 var(--sheet-inset-left);
   }
   .menubar__group-label {
     display: block;
@@ -3749,7 +3910,7 @@ code,
     text-transform: uppercase;
     letter-spacing: 0.1em;
     color: var(--plat-600);
-    padding: var(--sp-3) var(--sheet-inset) var(--sp-1);
+    padding: var(--sp-3) var(--sheet-inset-right) var(--sp-1) var(--sheet-inset-left);
   }
   .menubar__nav {
     flex: none;
@@ -3771,7 +3932,7 @@ code,
   }
   .menubar__links.is-open .menubar__language {
     min-height: 44px;
-    padding: 0 calc(var(--sheet-inset) - var(--sp-2));
+    padding: 0 calc(var(--sheet-inset-right) - var(--sp-2)) 0 calc(var(--sheet-inset-left) - var(--sp-2));
     align-self: stretch;
     justify-content: flex-start;
   }
@@ -3783,7 +3944,7 @@ code,
     font-size: 14px;
   }
   .menubar__language-listbox {
-    left: calc(var(--sheet-inset) - var(--sp-2));
+    left: calc(var(--sheet-inset-left) - var(--sp-2));
     right: auto;
     top: calc(100% + 2px);
   }
@@ -3791,7 +3952,7 @@ code,
   .menubar__links.is-open .menubar__blog-link {
     min-height: 44px;
     justify-content: flex-start;
-    padding: 0 var(--sheet-inset) 0 calc(var(--sheet-inset) - var(--sheet-rail));
+    padding: 0 var(--sheet-inset-right) 0 calc(var(--sheet-inset-left) - var(--sheet-rail));
     margin: 0;
     font-size: 16px;
     border-left: var(--sheet-rail) solid transparent;
@@ -3920,4 +4081,5 @@ code,
 .google-panel__table th:not(:first-child) {
   text-align: right;
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }

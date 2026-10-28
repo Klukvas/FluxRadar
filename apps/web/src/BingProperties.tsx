@@ -226,56 +226,54 @@ export function BingProperties(props: Props) {
           {message.text}
         </p>
       )}
-      {loading ? (
+      {/* The site selector stays mounted while the discovery answers, disabled
+          instead of being replaced by a loading line: the list that lands must
+          not push the panel's layout around it. */}
+      <SelectField
+        label={t.siteLabel}
+        technical
+        value={siteUrl}
+        onChange={setSiteUrl}
+        disabled={loading}
+        error={loading ? undefined : (notice ?? undefined)}
+        options={[
+          { value: NONE, label: t.notLinked },
+          ...sites.map((site) => ({
+            value: site.siteUrl,
+            // The verification state travels with the option: picking an
+            // unverified site is allowed, and being surprised by it is not.
+            label: site.isVerified ? site.siteUrl : `${site.siteUrl} · ${t.unverifiedSuffix}`,
+          })),
+        ]}
+      />
+      <div className="button-row">
+        <Button
+          variant="primary"
+          disabled={loading || saving || loadedProfileId !== profileId}
+          onClick={() => void save()}
+        >
+          {saving ? t.saving : t.save}
+        </Button>
+        <Button disabled={loading || saving} onClick={() => void load(profileId)}>
+          {t.refresh}
+        </Button>
+      </div>
+      {loading || mismatch === null ? null : (
         <p className="muted" role="status">
-          {t.loading}
+          {fillCopy(t.hostMismatch, {
+            site: mismatch,
+            domain: hostOf(profileDomain ?? ''),
+          })}
         </p>
-      ) : (
-        <>
-          <SelectField
-            label={t.siteLabel}
-            technical
-            value={siteUrl}
-            onChange={setSiteUrl}
-            error={notice ?? undefined}
-            options={[
-              { value: NONE, label: t.notLinked },
-              ...sites.map((site) => ({
-                value: site.siteUrl,
-                // The verification state travels with the option: picking an
-                // unverified site is allowed, and being surprised by it is not.
-                label: site.isVerified ? site.siteUrl : `${site.siteUrl} · ${t.unverifiedSuffix}`,
-              })),
-            ]}
-          />
-          <div className="button-row">
-            <Button
-              variant="primary"
-              disabled={saving || loadedProfileId !== profileId}
-              onClick={() => void save()}
-            >
-              {saving ? t.saving : t.save}
-            </Button>
-            <Button disabled={loading || saving} onClick={() => void load(profileId)}>
-              {t.refresh}
-            </Button>
-          </div>
-          {mismatch === null ? null : (
-            <p className="muted" role="status">
-              {fillCopy(t.hostMismatch, {
-                site: mismatch,
-                domain: hostOf(profileDomain ?? ''),
-              })}
-            </p>
-          )}
-          {binding === null && message === null ? <p className="muted">{t.noBinding}</p> : null}
-          {binding !== null && !binding.verifiedAtSelection && binding.siteUrl !== null ? (
-            <p className="muted" role="status">
-              {fillCopy(t.unverifiedWarning, { site: binding.siteUrl })}
-            </p>
-          ) : null}
-        </>
       )}
+      {!loading && binding === null && message === null ? (
+        <p className="muted">{t.noBinding}</p>
+      ) : null}
+      {!loading && binding !== null && !binding.verifiedAtSelection && binding.siteUrl !== null ? (
+        <p className="muted" role="status">
+          {fillCopy(t.unverifiedWarning, { site: binding.siteUrl })}
+        </p>
+      ) : null}
     </Panel>
   );
 }

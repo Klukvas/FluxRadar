@@ -2,6 +2,7 @@ import type { EgressLocation } from './api';
 import { SelectField } from './components';
 import { egressLocationLabel, type LaunchConfigState } from './egress-location';
 import { copy, type Language } from './i18n';
+import { useDelayedFlag } from './use-delayed-flag';
 
 /**
  * The country a paid check leaves from (D-228).
@@ -24,7 +25,29 @@ export function EgressLocationField(props: {
 }) {
   const t = copy[props.language].newScan;
   const { config } = props;
-  if (config.status === 'loading') return null;
+  // The field's own slot, at its final size, instead of nothing: the disabled
+  // select appears only once the read is known to be slow, so a fast answer
+  // never flashes it, and the real field lands on the same layout.
+  const showSlot = useDelayedFlag(config.status === 'loading');
+  if (config.status === 'loading') {
+    if (!showSlot) return null;
+    return (
+      <>
+        <SelectField
+          label={t.labelEgressLocation}
+          name="scan-egress-location"
+          autoComplete="off"
+          disabled
+          value=""
+          onChange={() => undefined}
+          options={[]}
+          hint={t.hintEgressLocation}
+        />
+        <p className="muted panel-help">{t.egressPerformanceNote}</p>
+        <p className="muted panel-help">{t.egressMoreCountries}</p>
+      </>
+    );
+  }
   if (config.status === 'unavailable') {
     return <p className="muted panel-help">{t.egressLoadFailed}</p>;
   }

@@ -26,6 +26,14 @@
   --sp-2: 8px;
   --sp-3: 12px;
   --sp-4: 16px;
+  --safe-top: 0px;
+  --safe-top: env(safe-area-inset-top);
+  --safe-right: 0px;
+  --safe-right: env(safe-area-inset-right);
+  --safe-bottom: 0px;
+  --safe-bottom: env(safe-area-inset-bottom);
+  --safe-left: 0px;
+  --safe-left: env(safe-area-inset-left);
   --ui-font: Charcoal, Chicago, Geneva, 'Helvetica Neue', system-ui, sans-serif;
   --mono-font: Monaco, 'SF Mono', Menlo, 'Courier New', monospace;
 }
@@ -612,15 +620,19 @@ html[data-blog-lang='uk'] [data-article-lang='en'] {
     inset: 0;
     z-index: 50;
     background: var(--plat-100);
-    padding: 0 0 var(--sp-4);
+    padding: 0 0 max(var(--sp-4), var(--safe-bottom));
     overflow-y: auto;
     /* One left edge for the whole sheet, as on the React header: the group
        labels, the navigation items, the brand and the language control each
        used to compute their own inset, so their text started in three
        different columns. The 3px active rail is subtracted from the padding
        rather than added in front of it, so a selected row's label stays on
-       the line as the others. */
+       the line as the others. On a landscape notched phone the side insets
+       are wider than the shared inset, so each edge takes the larger of the
+       two. */
     --sheet-inset: var(--sp-4);
+    --sheet-inset-left: max(var(--sheet-inset), var(--safe-left));
+    --sheet-inset-right: max(var(--sheet-inset), var(--safe-right));
     --sheet-rail: 3px;
   }
   .menubar__sheet-head {
@@ -628,7 +640,7 @@ html[data-blog-lang='uk'] [data-article-lang='en'] {
     align-items: center;
     gap: var(--sp-2);
     min-height: 44px;
-    padding: 0 var(--sheet-inset);
+    padding: max(0px, var(--safe-top)) var(--sheet-inset-right) 0 var(--sheet-inset-left);
     background: var(--term-bg);
     color: var(--plat-50);
     border-bottom: 2px solid var(--plat-900);
@@ -664,7 +676,7 @@ html[data-blog-lang='uk'] [data-article-lang='en'] {
     text-transform: uppercase;
     letter-spacing: 0.1em;
     color: var(--plat-600);
-    padding: var(--sp-3) var(--sheet-inset) var(--sp-1);
+    padding: var(--sp-3) var(--sheet-inset-right) var(--sp-1) var(--sheet-inset-left);
   }
   .menubar__nav {
     flex: none;
@@ -686,7 +698,7 @@ html[data-blog-lang='uk'] [data-article-lang='en'] {
   }
   .menubar__links.is-open .menubar__language {
     min-height: 44px;
-    padding: 0 calc(var(--sheet-inset) - var(--sp-2));
+    padding: 0 calc(var(--sheet-inset-right) - var(--sp-2)) 0 calc(var(--sheet-inset-left) - var(--sp-2));
     align-self: stretch;
     justify-content: flex-start;
   }
@@ -698,7 +710,7 @@ html[data-blog-lang='uk'] [data-article-lang='en'] {
     font-size: 14px;
   }
   .menubar__language-listbox {
-    left: calc(var(--sheet-inset) - var(--sp-2));
+    left: calc(var(--sheet-inset-left) - var(--sp-2));
     right: auto;
     top: calc(100% + 2px);
   }
@@ -720,7 +732,7 @@ html[data-blog-lang='uk'] [data-article-lang='en'] {
   .menubar__links.is-open .menubar__item {
     min-height: 44px;
     justify-content: flex-start;
-    padding: 0 var(--sheet-inset) 0 calc(var(--sheet-inset) - var(--sheet-rail));
+    padding: 0 var(--sheet-inset-right) 0 calc(var(--sheet-inset-left) - var(--sheet-rail));
     margin: 0;
     font-size: 16px;
     border-left: var(--sheet-rail) solid transparent;

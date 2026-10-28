@@ -83,7 +83,7 @@ export function IssueProblems(props: {
                 <ProblemEvidence group={group} language={props.language} />
                 <ProblemExplainer ruleId={group.ruleId} language={props.language} />
               </td>
-              <td data-label={f.issues.columnPages}>
+              <td data-label={f.issues.columnPages} className="tabular-nums">
                 {settled
                   ? f.issues.groupSettled(group.issues, countsPages)
                   : f.issues.groupCount(group.openIssues, group.issues, countsPages)}

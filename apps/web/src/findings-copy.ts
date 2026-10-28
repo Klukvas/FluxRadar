@@ -203,6 +203,8 @@ export type FindingsCopy = {
     readonly print: string;
     readonly back: string;
     readonly loading: string;
+    readonly loadFailed: string;
+    readonly retry: string;
     readonly documentTitle: (domain: string) => string;
     readonly preparedFor: (domain: string) => string;
     readonly generated: (date: string) => string;
@@ -419,6 +421,8 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
       print: 'Print or save as PDF',
       back: 'Back to the report',
       loading: 'Preparing the report…',
+      loadFailed: 'The report could not be prepared. Check the connection and try again.',
+      retry: 'Try again',
       documentTitle: (domain) => `Website audit — ${domain}`,
       preparedFor: (domain) => `Public website audit of ${domain}`,
       generated: (date) => `Generated ${date} by FluxRadar`,
@@ -629,6 +633,8 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
       print: 'Друк або збереження в PDF',
       back: 'Назад до звіту',
       loading: 'Готуємо звіт…',
+      loadFailed: 'Не вдалося підготувати звіт. Перевірте зʼєднання і спробуйте ще раз.',
+      retry: 'Спробувати ще раз',
       documentTitle: (domain) => `Аудит сайту — ${domain}`,
       preparedFor: (domain) => `Аудит публічного сайту ${domain}`,
       generated: (date) => `Створено ${date} у FluxRadar`,

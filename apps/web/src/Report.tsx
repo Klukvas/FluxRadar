@@ -18,7 +18,6 @@ import {
 import {
   Button,
   EmptyState,
-  LoadingState,
   Panel,
   ProgressBar,
   ScoreDial,
@@ -56,6 +55,25 @@ import { moduleLabel } from './rule-titles';
 import { ScanComparisonPanel } from './ScanComparison';
 import { SiteCoveragePanel } from './SiteCoverage';
 import { statusKind } from './status-kind';
+import { useDelayedFlag } from './use-delayed-flag';
+
+/** The dashboard's own layout, drawn as placeholders while it loads. */
+function ReportSkeleton() {
+  return (
+    <div className="stack report-skeleton">
+      <div className="split">
+        <div>
+          <div className="skeleton-block report-skeleton__heading" />
+          <div className="skeleton-block report-skeleton__meta" />
+        </div>
+        <div className="skeleton-shell report-skeleton__dial" />
+      </div>
+      <div className="skeleton-shell report-skeleton__module" />
+      <div className="skeleton-shell report-skeleton__module" />
+      <div className="skeleton-shell report-skeleton__module" />
+    </div>
+  );
+}
 
 export function ResultsScreen(props: {
   scan: Scan | null;
@@ -98,6 +116,9 @@ export function ResultsScreen(props: {
   } | null>(null);
   const scanId = props.scan?.id ?? null;
   const { onScan, onError, onRetry } = props;
+  // The skeleton replaces the dashboard's own layout, so it is shown only once
+  // the fetch is known to be slow — a fast dashboard never flashes a shell.
+  const showSkeleton = useDelayedFlag(loading);
   const load = useCallback(async (): Promise<void> => {
     if (scanId === null) {
       setLoading(false);
@@ -128,7 +149,7 @@ export function ResultsScreen(props: {
   if (loading)
     return (
       <Window title={t.loadingTitle}>
-        <LoadingState />
+        <div aria-label="Loading results">{showSkeleton ? <ReportSkeleton /> : null}</div>
       </Window>
     );
   if (failure !== null)

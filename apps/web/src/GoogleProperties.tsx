@@ -513,51 +513,50 @@ export function GoogleProperties(props: Props) {
         options={props.profiles.map((profile) => ({ value: profile.id, label: profile.name }))}
       />
       {messageBlock}
-      {loading ? (
-        <p className="muted" role="status">
-          {t.loading}
-        </p>
-      ) : (
-        <>
-          <SelectField
-            label={t.searchConsoleLabel}
-            technical
-            value={searchConsoleSiteUrl}
-            onChange={setSearchConsoleSiteUrl}
-            error={searchConsoleNotice ?? undefined}
-            options={[
-              { value: NONE, label: t.notLinked },
-              ...searchConsoleSites.map((site) => ({ value: site.siteUrl, label: site.siteUrl })),
-            ]}
-          />
-          <SelectField
-            label={t.analyticsLabel}
-            value={ga4PropertyId}
-            onChange={setGa4PropertyId}
-            error={analyticsNotice ?? undefined}
-            options={[
-              { value: NONE, label: t.notLinked },
-              ...(discovery?.analytics.items ?? []).map((property) => ({
-                value: property.propertyId,
-                label: `${property.displayName} · ${property.accountName}`,
-              })),
-            ]}
-          />
-          <div className="button-row">
-            <Button
-              variant="primary"
-              disabled={saving || isMutating || loadedProfileId !== profileId}
-              onClick={() => void save()}
-            >
-              {saving ? t.saving : t.save}
-            </Button>
-            <Button disabled={loading || saving || isMutating} onClick={refresh}>
-              {t.refresh}
-            </Button>
-          </div>
-          {binding === null && message === null ? <p className="muted">{t.noBinding}</p> : null}
-        </>
-      )}
+      {/* The two selectors stay mounted while the discovery answers, disabled
+          instead of being replaced by a loading line: the list that lands must
+          not push the panel's layout around it. */}
+      <SelectField
+        label={t.searchConsoleLabel}
+        technical
+        value={searchConsoleSiteUrl}
+        onChange={setSearchConsoleSiteUrl}
+        disabled={loading}
+        error={loading ? undefined : (searchConsoleNotice ?? undefined)}
+        options={[
+          { value: NONE, label: t.notLinked },
+          ...searchConsoleSites.map((site) => ({ value: site.siteUrl, label: site.siteUrl })),
+        ]}
+      />
+      <SelectField
+        label={t.analyticsLabel}
+        value={ga4PropertyId}
+        onChange={setGa4PropertyId}
+        disabled={loading}
+        error={loading ? undefined : (analyticsNotice ?? undefined)}
+        options={[
+          { value: NONE, label: t.notLinked },
+          ...(discovery?.analytics.items ?? []).map((property) => ({
+            value: property.propertyId,
+            label: `${property.displayName} · ${property.accountName}`,
+          })),
+        ]}
+      />
+      <div className="button-row">
+        <Button
+          variant="primary"
+          disabled={loading || saving || isMutating || loadedProfileId !== profileId}
+          onClick={() => void save()}
+        >
+          {saving ? t.saving : t.save}
+        </Button>
+        <Button disabled={loading || saving || isMutating} onClick={refresh}>
+          {t.refresh}
+        </Button>
+      </div>
+      {!loading && binding === null && message === null ? (
+        <p className="muted">{t.noBinding}</p>
+      ) : null}
       {/* Outside the loading branch: choosing Configure switches the profile
           above, and a list that vanished while it reloaded would jump the
           page away from the row that was just clicked. */}

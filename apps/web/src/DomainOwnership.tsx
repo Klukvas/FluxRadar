@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 
 import { apiRequest, type DomainVerification, type SiteProfile } from './api';
-import { Button, FieldRow, Panel, SelectField, SkeletonRows, StatusChip } from './components';
+import { Button, FieldRow, Panel, SelectField, SkeletonFieldRows, StatusChip } from './components';
 import { domainOwnershipCopy } from './domain-ownership-copy';
 import { copy, fillCopy, type Language } from './i18n';
 import { formatTimestamp } from './scan-status';
@@ -75,7 +75,9 @@ export function DomainOwnershipPanel(props: {
       {children}
     </OwnershipFold>
   );
-  if (loading) return fold(<SkeletonRows rows={2} />);
+  // The loaded fold holds a field row, a select and a button row; the skeleton
+  // draws that many field-row-shaped lines in the same columns.
+  if (loading) return fold(<SkeletonFieldRows rows={3} />);
   return fold(
     <>
       <p className="muted panel-help">{t.optionalNote}</p>

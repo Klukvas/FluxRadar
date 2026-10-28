@@ -79,4 +79,11 @@ describe('the home head in index.html', () => {
     expect(metaContent(template, 'og:description')).toBe(home.description);
     expect(metaContent(template, 'twitter:description')).toBe(home.description);
   });
+
+  // The safe-area rules (tokens.css --safe-*) are inert without it: env()
+  // resolves to 0 until the viewport declares cover. Stage 2 of the safe-area
+  // rollout — it must ship only after the fixed chrome reads the insets.
+  it('declares viewport-fit=cover so safe-area insets resolve on notched devices', () => {
+    expect(metaContent(template, 'viewport')).toContain('viewport-fit=cover');
+  });
 });

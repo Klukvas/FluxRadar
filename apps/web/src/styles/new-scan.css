@@ -134,6 +134,57 @@
   font-size: 13px;
   line-height: 1.45;
 }
+/* The placeholder card a paid plan reserves while the checkout configuration
+   is still on its way: the same three cells a real card draws, so the cards
+   that replace it land on the same grid without a shift. The blocks take the
+   real cells' metrics so the reserved height is the card's own: the name line
+   (14px/1.45 ≈ 20px) and one description line (13px/1.45 ≈ 19px) give the 69px
+   Free/Complete card; Basic wraps its longer description to two lines and
+   carries the "recommended" badge, so its card is 88px — the JSX draws a
+   second description block and a badge block for Basic. Measured rendered
+   cards: 69.14px / 87.98px.
+   The cells' text metrics are zeroed below: a fixed-height inline-block on a
+   text baseline adds the font's descent on top of the block (measured
+   overshoot ≈ +5.2px per card), and zero font/line-height makes the line box
+   exactly the blocks' heights. */
+.plan-card__skeleton {
+  display: block;
+  height: 12px;
+  border-radius: var(--r-1);
+  background: linear-gradient(90deg, var(--plat-200), var(--plat-50), var(--plat-200));
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.2s linear infinite;
+}
+.plan-card--skeleton .plan-card__name,
+.plan-card--skeleton .plan-card__price,
+.plan-card--skeleton .plan-card__line {
+  font-size: 0;
+  line-height: 0;
+}
+.plan-card__skeleton--radio {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+}
+.plan-card__skeleton--name {
+  display: inline-block;
+  width: 110px;
+  height: 20px;
+}
+.plan-card__skeleton--badge {
+  display: inline-block;
+  width: 90px;
+  height: 18px;
+  margin-left: var(--sp-2);
+}
+.plan-card__skeleton--price {
+  width: 64px;
+  height: 18px;
+}
+.plan-card__skeleton--line {
+  width: 92%;
+  height: 19px;
+}
 
 /* "Your report": the order, its price and the one button, pinned beside the
    steps on a wide screen. */

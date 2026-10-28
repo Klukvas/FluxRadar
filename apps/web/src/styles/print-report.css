@@ -23,6 +23,17 @@
   background: #fff;
   text-align: center;
 }
+/* The print document's loading shell: page-sized blocks at the width the
+   printed pages will take, so the pages that replace them land in the same
+   column. */
+.print-skeleton {
+  display: grid;
+  gap: var(--sp-3);
+  text-align: left;
+}
+.print-skeleton__page {
+  min-height: 240px;
+}
 .print-document {
   max-width: 820px;
   margin: 0 auto;

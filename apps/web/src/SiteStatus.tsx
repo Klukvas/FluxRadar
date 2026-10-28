@@ -23,7 +23,7 @@ import {
   type Scan,
   type SiteProfile,
 } from './api';
-import { Button, FieldRow, Panel, SkeletonRows, StatusChip } from './components';
+import { Button, FieldRow, Panel, SkeletonFieldRows, StatusChip } from './components';
 import { copy, type Language } from './i18n';
 import { planName } from './plan-modules';
 import { displayDomain, formatTimestamp, scanStateLabel } from './scan-status';
@@ -121,7 +121,9 @@ function SiteStatusBody(props: {
   onRetry: () => void;
 }) {
   const t = copy[props.language].siteStatus;
-  if (props.loading) return <SkeletonRows rows={3} />;
+  // The same number of field rows the loaded panel draws, so the rows that
+  // replace them land in the same columns.
+  if (props.loading) return <SkeletonFieldRows rows={7} />;
   if (props.failed) {
     return (
       <>

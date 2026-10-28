@@ -26,7 +26,7 @@ import {
   type IssueSummary,
 } from './api';
 import { fetchScanComparison, type ScanComparison } from './comparison-api';
-import { Button, LoadingState, StatusChip } from './components';
+import { Button, StatusChip } from './components';
 import { problemTitle } from './finding-explainers';
 import { findingsCopy } from './findings-copy';
 import { formatDate } from './format-date';
@@ -38,6 +38,7 @@ import { nothingWasChecked, siteReadFailureOf } from './report-failure-copy';
 import { ComparisonPrintBlock } from './ScanComparisonPrint';
 import { moduleLabel } from './rule-titles';
 import { displayDomain, moduleResultLabel, moduleScoreLabel } from './scan-status';
+import { useDelayedFlag } from './use-delayed-flag';
 import './styles/print-report.css';
 
 /** Findings the document lists at most; the Issue Center and CSV carry the rest. */
@@ -153,8 +154,14 @@ export function PrintReport(props: {
 }) {
   const f = findingsCopy[props.language].print;
   const [data, setData] = useState<PrintData | null>(null);
+  const [failed, setFailed] = useState(false);
+  // Bumping the counter re-runs the load: the retry button's only job.
+  const [attempt, setAttempt] = useState(0);
   const { onError } = props;
   const planLanguage = props.planLanguage ?? props.language;
+  // Page-shaped placeholders instead of a terminal: shown only once the fetch
+  // is known to be slow, at the width the printed pages will take.
+  const showSkeleton = useDelayedFlag(data === null && !failed);
 
   useEffect(() => {
     let current = true;
@@ -162,16 +169,20 @@ export function PrintReport(props: {
       .then((value) => {
         if (!current) return;
         setData(value);
+        setFailed(false);
         // The name the browser offers for the saved PDF.
         document.title = f.documentTitle(displayDomain(value.dashboard.scan.domain));
       })
       .catch((caught: unknown) => {
-        if (current) onError(caught instanceof Error ? caught.message : f.loading);
+        if (current) {
+          setFailed(true);
+          onError(caught instanceof Error ? caught.message : f.loadFailed);
+        }
       });
     return () => {
       current = false;
     };
-  }, [props.scanId, planLanguage, onError, f]);
+  }, [props.scanId, planLanguage, onError, f, attempt]);
 
   return (
     <div className="print-shell">
@@ -183,10 +194,34 @@ export function PrintReport(props: {
         <PrintBrandNotice data={data} language={props.language} />
       </div>
       {data === null ? (
-        <div className="print-loading" role="status">
-          <LoadingState />
-          <p>{f.loading}</p>
-        </div>
+        failed ? (
+          // The toolbar keeps its Back and Print controls; the failure only
+          // adds the retry the load needs.
+          <div className="print-loading" role="alert">
+            <p>{f.loadFailed}</p>
+            <div className="button-row">
+              <Button
+                variant="primary"
+                onClick={() => {
+                  setFailed(false);
+                  setAttempt((value) => value + 1);
+                }}
+              >
+                {f.retry}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="print-loading" role="status">
+            {showSkeleton ? (
+              <div className="print-skeleton" aria-hidden="true">
+                <div className="skeleton-shell print-skeleton__page" />
+                <div className="skeleton-shell print-skeleton__page" />
+              </div>
+            ) : null}
+            <p>{f.loading}</p>
+          </div>
+        )
       ) : (
         <PrintDocument data={data} language={props.language} />
       )}

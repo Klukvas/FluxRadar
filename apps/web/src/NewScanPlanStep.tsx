@@ -10,6 +10,7 @@ import { PLAN_MODULES, planIncludesActionPlan, type Plan } from './plan-modules'
 import { publicPagePath } from './public-page-routing';
 import { ScanCallout } from './ScanCallout';
 import { PLAN_PRICE } from './tariff-prices';
+import { useDelayedFlag } from './use-delayed-flag';
 
 /**
  * What to tell a buyer who cannot pay yet.
@@ -50,11 +51,20 @@ export function PlanStep(props: {
     offeredOptInAiProviders,
     optInAiProviders,
     paidAvailable,
+    paidPlanOptions,
     paidScopeControls,
     plan,
     planOptions,
     toggleOptInAiProvider,
   } = props.form;
+  // The paid cards reserve their slots the moment the checkout configuration is
+  // known to be slow: the skeletons appear after the holdback, so a fast answer
+  // never flashes them, and the cards that replace them land on the same grid.
+  // Only the paid plans the form actually offers are reserved (the same
+  // predicate the real grid draws), and none are reserved while the real paid
+  // cards are already on the screen — with internal free access the grid is
+  // complete before the configuration answers.
+  const showPaidSkeletons = useDelayedFlag(checkoutPending);
   return (
     <NewScanStep number={2} title={c.steps.plan} id="scan-step-plan">
       <div className="plan-cards" role="radiogroup" aria-labelledby="scan-step-plan">
@@ -68,6 +78,35 @@ export function PlanStep(props: {
             onChoose={choosePlan}
           />
         ))}
+        {checkoutPending && showPaidSkeletons && !paidAvailable
+          ? paidPlanOptions.map((paidPlan) => (
+              <div
+                className="plan-card plan-card--skeleton"
+                key={`plan-skeleton-${paidPlan}`}
+                aria-hidden="true"
+              >
+                <span className="plan-card__skeleton plan-card__skeleton--radio" />
+                <span className="plan-card__name">
+                  <span className="plan-card__skeleton plan-card__skeleton--name" />
+                  {paidPlan === 'Basic' ? (
+                    <span className="plan-card__skeleton plan-card__skeleton--badge" />
+                  ) : null}
+                </span>
+                <span className="plan-card__price">
+                  <span className="plan-card__skeleton plan-card__skeleton--price" />
+                </span>
+                <span className="plan-card__line">
+                  <span className="plan-card__skeleton plan-card__skeleton--line" />
+                  {/* Basic's description wraps to two lines at the card width;
+                      the second block reserves that line, keeping the card at
+                      its final height. */}
+                  {paidPlan === 'Basic' ? (
+                    <span className="plan-card__skeleton plan-card__skeleton--line" />
+                  ) : null}
+                </span>
+              </div>
+            ))
+          : null}
       </div>
       {paidAvailable ? null : checkoutPending ? (
         <p className="muted">{t.newScan.paidChecking}</p>

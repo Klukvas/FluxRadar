@@ -174,6 +174,32 @@ describe('the Issue Center', () => {
     expect(screen.getByRole('heading', { name: problem })).toBeInTheDocument();
   });
 
+  // A zero-result filter must name the way out, not just say "nothing here".
+  it('names the way out of an empty filter and clears it', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL) => {
+        const url = new URL(String(input));
+        if (url.pathname.endsWith('/issues/summary')) return Promise.resolve(json(SUMMARY));
+        const matches = url.searchParams.has('search') ? [] : [issue(1)];
+        return Promise.resolve(json(matches, { total: matches.length, page: 1, limit: 50 }));
+      }),
+    );
+    render(
+      <IssuesScreen scan={SCAN} language="en" onError={() => {}} initialRuleId="SEO-ONPAGE-002" />,
+    );
+
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Search' }), {
+      target: { value: 'nothing-matches-this' },
+    });
+    await screen.findByText('No issues match this filter');
+    expect(screen.getByText(/clear the filters and look at everything/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(await screen.findByText('Showing 1 of 1')).toBeInTheDocument();
+    expect(screen.queryByText('No issues match this filter')).not.toBeInTheDocument();
+  });
+
   it('opens one problem onto its findings, filtered by the API', async () => {
     const fetchMock = stubIssues();
     render(<IssuesScreen scan={SCAN} language="en" onError={() => {}} />);

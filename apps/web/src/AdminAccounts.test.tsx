@@ -267,10 +267,19 @@ describe('owner dashboard accounts list', () => {
     ['a scan object', { id: 'scan-1', status: 'Completed' }],
     ['a row with a field of the wrong type', { ...pageOf('?page=1'), rows: [{ email: 1 }] }],
   ])('draws nothing from %s', async (_label, data) => {
-    stubApi(() => envelope(data));
+    // The accounts answer is held back: the section mounts only after the
+    // numbers arrive, so the test waits for its loading state to be up, then
+    // releases the malformed answer and waits for the section to unmount.
+    let releaseAccounts: () => void = () => undefined;
+    const accountsPending = new Promise<Response>((resolve) => {
+      releaseAccounts = () => resolve(envelope(data));
+    });
+    stubApi(() => accountsPending);
     openDashboard();
 
     expect(await screen.findByText('Business numbers')).toBeInTheDocument();
+    expect(await screen.findByLabelText('Loading results')).toBeInTheDocument();
+    releaseAccounts();
     await waitFor(() => expect(screen.queryByLabelText('Loading results')).not.toBeInTheDocument());
     expect(screen.queryByRole('heading', { name: 'Accounts' })).not.toBeInTheDocument();
     expect(screen.queryAllByText('Not available')).toHaveLength(0);

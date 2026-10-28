@@ -49,7 +49,7 @@
 .notice {
   position: fixed;
   z-index: 60;
-  top: 40px;
+  top: max(40px, var(--safe-top));
   left: 50%;
   width: min(560px, calc(100vw - 32px));
   transform: translateX(-50%);
@@ -67,6 +67,40 @@
 }
 .notice p {
   margin: 0;
+}
+
+/* The global offline banner. It parks below the notice slot so a confirmation
+   and the connection warning can both be up without covering each other; it
+   uses the warning family, not the notice green — this reports a problem, it
+   is not a confirmation. The clearance is sized for the tallest multi-line
+   notice; if an alert does grow over it, the notices' higher z-index keeps the
+   error readable above the banner rather than buried under it. */
+.offline-banner {
+  position: fixed;
+  z-index: 59;
+  top: max(128px, calc(var(--safe-top) + 88px));
+  left: 50%;
+  width: min(560px, calc(100vw - 32px));
+  transform: translateX(-50%);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--warn-line);
+  background: var(--warn-fill);
+  color: var(--warn-text);
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.45);
+}
+.offline-banner p {
+  margin: 0;
+}
+
+/* A long server error must not grow past the offline banner parked below the
+   notice slot: the box is capped to the clearance between the two and scrolls
+   beyond it, so the error and the connection warning never fight for the same
+   pixels. */
+.alert--floating {
+  max-height: calc(
+    max(128px, calc(var(--safe-top) + 88px)) - max(40px, var(--safe-top)) - var(--sp-2)
+  );
+  overflow-y: auto;
 }
 
 .report-branding {

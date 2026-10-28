@@ -14,6 +14,7 @@ import { FLUXLAB_URL, createdByFluxLab } from './brand';
 import { copy, fillCopy, languageOptions, type Language } from './i18n';
 import { statusKind } from './status-kind';
 import { tourTargets } from './tour-targets';
+import { useDelayedFlag } from './use-delayed-flag';
 import { WORKSPACE_PATHS, type WorkspaceTabScreen } from './workspace-paths';
 
 export function Window(props: {
@@ -955,16 +956,66 @@ export function EmptyState(props: { title: string; description?: ReactNode; acti
   );
 }
 
-export function SkeletonRows(props: { rows?: number }) {
+export function SkeletonRows(props: {
+  rows?: number;
+  /**
+   * The grid template for one row, one entry per cell. Defaults to the legacy
+   * 90px 1fr 28% shape, so call sites that were not migrated keep their row
+   * shape. Timing is new for everyone: every call site gains the holdback
+   * below unless it passes `delay: 0`.
+   */
+  columns?: readonly string[];
+  /** The row's min-height in px; defaults to the stylesheet's 30px. */
+  rowHeight?: number;
+  /**
+   * Holdback before the skeleton appears, so a fast response never flashes it.
+   * Pass 0 when the caller already gates visibility itself.
+   */
+  delay?: number;
+}) {
+  const visible = useDelayedFlag(true, props.delay ?? 200);
+  const columns = props.columns ?? ['90px', '1fr', '28%'];
+  // The labelled wrapper is present from the first render: the holdback hides
+  // the rows, never the fact that something is loading.
   return (
     <div className="skeleton-list" aria-label="Loading results">
-      {Array.from({ length: props.rows ?? 3 }, (_, index) => (
-        <div className="skeleton-row" key={index}>
-          <span />
-          <span />
-          <span />
-        </div>
-      ))}
+      {visible
+        ? Array.from({ length: props.rows ?? 3 }, (_, rowIndex) => (
+            <div
+              className="skeleton-row"
+              key={rowIndex}
+              style={{
+                gridTemplateColumns: columns.join(' '),
+                ...(props.rowHeight === undefined ? {} : { minHeight: `${props.rowHeight}px` }),
+              }}
+            >
+              {columns.map((_, cellIndex) => (
+                <span key={cellIndex} />
+              ))}
+            </div>
+          ))
+        : null}
+    </div>
+  );
+}
+
+/**
+ * Placeholder rows in the `.field-row` shape — a label column and a value
+ * column at the same widths the real rows use — for panels that load into a
+ * list of FieldRows rather than into cards or a table.
+ */
+export function SkeletonFieldRows(props: { rows?: number }) {
+  const visible = useDelayedFlag(true);
+  return (
+    <div className="skeleton-list" aria-label="Loading results">
+      {visible
+        ? Array.from({ length: props.rows ?? 3 }, (_, index) => (
+            <div className="field-row skeleton-field-row" key={index}>
+              <span className="skeleton-block skeleton-field-row__label" />
+              <span className="skeleton-block skeleton-field-row__value" />
+            </div>
+          ))
+        : null}
     </div>
   );
 }

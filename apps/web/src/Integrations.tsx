@@ -3,12 +3,14 @@
 // Lives beside the workspace rather than inside it — a public-site audit runs
 // without any of these, and the screen says so before it lists anything.
 
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 
 import { apiRequest, type IntegrationStatus, type SiteProfile } from './api';
-import { Button, LoadingState, Panel, StatusChip, Window } from './components';
+import { Button, Panel, StatusChip, Window } from './components';
 import { GoogleProperties } from './GoogleProperties';
 import { copy, type Copy, type Language } from './i18n';
+import { useDelayedFlag } from './use-delayed-flag';
+import { useModalDialogBehavior } from './use-modal-dialog';
 
 /**
  * Connections the API offers that this screen does not.
@@ -47,6 +49,13 @@ export function IntegrationsScreen(props: {
   const [loading, setLoading] = useState(true);
   const [busyProvider, setBusyProvider] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [confirmProvider, setConfirmProvider] = useState<IntegrationStatus | null>(null);
+  // Rows at the integration list's own shape instead of a terminal: shown only
+  // once the fetch is known to be slow.
+  const showSkeleton = useDelayedFlag(loading);
+  const confirmDialog = useModalDialogBehavior(confirmProvider !== null, () =>
+    setConfirmProvider(null),
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -99,13 +108,32 @@ export function IntegrationsScreen(props: {
 
   if (loading)
     return (
-      <Window
-        title={t.loadingTitle}
-        onClose={props.onClose}
-        closeLabel={props.language === 'uk' ? 'Закрити вікно' : 'Close window'}
-      >
-        <LoadingState />
-      </Window>
+      <div className="stack">
+        <Window
+          title={t.loadingTitle}
+          onClose={props.onClose}
+          closeLabel={props.language === 'uk' ? 'Закрити вікно' : 'Close window'}
+        >
+          {/* The loading window draws the same header split and policy panel as
+              the loaded one, so when the data lands only the list rows swap —
+              the list's position never moves. */}
+          <div className="split">
+            <div>
+              <h2 className="section-heading">{t.heading}</h2>
+              <p className="muted">{t.lead}</p>
+            </div>
+            <Button onClick={() => void load()}>{t.refresh}</Button>
+          </div>
+          {/* The labelled wrapper is present from the first render: the holdback
+              hides the rows, never the fact that the list is loading. */}
+          <div aria-label="Loading results">
+            {showSkeleton ? <IntegrationListSkeleton /> : null}
+          </div>
+          <Panel title={t.policyTitle}>
+            <p className="muted integration-policy">{t.policyBody}</p>
+          </Panel>
+        </Window>
+      </div>
     );
   return (
     <div className="stack">
@@ -162,18 +190,20 @@ export function IntegrationsScreen(props: {
                       integration.status === 'connected' ? (
                         <Button
                           variant="danger"
-                          disabled={busyProvider === integration.provider}
+                          disabled={busyProvider !== null}
                           aria-describedby={reason === null ? undefined : reasonId}
-                          onClick={() => void disconnect(integration)}
+                          onClick={() => setConfirmProvider(integration)}
                         >
                           {busyProvider === integration.provider ? t.disconnecting : t.disconnect}
                         </Button>
                       ) : (
                         <Button
                           variant="primary"
-                          disabled={
-                            !integration.canConnect || busyProvider === integration.provider
-                          }
+                          // One busy slot for the whole screen: while ANY
+                          // connection request is in flight, starting another
+                          // would overwrite the slot and leave the first
+                          // operation's row claiming it finished.
+                          disabled={!integration.canConnect || busyProvider !== null}
                           aria-describedby={reason === null ? undefined : reasonId}
                           onClick={() => void connect(integration)}
                         >
@@ -212,7 +242,92 @@ export function IntegrationsScreen(props: {
         <Panel title={t.policyTitle}>
           <p className="muted integration-policy">{t.policyBody}</p>
         </Panel>
+        {confirmProvider !== null ? (
+          <div className="modal-backdrop" onMouseDown={() => setConfirmProvider(null)}>
+            <section
+              ref={confirmDialog}
+              className="window window--dialog"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="integration-disconnect-title"
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+              <div className="window__content stack">
+                <h2 id="integration-disconnect-title" className="section-heading">
+                  {t.disconnectTitle(confirmProvider.label)}
+                </h2>
+                <p>{t.disconnectBody(confirmProvider.label)}</p>
+                <div className="button-row">
+                  <Button
+                    onClick={() => setConfirmProvider(null)}
+                    disabled={busyProvider !== null}
+                  >
+                    {t.keepConnection}
+                  </Button>
+                  <Button
+                    variant="danger"
+                    disabled={busyProvider !== null}
+                    onClick={() => {
+                      const provider = confirmProvider;
+                      setConfirmProvider(null);
+                      void disconnect(provider);
+                    }}
+                  >
+                    {t.disconnect}
+                  </Button>
+                </div>
+              </div>
+            </section>
+          </div>
+        ) : null}
       </Window>
+    </div>
+  );
+}
+
+/**
+ * The integration list's own shape while the fetch is slow: the ONE group the
+ * loaded screen draws — the Google row (name, why, services, chip, button)
+ * plus its property-picker detail — at those elements' final sizes, so when
+ * the data lands only the text swaps and nothing below the list moves.
+ *
+ * One group, not several: `bing` is hidden (`HIDDEN_PROVIDERS`) and Google is
+ * the only connection the screen offers, so a multi-row placeholder would
+ * collapse when the list lands. If the API ever offers a second visible
+ * provider, extend this to draw one group per offered provider.
+ */
+function IntegrationListSkeleton() {
+  return (
+    <div className="integration-list" aria-hidden="true">
+      <div className="integration-group">
+        <div className="integration-row">
+          <div className="integration-row__copy">
+            <div className="skeleton-block integration-skeleton__name" />
+            <div className="skeleton-block integration-skeleton__why" />
+            <div className="skeleton-block integration-skeleton__services" />
+          </div>
+          <div className="integration-row__action">
+            <div className="skeleton-block integration-skeleton__chip" />
+            <div className="skeleton-block integration-skeleton__button" />
+          </div>
+        </div>
+        <div className="integration-group__detail">
+          <div className="integration-skeleton__panel">
+            <div className="skeleton-block integration-skeleton__title" />
+            <div className="skeleton-block integration-skeleton__readonly" />
+            {Array.from({ length: 3 }, (_, index) => (
+              <Fragment key={index}>
+                <div className="integration-skeleton__field">
+                  <div className="skeleton-block integration-skeleton__field-label" />
+                  <div className="skeleton-block integration-skeleton__field-box" />
+                </div>
+                {index === 0 ? <div className="skeleton-block integration-skeleton__note" /> : null}
+              </Fragment>
+            ))}
+            <div className="skeleton-block integration-skeleton__detail-button" />
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

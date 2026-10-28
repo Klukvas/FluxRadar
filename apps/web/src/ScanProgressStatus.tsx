@@ -28,7 +28,9 @@ export function ScanProgressStatus(props: { scan: Scan; language: Language; now:
         <strong>{stageHeadline(stage, t, props.language)}</strong>
       </p>
       {showPages ? (
-        <p className="muted">{t.pagesRead(pagesRead, formatCount(pagesRead, props.language))}</p>
+        <p className="muted tabular-nums">
+          {t.pagesRead(pagesRead, formatCount(pagesRead, props.language))}
+        </p>
       ) : null}
       <p className="muted">{t.typicalDuration}</p>
       {isRunningLong(props.scan, props.now) ? <p>{t.runningLong}</p> : null}

@@ -25,7 +25,8 @@ import {
 import { AccountsSection } from './AdminAccounts';
 import { DailyCharts } from './AdminDailyChart';
 import { RetryPanel } from './AdminRetryPanel';
-import { DataTable, EmptyState, Panel, SkeletonRows, Window } from './components';
+import { DataTable, EmptyState, Panel, Window } from './components';
+import { useDelayedFlag } from './use-delayed-flag';
 // `.segmented`, the two-state switch the Issue Center already draws.
 import './styles/findings.css';
 import './styles/admin-stats.css';
@@ -152,7 +153,13 @@ function WindowSwitch(props: {
 
 function DashboardBody(props: { state: BodyState; onRetry: () => void }) {
   const { state } = props;
-  if (state.kind === 'loading') return <SkeletonRows rows={4} />;
+  // Tiles, revenue tables and the chart drawn at their final sizes instead of
+  // generic rows, once the read is known to be slow. The labelled wrapper is
+  // present from the first render: the holdback hides the shapes, never the
+  // fact that the stats are loading.
+  const showSkeleton = useDelayedFlag(state.kind === 'loading');
+  if (state.kind === 'loading')
+    return <div aria-label="Loading stats">{showSkeleton ? <AdminStatsSkeleton /> : null}</div>;
   if (state.kind === 'failed') {
     return (
       <RetryPanel
@@ -163,6 +170,25 @@ function DashboardBody(props: { state: BodyState; onRetry: () => void }) {
     );
   }
   return <Dashboard stats={state.stats} />;
+}
+
+function AdminStatsSkeleton() {
+  return (
+    <div className="admin-stats__skeleton">
+      <div className="admin-stats__skeleton-tiles">
+        {/* Six tiles, one per summary tile the real dashboard draws: new
+            accounts, free checks, scans, checkouts opened, purchases, refunds. */}
+        {Array.from({ length: 6 }, (_, index) => (
+          <div className="skeleton-shell admin-stats__skeleton-tile" key={index} />
+        ))}
+      </div>
+      <div className="skeleton-shell admin-stats__skeleton-table" />
+      <div className="skeleton-shell admin-stats__skeleton-table" />
+      <div className="skeleton-shell admin-stats__skeleton-chart" />
+      {/* The Breakdowns section the real dashboard closes with. */}
+      <div className="skeleton-shell admin-stats__skeleton-breakdowns" />
+    </div>
+  );
 }
 
 function Dashboard({ stats }: { stats: AdminStats }) {

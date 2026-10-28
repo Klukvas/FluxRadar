@@ -16,6 +16,7 @@ import { accountCopy } from './account-copy';
 import { findingsCopy } from './findings-copy';
 import { geoDigestCopy } from './geo-digest-copy';
 import { newScanCopy } from './new-scan-copy';
+import { offlineBannerCopy } from './OfflineBanner';
 import { reportFailureCopy } from './report-failure-copy';
 
 /** The copy objects this test owns, by the name the failure message shows. */
@@ -23,6 +24,7 @@ const CATALOGUES = {
   newScanCopy,
   findingsCopy,
   accountCopy,
+  offlineBannerCopy,
   reportFailureCopy,
   geoDigestCopy,
 } as const;

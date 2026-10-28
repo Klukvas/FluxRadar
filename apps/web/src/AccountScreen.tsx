@@ -222,10 +222,12 @@ function PasswordPanel(props: {
   );
 }
 
-function PurchasesPanel(props: { language: Language; onOpenScan: (scanId: string) => void }) {
+export function PurchasesPanel(props: { language: Language; onOpenScan: (scanId: string) => void }) {
   const t = accountCopy[props.language].purchases;
   const [purchases, setPurchases] = useState<readonly Purchase[] | null>(null);
   const [failed, setFailed] = useState(false);
+  // Bumping the counter re-runs the load: the retry button's only job.
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     let current = true;
     apiRequest<Purchase[]>('/account/purchases')
@@ -239,12 +241,26 @@ function PurchasesPanel(props: { language: Language; onOpenScan: (scanId: string
     return () => {
       current = false;
     };
-  }, []);
+  }, [attempt]);
   return (
     <Panel title={t.heading}>
       <p className="muted">{t.lead}</p>
       {failed ? (
-        <p role="alert">{t.loadFailed}</p>
+        <>
+          <p role="alert">{t.loadFailed}</p>
+          <div className="button-row">
+            <Button
+              variant="primary"
+              onClick={() => {
+                setFailed(false);
+                setPurchases(null);
+                setAttempt((value) => value + 1);
+              }}
+            >
+              {t.retry}
+            </Button>
+          </div>
+        </>
       ) : purchases === null ? (
         <SkeletonRows rows={2} />
       ) : purchases.length === 0 ? (
@@ -271,7 +287,7 @@ function PurchasesPanel(props: { language: Language; onOpenScan: (scanId: string
                   {displayDomain(purchase.domain)}
                 </td>
                 <td data-label={t.plan}>{planName(purchase.plan, props.language)}</td>
-                <td data-label={t.amount}>
+                <td data-label={t.amount} className="tabular-nums">
                   {formatAmount(purchase.amount, purchase.currency, props.language)}
                 </td>
                 <td data-label={t.status}>

@@ -2028,6 +2028,9 @@ export const copy = {
       // finding puts beside its own chip, so the two cannot drift apart.
       severityLegendBody: 'says how soon to act:',
       emptyFiltered: 'No issues match this filter',
+      emptyFilteredBody:
+        'Try another rule, module or URL — or clear the filters and look at everything.',
+      clearFilters: 'Clear filters',
       emptyAll: 'No findings in this report',
       emptyAllBody: 'FluxRadar detected nothing worth reporting on the pages it could read.',
       columnSeverity: 'Severity',
@@ -2083,6 +2086,10 @@ export const copy = {
       connecting: 'Opening…',
       disconnect: 'Disconnect',
       disconnecting: 'Disconnecting…',
+      disconnectTitle: (label: string) => `Disconnect ${label}?`,
+      disconnectBody: (label: string) =>
+        `${label} data will leave your reports until you connect it again. Reconnecting is free and uses the same authorization.`,
+      keepConnection: 'Keep connection',
       serverConfigured: 'Server configured',
       serverLimited: 'Limited mode',
       serverMissing: 'Needs server config',
@@ -3875,6 +3882,9 @@ export const copy = {
       severityLegendTerm: 'Критичність',
       severityLegendBody: 'показує, коли братися:',
       emptyFiltered: 'Жодна знахідка не відповідає фільтру',
+      emptyFilteredBody:
+        'Спробуйте інше правило, модуль або URL — або скиньте фільтри й перегляньте все.',
+      clearFilters: 'Скинути фільтри',
       emptyAll: 'У цьому звіті немає знахідок',
       emptyAllBody: 'FluxRadar не виявив нічого вартого уваги на сторінках, які зміг прочитати.',
       columnSeverity: 'Критичність',
@@ -3920,6 +3930,10 @@ export const copy = {
       connecting: 'Відкриваємо…',
       disconnect: 'Відключити',
       disconnecting: 'Відключаємо…',
+      disconnectTitle: (label: string) => `Відключити ${label}?`,
+      disconnectBody: (label: string) =>
+        `Дані ${label} зникнуть зі звітів, доки ви не підключите їх знову. Повторне підключення безкоштовне й використовує ту саму авторизацію.`,
+      keepConnection: 'Залишити підключення',
       serverConfigured: 'Налаштовано на сервері',
       serverLimited: 'Обмежений режим',
       serverMissing: 'Потрібне налаштування сервера',

@@ -399,7 +399,7 @@ describe('blog header renders the same way on every page variant', () => {
       mobileRule(css, selector)
         .split('\n')
         .map((line) => line.trim())
-        .filter((line) => line.includes('var(--sheet-inset)'));
+        .filter((line) => line.includes('var(--sheet-inset'));
 
     expect(insetLines(BASE_CSS).length).toBeGreaterThan(0);
     expect(insetLines(BLOG_CSS)).toEqual(insetLines(BASE_CSS));
@@ -408,7 +408,7 @@ describe('blog header renders the same way on every page variant', () => {
   it('subtracts the active rail from the row padding instead of adding to it', () => {
     const row = mobileRule(BLOG_CSS, '.menubar__links.is-open .menubar__item');
     expect(row).toMatch(
-      /padding: 0 var\(--sheet-inset\) 0 calc\(var\(--sheet-inset\) - var\(--sheet-rail\)\);/,
+      /padding: 0 var\(--sheet-inset-right\) 0 calc\(var\(--sheet-inset-left\) - var\(--sheet-rail\)\);/,
     );
     expect(row).toMatch(/margin: 0;/);
     expect(row).toMatch(/border-left: var\(--sheet-rail\) solid transparent;/);

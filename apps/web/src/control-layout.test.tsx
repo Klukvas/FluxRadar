@@ -171,10 +171,18 @@ describe('base.css layout rules', () => {
   it('drives the mobile navigation sheet from a single inset token', () => {
     const mobile = mediaBlocks('999px');
     expect(mobile).toMatch(/--sheet-inset: var\(--sp-4\);/);
+    // A landscape notched phone has side insets (~44-47px) wider than the
+    // shared 16px inset: each edge takes the larger of the two.
+    expect(mobile).toMatch(/--sheet-inset-left: max\(var\(--sheet-inset\), var\(--safe-left\)\);/);
+    expect(mobile).toMatch(
+      /--sheet-inset-right: max\(var\(--sheet-inset\), var\(--safe-right\)\);/,
+    );
     for (const rule of [
-      /\.menubar__sheet-head \{\s*padding: 0 var\(--sheet-inset\);/,
-      /\.menubar__group-label \{[^}]*padding: var\(--sp-3\) var\(--sheet-inset\) var\(--sp-1\);/,
-      /padding: 0 var\(--sheet-inset\) 0 calc\(var\(--sheet-inset\) - var\(--sheet-rail\)\);/,
+      /\.menubar__sheet-head \{[^}]*padding: max\(0px, var\(--safe-top\)\) var\(--sheet-inset-right\) 0 var\(--sheet-inset-left\);/,
+      /\.menubar__group-label \{[^}]*padding: var\(--sp-3\) var\(--sheet-inset-right\) var\(--sp-1\) var\(--sheet-inset-left\);/,
+      /padding: 0 calc\(var\(--sheet-inset-right\) - var\(--sp-2\)\) 0 calc\(var\(--sheet-inset-left\) - var\(--sp-2\)\);/,
+      /\.menubar__language-listbox \{[^}]*left: calc\(var\(--sheet-inset-left\) - var\(--sp-2\)\);/,
+      /padding: 0 var\(--sheet-inset-right\) 0 calc\(var\(--sheet-inset-left\) - var\(--sheet-rail\)\);/,
     ]) {
       expect(mobile).toMatch(rule);
     }
@@ -466,7 +474,9 @@ describe('journey layout decisions', () => {
   // longer step grows upwards and the action row stays under the pointer.
   it('docks the tour dialog by its bottom edge', () => {
     const docked = BASE_CSS.slice(BASE_CSS.indexOf('.tour-dialog--docked {'));
-    expect(docked).toMatch(/^\.tour-dialog--docked \{[^}]*top: auto;[^}]*bottom: 24px;/);
+    expect(docked).toMatch(
+      /^\.tour-dialog--docked \{[^}]*top: auto;[^}]*bottom: max\(24px, var\(--safe-bottom\)\);/,
+    );
     expect(docked).toMatch(/^\.tour-dialog--docked \{[^}]*transform: none;/);
   });
 
@@ -652,5 +662,86 @@ describe('cookie quick choices', () => {
       /\.cookie-consent__quick-actions \.button,\s*\.cookie-consent__actions \.button \{\s*min-height: 44px;/,
     );
     expect(css).not.toMatch(/cookie-consent__master/);
+  });
+});
+
+describe('safe-area insets', () => {
+  it('defines the --safe-* tokens with 0px fallbacks before the env() lines', () => {
+    const tokens = stylesheet('tokens.css');
+    expect(tokens).toMatch(/--safe-top: 0px;\s*--safe-top: env\(safe-area-inset-top\);/);
+    expect(tokens).toMatch(/--safe-right: 0px;\s*--safe-right: env\(safe-area-inset-right\);/);
+    expect(tokens).toMatch(/--safe-bottom: 0px;\s*--safe-bottom: env\(safe-area-inset-bottom\);/);
+    expect(tokens).toMatch(/--safe-left: 0px;\s*--safe-left: env\(safe-area-inset-left\);/);
+  });
+
+  it('insets the fixed chrome so it never sits under a notch or the home indicator', () => {
+    expect(BASE_CSS).toMatch(
+      /\.modal-backdrop \{[^}]*padding-bottom: max\(24px, var\(--safe-bottom\)\);/,
+    );
+    expect(BASE_CSS).toMatch(
+      /\.menubar__links\.is-open \{[^}]*padding: 0 0 max\(var\(--sp-4\), var\(--safe-bottom\)\);/,
+    );
+    expect(BASE_CSS).toMatch(
+      /\.tour-dialog--docked \{[^}]*bottom: max\(24px, var\(--safe-bottom\)\);/,
+    );
+    expect(stylesheet('account.css')).toMatch(
+      /\.alert--floating,\s*\.notice \{[^}]*top: max\(40px, var\(--safe-top\)\);/,
+    );
+  });
+
+  // The offline banner parks below the notice slot with clearance for the
+  // tallest multi-line notice, and behind the notices so a floating error
+  // always wins the overlap.
+  it('parks the offline banner below the notice slot and behind the notices', () => {
+    const account = stylesheet('account.css');
+    expect(account).toMatch(
+      /\.offline-banner \{[^}]*z-index: 59;[^}]*top: max\(128px, calc\(var\(--safe-top\) \+ 88px\)\);/,
+    );
+  });
+
+  // A long server error is capped to the clearance above the banner and
+  // scrolls, so it cannot grow over the connection warning.
+  it('caps the floating alert to the clearance above the offline banner', () => {
+    const account = stylesheet('account.css');
+    expect(account).toMatch(/\.alert--floating \{[^}]*max-height: calc\(/);
+    expect(account).toMatch(/\.alert--floating \{[^}]*overflow-y: auto;/);
+  });
+
+  // blog.css cannot import tokens.css (the blog is plain HTML served from
+  // disk), so it carries its own copy of the four tokens. A tokens.css change
+  // without the blog copy would silently split the two chromes.
+  it('keeps the blog stylesheet tokens in parity with tokens.css', () => {
+    const blog = readFileSync(resolve(process.cwd(), 'public/blog', 'blog.css'), 'utf8');
+    expect(blog).toMatch(/--safe-top: 0px;\s*--safe-top: env\(safe-area-inset-top\);/);
+    expect(blog).toMatch(/--safe-right: 0px;\s*--safe-right: env\(safe-area-inset-right\);/);
+    expect(blog).toMatch(/--safe-bottom: 0px;\s*--safe-bottom: env\(safe-area-inset-bottom\);/);
+    expect(blog).toMatch(/--safe-left: 0px;\s*--safe-left: env\(safe-area-inset-left\);/);
+  });
+});
+
+describe('fixed-width figures and small-target floors', () => {
+  // Digits that update in place or line up in a column must not jiggle: the
+  // rules below are what keeps a counter or a column of numbers still while
+  // its value changes.
+  it('keeps updating and column-aligned digits in tabular figures', () => {
+    const findings = stylesheet('findings.css');
+    expect(BASE_CSS).toMatch(/\.tabular-nums \{[^}]*font-variant-numeric: tabular-nums;/);
+    expect(BASE_CSS).toMatch(/\.field-row strong \{[^}]*font-variant-numeric: tabular-nums;/);
+    expect(BASE_CSS).toMatch(
+      /\.google-panel__table td:not\(:first-child\),[^}]*font-variant-numeric: tabular-nums;/,
+    );
+    expect(findings).toMatch(/\.issues-count \{[^}]*font-variant-numeric: tabular-nums;/);
+    expect(findings).toMatch(/\.fix-first__count \{[^}]*font-variant-numeric: tabular-nums;/);
+  });
+
+  // The menubar targets sat at 22px, under the 24px pointer floor; the paused
+  // checkout banner had no rule at all; the hero title wrapped unevenly.
+  it('raises the menubar floor and styles the small chrome', () => {
+    expect(BASE_CSS).toMatch(/\.menubar__item \{[^}]*min-height: 24px;/);
+    expect(BASE_CSS).toMatch(/\.menubar__apple \{[^}]*min-height: 24px;/);
+    expect(BASE_CSS).toMatch(/\.menubar__language \{[^}]*min-height: 24px;/);
+    expect(BASE_CSS).toMatch(/\.checkout-recovery \{[^}]*padding: var\(--sp-2\) var\(--sp-3\);/);
+    expect(BASE_CSS).toMatch(/\.checkout-recovery \{[^}]*border: 1px solid var\(--selection\);/);
+    expect(BASE_CSS).toMatch(/\.home h1 \{[^}]*text-wrap: balance;/);
   });
 });

@@ -21,6 +21,9 @@ type BrandingCopy = {
   saving: string;
   saved: string;
   delete: string;
+  deleteTitle: string;
+  deleteBody: string;
+  keep: string;
   deleted: string;
   loadFailed: string;
   loading: string;
@@ -58,6 +61,10 @@ export const reportBrandingCopy: Record<Language, BrandingCopy> = {
     saving: 'Зберігаємо…',
     saved: 'Оформлення збережено.',
     delete: 'Видалити оформлення',
+    deleteTitle: 'Видалити оформлення?',
+    deleteBody:
+      'Звіти знову виходитимуть з оформленням FluxRadar, а логотип, назва й колір зникнуть. Цю дію не можна скасувати.',
+    keep: 'Залишити оформлення',
     deleted: 'Оформлення видалено. Звіти знову виходять з оформленням FluxRadar.',
     loadFailed: 'Не вдалося завантажити оформлення. Оновіть сторінку.',
     loading: 'Завантажуємо оформлення…',
@@ -101,6 +108,10 @@ export const reportBrandingCopy: Record<Language, BrandingCopy> = {
     saving: 'Saving…',
     saved: 'Branding saved.',
     delete: 'Delete branding',
+    deleteTitle: 'Delete your branding?',
+    deleteBody:
+      'Reports will use the FluxRadar design again, and the logo, name and colour are gone. This cannot be undone.',
+    keep: 'Keep branding',
     deleted: 'Branding deleted. Reports use the FluxRadar design again.',
     loadFailed: 'Branding could not be loaded. Reload the page.',
     loading: 'Loading branding…',

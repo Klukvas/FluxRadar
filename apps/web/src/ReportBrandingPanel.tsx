@@ -14,6 +14,7 @@ import {
   type BrandingView,
 } from './report-branding-api';
 import { brandingError, reportBrandingCopy } from './report-branding-copy';
+import { useModalDialogBehavior } from './use-modal-dialog';
 
 const empty = {
   enabled: false,
@@ -239,6 +240,10 @@ async function submitBranding(
 
 async function removeBranding(state: BrandingState, language: Language): Promise<void> {
   state.logoRead.cancel();
+  // `setFields` below clears only the field-ERROR map, not the typed form
+  // values, so a failed delete leaves the owner's input intact while the
+  // server still holds the old brand. The form is reset only after the DELETE
+  // resolves.
   state.setState('saving');
   state.setError('');
   state.setFields({});
@@ -386,6 +391,8 @@ export function ReportBrandingPanel({ language }: { language: Language }) {
   const state = useBranding(language),
     t = reportBrandingCopy[language],
     saving = state.state === 'saving';
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const deleteDialog = useModalDialogBehavior(confirmDelete, () => setConfirmDelete(false));
   return (
     <Panel title={t.title}>
       <p>{t.lead}</p>
@@ -410,11 +417,43 @@ export function ReportBrandingPanel({ language }: { language: Language }) {
                 <Button type="submit" variant="primary" disabled={state.logoRead.reading}>
                   {saving ? t.saving : t.save}
                 </Button>
-                <Button onClick={() => void removeBranding(state, language)}>{t.delete}</Button>
+                <Button onClick={() => setConfirmDelete(true)}>{t.delete}</Button>
               </div>
             </fieldset>
             {state.message ? <p role="status">{state.message}</p> : null}
           </form>
+          {confirmDelete ? (
+            <div className="modal-backdrop" onMouseDown={() => setConfirmDelete(false)}>
+              <section
+                ref={deleteDialog}
+                className="window window--dialog"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="branding-delete-title"
+                onMouseDown={(event) => event.stopPropagation()}
+              >
+                <div className="window__content stack">
+                  <h2 id="branding-delete-title" className="section-heading">
+                    {t.deleteTitle}
+                  </h2>
+                  <p>{t.deleteBody}</p>
+                  <div className="button-row">
+                    <Button onClick={() => setConfirmDelete(false)}>{t.keep}</Button>
+                    <Button
+                      variant="danger"
+                      disabled={saving}
+                      onClick={() => {
+                        setConfirmDelete(false);
+                        void removeBranding(state, language);
+                      }}
+                    >
+                      {t.delete}
+                    </Button>
+                  </div>
+                </div>
+              </section>
+            </div>
+          ) : null}
         </>
       )}
     </Panel>

@@ -194,3 +194,133 @@ describe('why a customer would connect', () => {
     expect(uk.lead).toMatch(/без них/);
   });
 });
+
+describe('disconnecting a connection', () => {
+  const connectedGoogle = { ...googleRow, status: 'connected' as const };
+
+  function stubConnected(): Call[] {
+    const calls: Call[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL, init: RequestInit = {}) => {
+        const path = new URL(String(input)).pathname;
+        calls.push({ path, method: (init.method ?? 'GET').toUpperCase() });
+        if (path === '/integrations') return Promise.resolve(envelope([connectedGoogle]));
+        return Promise.resolve(envelope(null));
+      }),
+    );
+    return calls;
+  }
+
+  it('asks before disconnecting, cancels cleanly, and disconnects on confirm', async () => {
+    const calls = stubConnected();
+    renderScreen();
+
+    const row = await findRow('Google data');
+    fireEvent.click(within(row).getByRole('button', { name: en.disconnect }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(dialog).toHaveTextContent(en.disconnectTitle('Google data'));
+
+    fireEvent.click(within(dialog).getByRole('button', { name: en.keepConnection }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(calls).not.toContainEqual({ path: '/integrations/google', method: 'DELETE' });
+
+    fireEvent.click(within(row).getByRole('button', { name: en.disconnect }));
+    const reopened = await screen.findByRole('dialog');
+    fireEvent.click(within(reopened).getByRole('button', { name: en.disconnect }));
+    await waitFor(() => {
+      expect(calls).toContainEqual({ path: '/integrations/google', method: 'DELETE' });
+    });
+  });
+
+  it('closes the confirm on Escape without disconnecting', async () => {
+    const calls = stubConnected();
+    renderScreen();
+
+    const row = await findRow('Google data');
+    fireEvent.click(within(row).getByRole('button', { name: en.disconnect }));
+    await screen.findByRole('dialog');
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(calls).not.toContainEqual({ path: '/integrations/google', method: 'DELETE' });
+  });
+
+  it('holds every disconnect trigger while a disconnect is in flight', async () => {
+    let release: (value: Response) => void = () => {};
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL, init: RequestInit = {}) => {
+        const path = new URL(String(input)).pathname;
+        if (path === '/integrations') return Promise.resolve(envelope([connectedGoogle]));
+        if (path === '/integrations/google' && (init.method ?? 'GET').toUpperCase() === 'DELETE') {
+          return new Promise<Response>((resolve) => {
+            release = resolve;
+          });
+        }
+        return Promise.resolve(envelope(null));
+      }),
+    );
+    renderScreen();
+
+    const row = await findRow('Google data');
+    fireEvent.click(within(row).getByRole('button', { name: en.disconnect }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: en.disconnect }));
+
+    const busy = await within(row).findByRole('button', { name: en.disconnecting });
+    expect(busy).toBeDisabled();
+    release(envelope(null));
+    await waitFor(() => {
+      expect(within(row).queryByRole('button', { name: en.disconnecting })).not.toBeInTheDocument();
+    });
+  });
+
+  // The screen owns one busy slot; a Connect started while a disconnect is in
+  // flight would overwrite it and leave the first operation unlabelled.
+  it('holds other providers Connect buttons while a disconnect is in flight', async () => {
+    const youtube = {
+      provider: 'youtube',
+      label: 'YouTube',
+      kind: 'user' as const,
+      status: 'available' as const,
+      services: ['YouTube Data API'],
+      canConnect: true,
+      lastCheckedAt: null,
+      lastError: null,
+    };
+    let release: (value: Response) => void = () => {};
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: RequestInfo | URL, init: RequestInit = {}) => {
+        const path = new URL(String(input)).pathname;
+        if (path === '/integrations') return Promise.resolve(envelope([connectedGoogle, youtube]));
+        if (path === '/integrations/google' && (init.method ?? 'GET').toUpperCase() === 'DELETE') {
+          return new Promise<Response>((resolve) => {
+            release = resolve;
+          });
+        }
+        return Promise.resolve(envelope(null));
+      }),
+    );
+    renderScreen();
+
+    const google = await findRow('Google data');
+    fireEvent.click(within(google).getByRole('button', { name: en.disconnect }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: en.disconnect }));
+    await within(google).findByRole('button', { name: en.disconnecting });
+
+    const youtubeRow = await findRow('YouTube');
+    expect(within(youtubeRow).getByRole('button', { name: en.connect })).toBeDisabled();
+
+    release(envelope(null));
+    await waitFor(() => {
+      expect(
+        within(google).queryByRole('button', { name: en.disconnecting }),
+      ).not.toBeInTheDocument();
+    });
+    expect(within(youtubeRow).getByRole('button', { name: en.connect })).toBeEnabled();
+  });
+});

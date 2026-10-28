@@ -35,6 +35,17 @@
   --sp-6: 24px;
   --sp-7: 32px;
   --sp-8: 48px;
+  /* Safe-area insets. The 0px fallback lines come first so browsers without
+     env() support keep 0; with `viewport-fit=cover` (index.html) the env()
+     lines resolve on notched devices and stay 0 everywhere else. */
+  --safe-top: 0px;
+  --safe-top: env(safe-area-inset-top);
+  --safe-right: 0px;
+  --safe-right: env(safe-area-inset-right);
+  --safe-bottom: 0px;
+  --safe-bottom: env(safe-area-inset-bottom);
+  --safe-left: 0px;
+  --safe-left: env(safe-area-inset-left);
   --r-0: 0;
   --r-1: 2px;
   --ui-font: Charcoal, Chicago, Geneva, "Helvetica Neue", system-ui, sans-serif;

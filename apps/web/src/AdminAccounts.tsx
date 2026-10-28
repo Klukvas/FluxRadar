@@ -20,7 +20,8 @@ import {
   type SortDirection,
 } from './admin-accounts';
 import { RetryPanel } from './AdminRetryPanel';
-import { Button, Checkbox, DataTable, EmptyState, Field, SkeletonRows } from './components';
+import { Button, Checkbox, DataTable, EmptyState, Field } from './components';
+import { useDelayedFlag } from './use-delayed-flag';
 
 const countFormat = new Intl.NumberFormat('en');
 const FIRST_PAGE: AdminAccountsRequest = {
@@ -241,7 +242,14 @@ function AccountsBody(props: {
   onMarkTest: (email: string, testAccount: boolean) => void;
 }) {
   const { state } = props;
-  if (state.kind === 'loading') return <SkeletonRows rows={4} />;
+  // The accounts table's own header and columns instead of generic rows, once
+  // the read is known to be slow. The labelled wrapper is present from the
+  // first render: the holdback hides the skeleton, never the loading fact.
+  const showSkeleton = useDelayedFlag(state.kind === 'loading');
+  if (state.kind === 'loading')
+    return (
+      <div aria-label="Loading results">{showSkeleton ? <AccountsSkeleton /> : null}</div>
+    );
   if (state.kind === 'failed') {
     return (
       <RetryPanel
@@ -276,6 +284,34 @@ function AccountsBody(props: {
       />
       <Pager accounts={accounts} onPage={props.onPage} />
     </>
+  );
+}
+
+/** The accounts table's own shape: its header row and four body rows. */
+function AccountsSkeleton() {
+  return (
+    <DataTable>
+      <thead>
+        <tr>
+          {SORTABLE_COLUMNS.map((column) => (
+            <th key={column.key} className={column.numeric ? 'admin-stats__num' : undefined}>
+              {column.label}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {Array.from({ length: 4 }, (_, rowIndex) => (
+          <tr key={rowIndex}>
+            {SORTABLE_COLUMNS.map((column) => (
+              <td key={column.key}>
+                <span className="skeleton-block" />
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </DataTable>
   );
 }
 

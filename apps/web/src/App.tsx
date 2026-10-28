@@ -26,6 +26,7 @@ import {
   ScanRoute,
 } from './ScanRoutes';
 import { CheckoutRecovery } from './Checkout';
+import { OfflineBanner } from './OfflineBanner';
 import { Styleguide } from './Styleguide';
 import { SupportWidget } from './SupportWidget';
 import { AppFrame, VerifyBanner, WorkspaceFooter, WorkspaceHeader } from './WorkspaceChrome';
@@ -119,6 +120,7 @@ function SessionScreen({ app }: { readonly app: AppModel }) {
   if (screen === 'home' && entryRoute.emailAction === null && entryRoute.checkoutReturn === null) {
     return (
       <>
+        <OfflineBanner language={language} />
         {notice ? (
           <Notice
             message={notice}
@@ -185,13 +187,24 @@ function SessionScreen({ app }: { readonly app: AppModel }) {
   if (account === null) {
     return (
       <>
+        <OfflineBanner language={language} />
         {noticeElement}
         <HomeRoute app={app} />
       </>
     );
   }
 
-  if (screen === 'home') return <HomeRoute app={app} />;
+  // Signed in on home while an email action or checkout return is being
+  // processed: the same surface as the branches above, so it carries the
+  // banner too rather than being the one home view where going offline is
+  // silent.
+  if (screen === 'home')
+    return (
+      <>
+        <OfflineBanner language={language} />
+        <HomeRoute app={app} />
+      </>
+    );
 
   // The client report is a document, not a workspace window: it is drawn on its
   // own so what prints is the report and nothing around it.
@@ -243,6 +256,7 @@ function Workspace({ app, account, noticeElement }: WorkspaceProps) {
         <AlertDialog message={error} language={language} floating onClose={() => setError(null)} />
       ) : null}
       {noticeElement}
+      <OfflineBanner language={language} />
       {pendingCheckout !== null && !checkoutVisible ? (
         <CheckoutRecovery
           language={language}

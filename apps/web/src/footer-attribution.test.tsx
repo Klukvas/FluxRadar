@@ -14,7 +14,7 @@ import { saveCookieConsent } from './browser-consent';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from './App';
@@ -496,7 +496,7 @@ describe('home footer sits on the floor of a short page', () => {
 // footer they end with is the same one and reaches the same place.
 describe('the workspace footer survives the report’s loading and error states', () => {
   it('keeps one floored footer while the report is loading', async () => {
-    // The dashboard request never settles, so the screen stays on LoadingState.
+    // The dashboard request never settles, so the screen stays on its loading shell.
     vi.stubGlobal(
       'fetch',
       vi.fn((input: RequestInfo | URL) => {
@@ -508,9 +508,9 @@ describe('the workspace footer survives the report’s loading and error states'
     window.history.replaceState(null, '', `/scans/${reportScan.id}`);
     render(<App />);
 
-    // The report window is open on its loading state, not on a report.
+    // The report window is open on its loading shell, not on a report.
     await screen.findByText('Report dashboard');
-    expect(document.querySelector('.loading')).not.toBeNull();
+    await waitFor(() => expect(document.querySelector('.report-skeleton')).not.toBeNull());
     const footer = document.querySelector('footer') as HTMLElement;
     expect(footer).toHaveClass('desktop__footer');
     expect(footer.parentElement?.parentElement).toHaveClass('workspace-shell');

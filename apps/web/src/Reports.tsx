@@ -171,7 +171,13 @@ function ReportsBody(props: {
   onOpenScan: (scan: Scan) => void;
 }) {
   const t = copy[props.language].reports;
-  if (props.loading) return <SkeletonRows rows={3} />;
+  // The report rows' own grid — copy column and action column at the card's
+  // height — so the rows that land replace the skeleton without a shift. The
+  // loaded card measures 63.58px: border-box, 1px border top/bottom + 12px
+  // padding top/bottom + 37.6px content (domain 14px/1.3 ≈ 18.2px, 4px gap,
+  // meta 11px/1.4 ≈ 15.4px). 64px keeps the landing shift under 0.5px.
+  if (props.loading)
+    return <SkeletonRows rows={3} columns={['minmax(0, 1fr)', 'auto']} rowHeight={64} />;
   if (props.error !== null) {
     return (
       <Panel title={t.errorTitle}>

@@ -68,6 +68,7 @@
 }
 .issues-count {
   margin: 0 0 var(--sp-2);
+  font-variant-numeric: tabular-nums;
 }
 .issues-more {
   justify-content: center;
@@ -90,6 +91,34 @@
 }
 .issue-group--settled td {
   color: var(--plat-600);
+}
+/* The findings-table skeleton: cells shaped like the real row — chips in the
+   severity and status columns, a two-line block for the problem name + module,
+   and a button-sized block in the action column. The real row height is driven
+   by its two-line title cell (two ~20px text lines + 2×5px cell padding ≈ 48px),
+   so the skeleton pins the same height instead of the ~28px of a bare block.
+   Pinned on the tbody row: min-height on a table cell does not drive row
+   height in Chromium (measured 41px vs the loaded 48.69px), and a tr height
+   would stretch the header row too. */
+.issues-skeleton__chip {
+  width: 72px;
+  height: 20px;
+  border-radius: 10px;
+}
+.issues-skeleton__line {
+  height: 14px;
+}
+.issues-skeleton__line--short {
+  width: 55%;
+  height: 10px;
+  margin-top: 6px;
+}
+.issues-skeleton__button {
+  width: 64px;
+  height: 24px;
+}
+.issues-skeleton tbody tr {
+  height: 48px;
 }
 .issue-detail__learn {
   margin: var(--sp-2) 0 0;
@@ -282,6 +311,7 @@
 }
 .fix-first__count {
   white-space: nowrap;
+  font-variant-numeric: tabular-nums;
 }
 /* The title and, under it, the pages the problem was found on. min-width: 0
    lets a long address wrap inside the grid track instead of widening it. */

@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ReportBrandingPanel } from './ReportBrandingPanel';
 import { reportBrandingCopy } from './report-branding-copy';
@@ -153,13 +153,72 @@ describe.each(['uk', 'en'] as const)('server error copy %s', (language) => {
     expect(await screen.findByRole('alert')).toHaveTextContent(t.errors[code] ?? t.other);
   });
 });
-it('deletes branding and resets the form', async () => {
+it('deletes branding and resets the form, after asking for confirmation', async () => {
   const fetch = stub(view);
   await show();
-  fireEvent.click(screen.getByRole('button', { name: reportBrandingCopy.en.delete }));
-  await screen.findByText(reportBrandingCopy.en.deleted);
+  const t = reportBrandingCopy.en;
+  fireEvent.click(screen.getByRole('button', { name: t.delete }));
+  const dialog = await screen.findByRole('dialog');
+  expect(dialog).toHaveTextContent(t.deleteTitle);
+  fireEvent.click(within(dialog).getByRole('button', { name: t.delete }));
+  await screen.findByText(t.deleted);
   expect(fetch.mock.calls.some((call) => call[1]?.method === 'DELETE')).toBe(true);
-  expect(screen.getByLabelText(reportBrandingCopy.en.name)).toHaveValue('');
+  expect(screen.getByLabelText(t.name)).toHaveValue('');
+});
+
+it('keeps the form when the delete is cancelled', async () => {
+  const fetch = stub(view);
+  await show();
+  const t = reportBrandingCopy.en;
+  fireEvent.click(screen.getByRole('button', { name: t.delete }));
+  const dialog = await screen.findByRole('dialog');
+  fireEvent.click(within(dialog).getByRole('button', { name: t.keep }));
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  expect(fetch.mock.calls.some((call) => call[1]?.method === 'DELETE')).toBe(false);
+  expect(screen.getByLabelText(t.name)).toHaveValue('Studio Blue');
+});
+
+it('closes the delete confirm on Escape', async () => {
+  const fetch = stub(view);
+  await show();
+  const t = reportBrandingCopy.en;
+  fireEvent.click(screen.getByRole('button', { name: t.delete }));
+  await screen.findByRole('dialog');
+  fireEvent.keyDown(window, { key: 'Escape' });
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  expect(fetch.mock.calls.some((call) => call[1]?.method === 'DELETE')).toBe(false);
+});
+
+it('moves focus into the confirm dialog and back on close', async () => {
+  stub(view);
+  await show();
+  const t = reportBrandingCopy.en;
+  const trigger = screen.getByRole('button', { name: t.delete });
+  trigger.focus();
+  fireEvent.click(trigger);
+  const keep = await screen.findByRole('button', { name: t.keep });
+  await waitFor(() => expect(keep).toHaveFocus());
+  fireEvent.click(keep);
+  await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  expect(trigger).toHaveFocus();
+});
+
+it('keeps the typed values when deletion fails', async () => {
+  const fetch = vi.fn((_path: unknown, init?: RequestInit) => {
+    if (init?.method === 'DELETE') return Promise.reject(new TypeError('network down'));
+    return Promise.resolve(response(view));
+  });
+  vi.stubGlobal('fetch', fetch);
+  await show();
+  const t = reportBrandingCopy.en;
+  fireEvent.click(screen.getByRole('button', { name: t.delete }));
+  const dialog = await screen.findByRole('dialog');
+  fireEvent.click(within(dialog).getByRole('button', { name: t.delete }));
+  expect(await screen.findByRole('alert')).toBeInTheDocument();
+  // The form values are preserved by construction: `removeBranding` clears only
+  // the field-ERROR map before the DELETE, never the typed input.
+  expect(screen.getByLabelText(t.name)).toHaveValue('Studio Blue');
+  expect(screen.getByLabelText(t.accent)).toHaveValue('#123456');
 });
 
 function delayedReaders(): {
@@ -219,7 +278,11 @@ it.each(['remove', 'delete'])('invalidates a pending file when %s is clicked', a
       name: action === 'remove' ? reportBrandingCopy.en.remove : reportBrandingCopy.en.delete,
     }),
   );
-  if (action === 'delete') await screen.findByText(reportBrandingCopy.en.deleted);
+  if (action === 'delete') {
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: reportBrandingCopy.en.delete }));
+    await screen.findByText(reportBrandingCopy.en.deleted);
+  }
   delayed.finish(delayed.readers[0], 'late');
   expect(screen.queryByText('late.png')).not.toBeInTheDocument();
   expect(document.querySelector('.branding-thumbnail')).toBeNull();

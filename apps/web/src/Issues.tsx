@@ -17,7 +17,7 @@ import {
   type PageMeta,
   type Scan,
 } from './api';
-import { Button, EmptyState, Field, SelectField, SkeletonRows, Window } from './components';
+import { Button, DataTable, EmptyState, Field, SelectField, Window } from './components';
 import { problemTitle } from './finding-explainers';
 import { DeveloperTaskCopy, ProblemBreakdown } from './FindingExplainer';
 import { findingsCopy } from './findings-copy';
@@ -26,6 +26,7 @@ import { IssueProblems } from './IssueProblems';
 import { IssueTable, USER_STATUSES } from './IssueTable';
 import { moduleLabel } from './rule-titles';
 import { displayDomain } from './scan-status';
+import { useDelayedFlag } from './use-delayed-flag';
 import './styles/findings.css';
 
 /** Findings fetched per page; the API's own ceiling is 100. */
@@ -116,6 +117,9 @@ export function IssuesScreen(props: {
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
   // Filters change faster than the API answers; only the newest request may land.
   const requestSeq = useRef(0);
+  // The table-shaped skeleton stands in for the findings table, so it appears
+  // only once the fetch is known to be slow.
+  const showSkeleton = useDelayedFlag(loading);
 
   const loadSummary = useCallback(() => {
     if (scanId === null) return;
@@ -222,6 +226,13 @@ export function IssuesScreen(props: {
     settleSearch('');
     setView('problems');
   }, [summary, settleSearch]);
+  /** The way out of a zero-result filter: back to the unfiltered list. */
+  const clearFilters = useCallback(() => {
+    setSelectedIssue(null);
+    setFilters(NO_FILTERS);
+    setSearchInput('');
+    settleSearch('');
+  }, [settleSearch]);
   /**
    * The tabs. "Every finding" has to mean every finding: pressed while one
    * problem was open it used to leave the filter on and the "Showing one
@@ -351,12 +362,30 @@ export function IssuesScreen(props: {
             </>
           )}
           {loading ? (
-            <SkeletonRows rows={3} />
+            <>
+              {/* The loaded state draws the count line above the table; the same
+                  element is rendered here (visually empty, not announced) so the
+                  table below never moves when the data lands. */}
+              <p className="muted issues-count" aria-hidden="true">
+                {'\u00a0'}
+              </p>
+              {/* The labelled wrapper is present from the first render; the table
+                  skeleton appears once the read is known to be slow. */}
+              <div aria-label="Loading results">
+                {showSkeleton ? (
+                  <IssuesSkeleton soleRuleId={filters.ruleId === '' ? null : filters.ruleId} />
+                ) : null}
+              </div>
+            </>
           ) : issues.length === 0 ? (
             filterKey === JSON.stringify({ ...NO_FILTERS, search: '' }) ? (
               <EmptyState title={t.emptyAll} description={t.emptyAllBody} />
             ) : (
-              <EmptyState title={t.emptyFiltered} />
+              <EmptyState
+                title={t.emptyFiltered}
+                description={t.emptyFilteredBody}
+                action={<Button onClick={clearFilters}>{t.clearFilters}</Button>}
+              />
             )
           ) : (
             <>
@@ -404,5 +433,53 @@ export function IssuesScreen(props: {
         </>
       )}
     </Window>
+  );
+}
+
+/**
+ * The findings table's own shape: the same column count the real table draws
+ * (five columns unfiltered, four when one problem is open), so the rows that
+ * replace it land on the same grid.
+ */
+function IssuesSkeleton(props: { soleRuleId: string | null }) {
+  const columns = props.soleRuleId === null ? 5 : 4;
+  return (
+    <div className="issues-skeleton">
+      <DataTable>
+        <thead>
+          <tr>
+            {Array.from({ length: columns }, (_, index) => (
+              <th key={index}>
+                <span className="skeleton-block" />
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {Array.from({ length: 3 }, (_, rowIndex) => (
+            <tr key={rowIndex}>
+              <td>
+                <span className="skeleton-block issues-skeleton__chip" />
+              </td>
+              {props.soleRuleId === null ? (
+                <td>
+                  <span className="skeleton-block issues-skeleton__line" />
+                  <span className="skeleton-block issues-skeleton__line issues-skeleton__line--short" />
+                </td>
+              ) : null}
+              <td>
+                <span className="skeleton-block" />
+              </td>
+              <td>
+                <span className="skeleton-block issues-skeleton__chip" />
+              </td>
+              <td>
+                <span className="skeleton-block issues-skeleton__button" />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </DataTable>
+    </div>
   );
 }

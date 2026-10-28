@@ -73,6 +73,7 @@ export type AccountCopy = {
     readonly accessUntil: (date: string) => string;
     readonly statuses: Readonly<Record<string, string>>;
     readonly loadFailed: string;
+    readonly retry: string;
   };
   readonly emails: {
     readonly heading: string;
@@ -158,6 +159,7 @@ export const accountCopy: Record<Language, AccountCopy> = {
       accessUntil: (date) => `New scans until ${date}`,
       statuses: { paid: 'Paid', Refunded: 'Refunded', Disputed: 'Disputed' },
       loadFailed: 'Purchases could not be loaded. Try again in a moment.',
+      retry: 'Try again',
     },
     emails: {
       heading: 'Emails we send',
@@ -238,6 +240,7 @@ export const accountCopy: Record<Language, AccountCopy> = {
       accessUntil: (date) => `Нові перевірки до ${date}`,
       statuses: { paid: 'Оплачено', Refunded: 'Повернено', Disputed: 'Оскаржено' },
       loadFailed: 'Не вдалося завантажити покупки. Спробуйте за мить.',
+      retry: 'Спробувати ще раз',
     },
     emails: {
       heading: 'Які листи ми надсилаємо',

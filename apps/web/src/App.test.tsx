@@ -1,9 +1,10 @@
 import { saveCookieConsent } from './browser-consent';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from './App';
 import { copy } from './i18n';
+import { offlineBannerCopy } from './OfflineBanner';
 import { tourSteps } from './tour-steps';
 
 /**
@@ -2386,5 +2387,40 @@ describe('add-profile form', () => {
       'mysite.com',
     );
     await saveAvailable('Зберегти сайт');
+  });
+});
+
+describe('offline banner coverage', () => {
+  // The signed-in home fallthrough (screen 'home' with an email action or a
+  // checkout return being processed) renders the home surface without the
+  // workspace shell; it must carry the banner like the other home branches
+  // rather than being the one home view where going offline is silent.
+  it('covers the signed-in home fallthrough that processes an email action', async () => {
+    stubApi((path) => {
+      if (path === '/auth/me') return envelope(account);
+      if (path === '/profiles') return envelope([]);
+      return envelope(null);
+    });
+
+    render(
+      <App
+        initialRoute={{
+          screen: 'home',
+          scanId: null,
+          profileId: null,
+          emailAction: { kind: 'reset', token: 'token-1' },
+          scrollTo: null,
+          checkoutReturn: null,
+        }}
+      />,
+    );
+
+    await screen.findByRole('heading', { level: 1, name: copy.en.home.hero.title });
+    act(() => {
+      window.dispatchEvent(new Event('offline'));
+    });
+    // The support widget carries its own role="status" region, so the banner is
+    // found by its copy, which only it renders.
+    expect(await screen.findByText(offlineBannerCopy.en.body)).toBeInTheDocument();
   });
 });
