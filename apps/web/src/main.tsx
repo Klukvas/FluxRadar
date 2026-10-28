@@ -5,6 +5,7 @@ import { App } from './App';
 import { initialPublicRoute } from './app-routes';
 import { matchingPublicSnapshot } from './public-page-routing';
 import { startAnalytics } from './analytics';
+import { startPlausible } from './plausible';
 import { rootErrorHandlers, startErrorMonitoring } from './error-monitoring';
 
 const rootElement = document.getElementById('root');
@@ -15,6 +16,10 @@ if (!rootElement) {
 // Before the first render, so the first screen's page view finds the tag ready
 // when the visitor has already allowed analytics.
 startAnalytics();
+// The cookieless count, which asks for no consent and so is always ready; a
+// no-op off the production host, and off entirely if the site's script id goes
+// back to the placeholder (apps/web/src/plausible-config.ts).
+startPlausible();
 // A no-op unless this build was given a Sentry DSN (error-monitoring.ts).
 startErrorMonitoring();
 

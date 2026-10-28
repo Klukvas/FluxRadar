@@ -107,7 +107,7 @@ describe('public legal documents', () => {
     );
     expect(policy).toHaveTextContent(/Google OAuth tokens are never sent to an AI provider/i);
     expect(policy).toHaveTextContent(/Disconnecting Google deletes the stored tokens/i);
-    expect(policy).toHaveTextContent(/Effective 27 October 2026/);
+    expect(policy).toHaveTextContent(/Effective 28 October 2026/);
     // The merchant of record is Creem, and the policy says what FluxRadar sends
     // it before the buyer ever sees Creem's page — the account email, product
     // and checkout reference — as well as what comes back by webhook.
@@ -259,7 +259,7 @@ describe('public legal documents', () => {
       'https://creem.io/privacy',
     );
     expect(document.body).not.toHaveTextContent(/FastSpring/i);
-    expect(policy).toHaveTextContent(/Effective 27 October 2026/);
+    expect(policy).toHaveTextContent(/Effective 28 October 2026/);
     const sections = screen.getByRole('navigation', { name: 'Document sections' });
     expect(sections).toHaveTextContent('Storage inventory');
     expect(sections).toHaveTextContent('Google Analytics');
@@ -344,6 +344,91 @@ describe('public legal documents', () => {
   // The measured steps are a closed list, and it has to match what the app
   // sends to GA4 (funnel-analytics.ts, checkout-analytics.ts, AuthScreen,
   // ScanProgress): a step sent but not named here is undisclosed measuring.
+  // Plausible is the one analytics that runs without consent, so the documents
+  // have to say four things a reader would otherwise have no way to check: that
+  // it is not part of the cookie choice, why it needs no consent (it stores
+  // nothing), which lawful basis replaces consent, and how to object anyway.
+  // The processor, the EU storage and the retention are the rest of Article 13.
+  // Plausible Cloud has no automatic retention window, so the retention
+  // wording may not promise a fixed period: both documents say the statistics
+  // live as long as we use Plausible, and `noFixedPeriod` keeps the old
+  // 25-month promise from creeping back in either language.
+  it.each([
+    [
+      'uk' as const,
+      {
+        processor: /Plausible Insights OÜ/,
+        country: /Естонія/,
+        // Nominative in the Cookie Policy, dative in the Privacy Policy. `\S`
+        // rather than `\w`, which matches no Cyrillic letter at all.
+        basis: /законн\S+ інтерес\S* за пунктом \(f\) частини 1 статті 6 GDPR/,
+        retention:
+          /Зведена статистика відвідувань зберігається у Plausible, доки FluxRadar ним користується, і ми видаляємо її, коли припиняємо користуватися сервісом або на запит\./,
+        notPersonal:
+          /У ній немає ні IP‑адрес, ні cookies, ні ідентифікаторів, тому пов’язати її з людиною неможливо\./,
+        noFixedPeriod: /25 місяц/,
+        noStorage: /не встановлює cookies/,
+        optOut: /localStorage\.plausible_ignore=true/,
+        eu: /зберігаються лише в ЄС/,
+      },
+    ],
+    [
+      'en' as const,
+      {
+        processor: /Plausible Insights OÜ/,
+        country: /Estonia/,
+        basis: /legitimate interest under GDPR Article 6\(1\)\(f\)/,
+        retention:
+          /The aggregated visit statistics stay in Plausible for as long as FluxRadar uses it, and we delete them when we stop using the service or on request\./,
+        notPersonal:
+          /They hold no IP addresses, no cookies and no identifiers, so they cannot be tied to a person\./,
+        noFixedPeriod: /25 months/,
+        noStorage: /sets no cookies/,
+        optOut: /localStorage\.plausible_ignore=true/,
+        eu: /processed and stored in the EU only/,
+      },
+    ],
+  ])('discloses consent-free Plausible analytics in %s', (language, expected) => {
+    render(<LegalDocumentScreen kind="privacy" language={language} onLanguageChange={() => {}} />);
+    const privacy = screen.getByRole('article');
+    expect(privacy).toHaveTextContent(expected.processor);
+    expect(privacy).toHaveTextContent(expected.country);
+    expect(privacy).toHaveTextContent(expected.basis);
+    expect(privacy).toHaveTextContent(expected.retention);
+    expect(privacy).toHaveTextContent(expected.notPersonal);
+    expect(privacy).not.toHaveTextContent(expected.noFixedPeriod);
+    expect(privacy).toHaveTextContent(expected.noStorage);
+    expect(privacy).toHaveTextContent(expected.eu);
+
+    cleanup();
+    render(<LegalDocumentScreen kind="cookies" language={language} onLanguageChange={() => {}} />);
+    const cookies = screen.getByRole('article');
+    expect(cookies).toHaveTextContent(expected.processor);
+    expect(cookies).toHaveTextContent(expected.country);
+    expect(cookies).toHaveTextContent(expected.basis);
+    expect(cookies).toHaveTextContent(expected.retention);
+    expect(cookies).toHaveTextContent(expected.notPersonal);
+    expect(cookies).not.toHaveTextContent(expected.noFixedPeriod);
+    // The documented per-browser opt-out, which is the objection route for a
+    // measurement the cookie banner deliberately does not gate.
+    expect(cookies).toHaveTextContent(expected.optOut);
+    expect(screen.getByRole('link', { name: /localStorage/i })).toHaveAttribute(
+      'href',
+      'https://plausible.io/docs/excluding-localstorage',
+    );
+  });
+
+  // The consent story for GA4 must not be quietly loosened by the arrival of a
+  // consent-free tag beside it: GA4 still waits for the analytics category.
+  it.each([
+    ['uk' as const, /Google Analytics 4 не завантажується, доки ви не дозволите/],
+    ['en' as const, /Google Analytics 4 does not load until you allow analytics/],
+  ])('still makes Google Analytics consent-gated in %s', (language, promise) => {
+    render(<LegalDocumentScreen kind="cookies" language={language} onLanguageChange={() => {}} />);
+
+    expect(screen.getByRole('article')).toHaveTextContent(promise);
+  });
+
   it('names exactly the product steps the analytics measures, in both languages', () => {
     const steps = {
       en: /— sign-up and sign-in, starting a check, a finished check, viewing a report, choosing or changing a plan, starting checkout and a completed purchase \(plan and price/,
@@ -410,7 +495,7 @@ describe('public legal documents', () => {
     expect(cookies).toHaveTextContent(
       /На сторінках FluxRadar Creem не завантажує скриптів і не встановлює cookies/,
     );
-    expect(cookies).toHaveTextContent(/Чинна з 27 жовтня 2026 року/);
+    expect(cookies).toHaveTextContent(/Чинна з 28 жовтня 2026 року/);
     expect(screen.getByRole('navigation', { name: 'Розділи документа' })).toHaveTextContent(
       'Checkout Creem',
     );
@@ -421,7 +506,7 @@ describe('public legal documents', () => {
     const privacy = screen.getByRole('article');
     expect(privacy).toHaveTextContent(/Аналітика сайту — лише з вашого дозволу/);
     expect(privacy).toHaveTextContent(/Google \(Google Analytics 4\).*як наш обробник/s);
-    expect(privacy).toHaveTextContent(/Чинна з 27 жовтня 2026 року/);
+    expect(privacy).toHaveTextContent(/Чинна з 28 жовтня 2026 року/);
     expect(privacy).toHaveTextContent(
       /Creem \(Armitage Labs OÜ, Rotermanni 14, Tallinn 10111, Естонія\) — merchant of record і checkout provider/,
     );

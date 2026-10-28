@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 
 import { trackPageView } from './analytics';
+import { trackPlausiblePageView } from './plausible';
 import { seoPageForScreen, type Screen } from './app-routes';
 import type { Language } from './i18n';
 import { applyPageMetadata } from './seo';
@@ -31,8 +32,10 @@ export function usePageMetadata(
 
   // One page view per screen the visitor lands on, sent after the metadata above
   // so it carries this screen's title. Until the visitor allows analytics the
-  // call does nothing at all.
+  // GA4 call does nothing at all; the Plausible one needs no consent and is
+  // sent on the production host whatever the visitor answered.
   useEffect(() => {
     trackPageView();
+    trackPlausiblePageView();
   }, [screen, selectedScanId]);
 }
