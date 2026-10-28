@@ -25,6 +25,56 @@ fluxradar.net {
         -Server
     }
 
+    # Plausible Analytics, proxied through this origin as a first-party request.
+    #
+    # The browser asks this site for /js/script.js and posts events to
+    # /js/event; both are forwarded to plausible.io. Nothing here is a
+    # third-party request, which is why the Content-Security-Policy above needs
+    # no Plausible source at all: `script-src 'self'` covers the tracker and
+    # `connect-src 'self'` covers its events. It also puts the script outside
+    # the blocklists that match on Plausible's own hostname, which is the point
+    # of https://plausible.io/docs/proxy/guides/caddy.
+    #
+    # `pa-XXXXX.js` is the site's own script, named in Site Installation under
+    # General in the Plausible site settings. The id lives in
+    # apps/web/src/plausible-config.ts, which is the source of truth; DEPLOY-023
+    # checks that the script rewrite below still agrees with it.
+    #
+    # The event path has two halves and needs both of them. Plausible accepts
+    # events at /api/event and only there: https://plausible.io/js/event is a
+    # 404. This site cannot offer /api/event as its own public path either,
+    # because /api/* below is our API, and Caddy orders a named matcher by where
+    # it sits in the file rather than by how specific it is — an /api/event of
+    # ours would depend on this block staying above that one, while /js/event
+    # cannot collide with it at all. So the public path is /js/event and the
+    # second rewrite below turns it into the /api/event the upstream answers.
+    # Dropping that rewrite posts every event to a 404, and a lost event looks
+    # exactly like a quiet site, so nothing would ever report it. This block is
+    # kept first regardless, and DEPLOY-023 pins both rewrites.
+    #
+    # X-Forwarded-For carries the visitor's address. Plausible silently drops an
+    # event whose forwarded address is missing or is the proxy's own, and
+    # answers 202 either way, so a wrong value here would be invisible
+    # (https://plausible.io/docs/proxy/introduction).
+    #
+    # Caddy terminates TLS directly and no trusted_proxies is set, so the
+    # connecting peer IS the visitor — the same fact the log block below relies
+    # on — and `reverse_proxy` already sends that address while ignoring any
+    # X-Forwarded-For the client supplied. Caddy therefore warns this line is
+    # unnecessary, and today it is: it is kept because it states the one header
+    # Plausible needs, and because it pins the value to the peer if a
+    # trusted_proxies is ever added, which would otherwise make a client-sent
+    # X-Forwarded-For authoritative and let anyone forge the visitor's country.
+    @plausible path /js/script.js /js/event
+    handle @plausible {
+        rewrite /js/script.js /js/pa-RdP8FeGFozbbu7f5BnXd1.js
+        rewrite /js/event /api/event
+        reverse_proxy https://plausible.io {
+            header_up Host {http.reverse_proxy.upstream.hostport}
+            header_up X-Forwarded-For {http.request.remote.host}
+        }
+    }
+
     handle_path /api/* {
         reverse_proxy {$FLUXRADAR_API_UPSTREAM}
     }

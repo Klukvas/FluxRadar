@@ -6,8 +6,23 @@ import type { Language } from '../i18n';
 import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } from './SharedLegal';
 
 /**
- * Changed when the analytics category grew to cover Google Ads: the address of
- * the page a visit lands on now carries the Google Ads click identifier when
+ * 28 October 2026: Plausible (Plausible Insights OÜ, Estonia) joined as a
+ * cookieless visit count that runs for every visitor, and it sits OUTSIDE the
+ * three consent categories rather than inside the analytics one, because it
+ * leaves nothing in the browser for a cookie choice to switch off. Section 05
+ * is its own; Creem moved to 06 and the controls to 07. The inventory in
+ * section 03 gained no row, and that is the point of the section: Plausible
+ * sets no cookie and writes no storage key, and the one device key named after
+ * it, localStorage.plausible_ignore, is written by the visitor and only read.
+ * Its lawful basis is legitimate interest rather than consent, so the way to
+ * refuse it is the documented per-browser opt-out in section 07 and not the
+ * cookie settings button, which is unchanged and still covers preferences and
+ * analytics alone. What Plausible is told is what apps/web/src/plausible.ts and
+ * public/blog/blog.js send, and the Google Ads click identifier below is not
+ * part of it.
+ *
+ * 27 October 2026: the analytics category grew to cover Google Ads. The address
+ * of the page a visit lands on now carries the Google Ads click identifier when
  * the visit came from an ad, and Google Analytics reports to Google Ads which
  * visits and which sign-ups and purchases the ad produced. The previous date,
  * 19 October 2026, grew the measured product steps to the GA4 funnel: starting
@@ -17,7 +32,7 @@ import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } fro
  * page, which loads no provider script on fluxradar.net, and
  * 21 September 2026 added the analytics category and Google Analytics 4.
  */
-const COOKIES_EFFECTIVE: EffectiveDate = { uk: '27 жовтня 2026 року', en: '27 October 2026' };
+const COOKIES_EFFECTIVE: EffectiveDate = { uk: '28 жовтня 2026 року', en: '28 October 2026' };
 
 /** The second cookie gtag sets is named after the stream, so the inventory names it exactly. */
 const GA_SESSION_COOKIE = `_ga_${GA_MEASUREMENT_ID.replace(/^G-/, '')}`;
@@ -59,6 +74,13 @@ function UkrainianCookiePolicy(): JSX.Element {
           запам’ятовують мову інтерфейсу. Аналітика завантажує Google Analytics 4, див. розділ 04;
           сюди входить і вимірювання того, чи прийшов ваш візит з реклами Google. FluxRadar не веде
           remarketing, не персоналізує рекламу й не вмикає Google Signals.
+        </p>
+        <p>
+          Поза цими категоріями ми рахуємо відвідування без cookies через Plausible, див. розділ 05.
+          Ця статистика не потрапляє до вибору вище, бо не зберігає у вашому браузері нічого, що
+          потім можна прочитати, тож вимикати в налаштуваннях cookies нема чого. Її правова підстава
+          не згода, а наш законний інтерес, і заперечити проти неї можна так, як описано в розділі
+          07.
         </p>
       </section>
       <section id="cookies-inventory" className="legal-section">
@@ -180,8 +202,37 @@ function UkrainianCookiePolicy(): JSX.Element {
           .
         </p>
       </section>
+      <section id="cookies-plausible" className="legal-section">
+        <span className="legal-section__label">05 / PLAUSIBLE</span>
+        <h2>Підрахунок відвідувань без cookies</h2>
+        <p>
+          Plausible рахує відвідування сайту для всіх і не питає згоди, бо не встановлює cookies і
+          взагалі нічого не записує у ваш браузер. Єдине, що він читає на пристрої, це позначка
+          <code> plausible_ignore</code> у localStorage, якою ви самі можете відмовитися від
+          підрахунку. Обробник статистики це Plausible Insights OÜ (Естонія), дані обробляються й
+          зберігаються лише в ЄС.
+        </p>
+        <p>
+          Передається адреса сторінки без query string та ідентифікаторів перевірок, сайт, з якого
+          ви перейшли, країна, регіон і місто за IP‑адресою, тип пристрою, браузер, операційна
+          система й розмір екрана, а також час на сторінці та глибина прокручування. IP‑адреса й
+          user agent потрібні лише щоб обчислити денний ідентифікатор як хеш із секретною сіллю;
+          сама сіль знищується кожні 24 години, а ні IP‑адреса, ні user agent не зберігаються. Тому
+          та сама людина наступного дня вже не розпізнається, і між сайтами чи пристроями її не
+          відслідковують. Ідентифікатор кліку Google (gclid) до Plausible не передається.
+        </p>
+        <p>
+          Правовою підставою є наш законний інтерес за пунктом (f) частини 1 статті 6 GDPR: ми
+          хочемо знати, скільки відвідувань має сайт і які сторінки читають. Зведена статистика
+          відвідувань зберігається у Plausible, доки FluxRadar ним користується, і ми видаляємо її,
+          коли припиняємо користуватися сервісом або на запит. У ній немає ні IP‑адрес, ні cookies,
+          ні ідентифікаторів, тому пов’язати її з людиною неможливо. Браузер звертається до
+          Plausible лише через домен fluxradar.net, бо і скрипт, і події проходять через наш сервер.
+          Див. <a href="https://plausible.io/data-policy">Data Policy Plausible</a>.
+        </p>
+      </section>
       <section id="cookies-providers" className="legal-section">
-        <span className="legal-section__label">05 / CREEM</span>
+        <span className="legal-section__label">06 / CREEM</span>
         <h2>Checkout стороннього провайдера</h2>
         <p>
           Creem є окремим merchant of record. Оплата відбувається на сторінці checkout, яку Creem
@@ -195,7 +246,7 @@ function UkrainianCookiePolicy(): JSX.Element {
         </p>
       </section>
       <section id="cookies-controls" className="legal-section">
-        <span className="legal-section__label">06 / КЕРУВАННЯ</span>
+        <span className="legal-section__label">07 / КЕРУВАННЯ</span>
         <h2>Як змінити вибір</h2>
         <p>
           Натисніть «Налаштування cookies» нижче, щоб увімкнути або вимкнути preferences і
@@ -203,6 +254,19 @@ function UkrainianCookiePolicy(): JSX.Element {
           відкликання FluxRadar видаляє збережену мову, зупиняє Google Analytics і видаляє його
           cookies. Ви також можете очистити cookies та site data у браузері; видалення необхідного
           storage може завершити вхід або перервати відновлення незавершеного checkout.
+        </p>
+        <p>
+          Підрахунок відвідувань без cookies у цю кнопку не входить, бо не залежить від згоди.
+          Відмовитися від нього в конкретному браузері можна так, як це описує Plausible: відкрийте
+          консоль розробника на fluxradar.net і виконайте{' '}
+          <code>localStorage.plausible_ignore=true</code>. Після цього Plausible перестає рахувати
+          ваші відвідування в цьому браузері, а повернути підрахунок можна командою{' '}
+          <code>delete localStorage.plausible_ignore</code>. Позначку потрібно ставити в кожному
+          браузері окремо, див.{' '}
+          <a href="https://plausible.io/docs/excluding-localstorage">
+            інструкцію Plausible щодо localStorage
+          </a>
+          . Можна також написати на <SupportLink /> і заперечити проти цієї обробки.
         </p>
         <div className="button-row">
           <CookieSettingsButton language="uk" />
@@ -249,6 +313,13 @@ function EnglishCookiePolicy(): JSX.Element {
           interface language. Analytics loads Google Analytics 4, see section 04, and that includes
           measuring whether your visit came from a Google Ads click. FluxRadar runs no remarketing,
           no ad personalisation and no Google Signals.
+        </p>
+        <p>
+          Outside these categories we count visits without cookies through Plausible, see section
+          05. Those statistics are not part of the choice above, because nothing is kept in your
+          browser that could be read back later, so there is nothing for cookie settings to switch
+          off. Their lawful basis is our legitimate interest rather than consent, and section 07
+          explains how to object to them.
         </p>
       </section>
       <section id="cookies-inventory" className="legal-section">
@@ -377,8 +448,38 @@ function EnglishCookiePolicy(): JSX.Element {
           .
         </p>
       </section>
+      <section id="cookies-plausible" className="legal-section">
+        <span className="legal-section__label">05 / PLAUSIBLE</span>
+        <h2>Counting visits without cookies</h2>
+        <p>
+          Plausible counts visits to the site for everyone and asks for no consent, because it sets
+          no cookies and writes nothing at all to your browser. The only thing it reads on the
+          device is the <code>plausible_ignore</code> flag in localStorage, which is how you can opt
+          out of being counted yourself. The processor for these statistics is Plausible Insights OÜ
+          (Estonia), and the data is processed and stored in the EU only.
+        </p>
+        <p>
+          What is sent is the page address without query strings or check identifiers, the referring
+          site, the country, region and city derived from your IP address, the device type, browser,
+          operating system and screen size, and the time on the page and how far down it you
+          scrolled. The IP address and user agent are needed only to compute a daily identifier as a
+          salted hash; the salt itself is destroyed every 24 hours, and neither the IP address nor
+          the user agent is stored. The same person is therefore no longer recognisable the next
+          day, and is not followed across sites or devices. The Google click identifier (gclid) is
+          never passed to Plausible.
+        </p>
+        <p>
+          The lawful basis is our legitimate interest under GDPR Article 6(1)(f): we want to know
+          how many visits the site gets and which pages get read. The aggregated visit statistics
+          stay in Plausible for as long as FluxRadar uses it, and we delete them when we stop using
+          the service or on request. They hold no IP addresses, no cookies and no identifiers, so
+          they cannot be tied to a person. The browser only ever contacts Plausible through the
+          fluxradar.net domain, because both the script and the events pass through our own server.
+          See the <a href="https://plausible.io/data-policy">Plausible Data Policy</a>.
+        </p>
+      </section>
       <section id="cookies-providers" className="legal-section">
-        <span className="legal-section__label">05 / CREEM</span>
+        <span className="legal-section__label">06 / CREEM</span>
         <h2>Third-party checkout</h2>
         <p>
           Creem is the separate merchant of record. Payment happens on a checkout page that Creem
@@ -391,7 +492,7 @@ function EnglishCookiePolicy(): JSX.Element {
         </p>
       </section>
       <section id="cookies-controls" className="legal-section">
-        <span className="legal-section__label">06 / CONTROLS</span>
+        <span className="legal-section__label">07 / CONTROLS</span>
         <h2>How to change your choice</h2>
         <p>
           Select “Cookie settings” below to turn preferences and analytics on or off. Until
@@ -399,6 +500,18 @@ function EnglishCookiePolicy(): JSX.Element {
           withdraw, FluxRadar removes the saved language, stops Google Analytics and deletes its
           cookies. You can also clear cookies and site data in your browser; deleting necessary
           storage may sign you out or interrupt recovery of an unfinished checkout.
+        </p>
+        <p>
+          Counting visits without cookies is not part of that button, because it does not depend on
+          consent. To opt out of it in a particular browser, do what Plausible documents: open the
+          developer console on fluxradar.net and run <code>localStorage.plausible_ignore=true</code>
+          . Plausible then stops counting your visits in that browser, and{' '}
+          <code>delete localStorage.plausible_ignore</code> brings the counting back. The flag has
+          to be set in each browser separately, see{' '}
+          <a href="https://plausible.io/docs/excluding-localstorage">
+            Plausible’s localStorage instructions
+          </a>
+          . You can also write to <SupportLink /> to object to this processing.
         </p>
         <div className="button-row">
           <CookieSettingsButton language="en" />

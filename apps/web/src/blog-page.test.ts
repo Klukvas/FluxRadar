@@ -4,6 +4,12 @@ import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ANALYTICS_HOSTNAME, GA_MEASUREMENT_ID, GA_SCRIPT_ORIGIN } from './analytics-config';
+import {
+  PLAUSIBLE_EVENT_PATH,
+  PLAUSIBLE_SCRIPT_PATH,
+  PLAUSIBLE_SITE_SCRIPT,
+  PLAUSIBLE_SITE_SCRIPT_PLACEHOLDER,
+} from './plausible-config';
 import { cookieCopy } from './cookie-copy';
 import { copy } from './i18n';
 import { COOKIE_CONSENT_TTL_MS, saveCookieConsent } from './browser-consent';
@@ -604,6 +610,11 @@ describe('blog cookie choices', () => {
     window.localStorage.clear();
     document.getElementById('fluxradar-ga')?.remove();
     delete window.dataLayer;
+    // Booting blog.js on the production host also starts the cookieless count,
+    // which asks for none of the choices this block makes. Left behind, its
+    // tracker would be what the page-count block below finds already running.
+    document.getElementById('fluxradar-plausible')?.remove();
+    delete window.plausible;
     // Before the host changes back: a `domain=` write is rejected elsewhere.
     for (const name of ['_ga', '_gcl_aw', '_gcl_zz', 'fluxradar_session']) {
       document.cookie = `${name}=; Max-Age=0; path=/`;
@@ -1254,5 +1265,190 @@ describe('blog header controls', () => {
     document.querySelector<HTMLElement>('[data-menu-toggle]')?.click();
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     expect(document.getElementById('menubar-links')?.classList.contains('is-open')).toBe(false);
+  });
+});
+
+// The blog's half of src/plausible.ts. Plausible is the one measurement here
+// that runs without being allowed, so what this block really checks is that it
+// earns that: nothing is written to the device, and no address, query or click
+// id that could name a reader leaves the browser.
+describe('the blog page count', () => {
+  const SITE_SCRIPT = 'pa-7Ab3Kd9';
+  const rawSource =
+    readFileSync(resolve(BLOG_ROOT, 'attribution.js'), 'utf8') +
+    readFileSync(resolve(BLOG_ROOT, 'blog.js'), 'utf8');
+
+  /**
+   * The blog with a site script id this file chose: a literal one, so the
+   * assertions hold whatever id the site ships, or the placeholder, which is
+   * what a build with no Plausible site of its own carries.
+   */
+  function sourceWith({ configured }: { readonly configured: boolean }): string {
+    const siteScript = configured ? SITE_SCRIPT : PLAUSIBLE_SITE_SCRIPT_PLACEHOLDER;
+    const filled = rawSource.replace(
+      `var PLAUSIBLE_SITE_SCRIPT = '${PLAUSIBLE_SITE_SCRIPT}';`,
+      `var PLAUSIBLE_SITE_SCRIPT = '${siteScript}';`,
+    );
+    expect(filled).not.toBe(rawSource);
+    return filled;
+  }
+
+  function boot(url: string, options: { readonly configured: boolean }): void {
+    visit(url);
+    const html = readPage('index.html');
+    const body = /<body[^>]*>([\s\S]*)<\/body>/.exec(html)?.[1] ?? '';
+    document.documentElement.setAttribute('data-blog-lang', 'en');
+    document.documentElement.lang = 'en';
+    document.body.setAttribute('data-blog-page', 'index');
+    document.body.innerHTML = body.replace(/<script[\s\S]*?<\/script>/g, '');
+    new Function(sourceWith(options))();
+  }
+
+  function visit(url: string): void {
+    (window as unknown as { happyDOM: { setURL: (url: string) => void } }).happyDOM.setURL(url);
+  }
+
+  function pageViews(): readonly string[] {
+    const queued = (window.plausible?.q ?? []) as readonly (readonly unknown[])[];
+    return queued
+      .filter((call) => call[0] === 'pageview')
+      .map((call) => (call[1] as { readonly url?: string } | undefined)?.url ?? '');
+  }
+
+  /** The tracker's own hook, as blog.js configured it. Null means "drop". */
+  function transform(payload: Record<string, unknown>): Record<string, unknown> | null {
+    const hook = window.plausible?.o?.transformRequest;
+    if (hook === undefined) {
+      expect.unreachable('blog.js configured the tracker without a transformRequest');
+    }
+    return hook(payload) as Record<string, unknown> | null;
+  }
+
+  beforeEach(() => {
+    window.localStorage.clear();
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
+    document.body.removeAttribute('data-blog-page');
+    document.documentElement.removeAttribute('data-blog-lang');
+    document.getElementById('fluxradar-plausible')?.remove();
+    document.getElementById('fluxradar-ga')?.remove();
+    delete window.plausible;
+    delete window.dataLayer;
+    window.localStorage.clear();
+    visit('http://localhost:3000/');
+  });
+
+  // blog.js is not part of the bundle, so it carries its own copy of the three
+  // values the proxy and the app have to agree on; DEPLOY-023 pins the third.
+  it('counts into the same Plausible site as the app', () => {
+    expect(rawSource).toContain(`var PLAUSIBLE_SITE_SCRIPT = '${PLAUSIBLE_SITE_SCRIPT}';`);
+    expect(rawSource).toContain(`var PLAUSIBLE_SCRIPT_PATH = '${PLAUSIBLE_SCRIPT_PATH}';`);
+    expect(rawSource).toContain(`var PLAUSIBLE_EVENT_PATH = '${PLAUSIBLE_EVENT_PATH}';`);
+  });
+
+  it('requests nothing while the site script id is the placeholder', () => {
+    boot('https://fluxradar.net/blog', { configured: false });
+
+    expect(document.getElementById('fluxradar-plausible')).toBeNull();
+    expect(window.plausible).toBeUndefined();
+  });
+
+  it('never counts from a host other than production', () => {
+    boot('http://localhost:3000/blog', { configured: true });
+
+    expect(document.getElementById('fluxradar-plausible')).toBeNull();
+    expect(window.plausible).toBeUndefined();
+  });
+
+  it('loads the tracker first-party, with automatic page views off', () => {
+    boot('https://fluxradar.net/blog', { configured: true });
+
+    const script = document.getElementById('fluxradar-plausible');
+    expect(script?.getAttribute('src')).toBe(PLAUSIBLE_SCRIPT_PATH);
+    expect(script?.getAttribute('src')).not.toMatch(/plausible\.io/);
+    expect(window.plausible?.o?.autoCapturePageviews).toBe(false);
+    expect(window.plausible?.o?.endpoint).toBe(PLAUSIBLE_EVENT_PATH);
+  });
+
+  it('sends one page view carrying the cleaned address', () => {
+    boot('https://fluxradar.net/blog/ai-crawler-readiness', { configured: true });
+
+    expect(pageViews()).toEqual(['https://fluxradar.net/blog/ai-crawler-readiness']);
+  });
+
+  it.each([
+    ['the language filter', '?lang=uk'],
+    ['a Google Ads click', '?gclid=EAIaIQobChMI'],
+    ['an unapproved campaign', '?utm_source=spy&utm_medium=unknown'],
+  ])('drops the query string of %s', (_label, search) => {
+    boot(`https://fluxradar.net/blog${search}`, { configured: true });
+
+    expect(pageViews()).toEqual(['https://fluxradar.net/blog']);
+  });
+
+  // Plausible reads the campaign out of the address it is given, so only the
+  // fixed allowlist the app also uses travels there.
+  it('forwards the approved campaign pair', () => {
+    boot('https://fluxradar.net/blog?utm_source=instagram&utm_medium=social', {
+      configured: true,
+    });
+
+    expect(pageViews()).toEqual([
+      'https://fluxradar.net/blog?utm_source=instagram&utm_medium=social',
+    ]);
+  });
+
+  it('writes no cookie and no storage key of its own', () => {
+    boot('https://fluxradar.net/blog', { configured: true });
+
+    expect(document.cookie).not.toMatch(/plausible/);
+    expect(Object.keys({ ...window.localStorage })).not.toContain('plausible_ignore');
+  });
+
+  // The automatic captures are switched on in the Plausible dashboard and
+  // compiled into the script it serves, so nothing in this file can see whether
+  // they are on; an init option is what overrides them. Every article links
+  // out, and the outbound capture reports props.url — the href whole.
+  it('turns every automatic capture off by name', () => {
+    boot('https://fluxradar.net/blog', { configured: true });
+
+    expect(window.plausible?.o).toMatchObject({
+      autoCapturePageviews: false,
+      outboundLinks: false,
+      fileDownloads: false,
+      formSubmissions: false,
+      hashBasedRouting: false,
+    });
+  });
+
+  // The other half, which holds even if one is switched back on: a null answer
+  // makes the tracker drop the request, and only a page view is ever not null.
+  it.each([
+    [
+      'an outbound link click',
+      { n: 'Outbound Link: Click', p: { url: 'https://customer.example.com/pricing?ref=abc' } },
+    ],
+    [
+      'a file download',
+      { n: 'File Download', p: { url: 'https://fluxradar.net/reports/abc123.pdf?token=secret' } },
+    ],
+    ['a form submission', { n: 'Form: Submission' }],
+  ])('refuses to send %s', (_label, payload) => {
+    boot('https://fluxradar.net/blog', { configured: true });
+
+    expect(transform(payload)).toBeNull();
+  });
+
+  it('cleans a page view referrer into a copy, leaving the tracker payload alone', () => {
+    boot('https://fluxradar.net/blog', { configured: true });
+    const payload = { n: 'pageview', r: 'https://fluxradar.net/scans/abc123?token=secret' };
+
+    const sent = transform(payload);
+
+    expect(sent).toMatchObject({ r: 'https://fluxradar.net/scans/:id' });
+    expect(sent).not.toBe(payload);
+    expect(payload.r).toBe('https://fluxradar.net/scans/abc123?token=secret');
   });
 });

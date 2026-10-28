@@ -4,6 +4,19 @@ import type { Language } from '../i18n';
 import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } from './SharedLegal';
 
 /**
+ * 28 October 2026: Plausible (Plausible Insights OÜ, Estonia) joined as a
+ * second, cookieless site analytics that runs for every visitor without
+ * consent, beside the consent-gated Google Analytics 4, which is unchanged and
+ * still waits for the analytics category. Plausible is served through this
+ * origin (deploy/Caddyfile), writes nothing to the device and keeps no
+ * identifier: the IP address and user agent it receives are used only to
+ * compute a daily, salted hash, and the salt is destroyed every 24 hours. The
+ * lawful basis is legitimate interest, not consent, which is what makes a
+ * cookie banner unnecessary for it; the objection route is the documented
+ * per-browser opt-out. What it is told is what apps/web/src/plausible.ts and
+ * public/blog/blog.js send: the cleaned address GA4 also gets, and never a
+ * query string, a token, an email or a scan id.
+ *
  * 27 October 2026: allowing analytics now also allows Google Ads measurement.
  * A visit arriving from a Google search ad carries Google's click identifier
  * (gclid) in the address of the page it lands on, Google Analytics 4 reads it
@@ -41,7 +54,7 @@ import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } fro
  * Anthropic, Google and Perplexity becoming opt-in recipients, the AI Action
  * Plan as an AI purpose, and consent-based Google Analytics 4.
  */
-const PRIVACY_EFFECTIVE: EffectiveDate = { uk: '27 жовтня 2026 року', en: '27 October 2026' };
+const PRIVACY_EFFECTIVE: EffectiveDate = { uk: '28 жовтня 2026 року', en: '28 October 2026' };
 
 export function PrivacyPolicy({ language }: { readonly language: Language }): JSX.Element {
   return language === 'uk' ? <UkrainianPrivacy /> : <EnglishPrivacy />;
@@ -112,6 +125,17 @@ function UkrainianPrivacy(): JSX.Element {
             <code>_ga</code>. Якщо ви прийшли з пошукової реклами Google, адреса сторінки, на яку ви
             потрапили, несе ще й ідентифікатор кліку Google (<code>gclid</code>), і Google Analytics
             повідомляє Google Ads, що цей візит і виконані в ньому кроки прийшли з тієї реклами.
+          </li>
+          <li>
+            <strong>Статистика відвідувань без cookies, для всіх відвідувачів:</strong> переглянута
+            сторінка fluxradar.net (без query string та ідентифікаторів перевірок), сайт, з якого ви
+            перейшли, країна, регіон і місто за IP‑адресою, тип пристрою, браузер, операційна
+            система й розмір екрана, а також час на сторінці та глибина прокручування. Цю статистику
+            веде Plausible (розділ 06). Вона не питає згоди, бо не встановлює cookies і нічого не
+            записує у ваш браузер. IP‑адреса та user agent потрібні їй лише щоб обчислити денний
+            ідентифікатор як хеш із секретною сіллю, і сама сіль знищується кожні 24 години; ні
+            IP‑адреса, ні user agent не зберігаються. Ідентифікатор кліку Google до Plausible не
+            передається.
           </li>
         </ul>
         <p>
@@ -196,6 +220,13 @@ function UkrainianPrivacy(): JSX.Element {
           правовий обов’язок. Необов’язкове browser storage й аналітика сайту ґрунтуються на вашій
           згоді, яку ви надаєте й відкликаєте в налаштуваннях cookies; аналітику ми використовуємо
           лише щоб розуміти, які сторінки й кроки допомагають відвідувачам і де вони зупиняються.
+        </p>
+        <p>
+          Статистика відвідувань без cookies, яку веде Plausible, ґрунтується на нашому законному
+          інтересі за пунктом (f) частини 1 статті 6 GDPR, а не на згоді: ми хочемо знати загальну
+          кількість відвідувань і те, які сторінки читають, і для цього достатньо агрегованих
+          показників без cookies та без ідентифікаторів, які зберігаються. Проти такої обробки можна
+          заперечити, і як саме, описано в <a href="/uk/cookies">Політиці cookies</a>.
         </p>
         <p>
           Платні аудити включають застосовний AI‑аналіз: Basic — AI SEO / GEO, Complete — AI SEO /
@@ -322,6 +353,15 @@ function UkrainianPrivacy(): JSX.Element {
             .
           </li>
           <li>
+            <strong>Plausible</strong> (Plausible Insights OÜ, Естонія) веде описану вище статистику
+            відвідувань без cookies як наш обробник. Дані обробляються й зберігаються лише в ЄС і
+            межі ЄС не покидають. Plausible не встановлює cookies, нічого не записує у браузер, не
+            стежить за людиною між сайтами, днями чи пристроями й не використовує ці дані для
+            реклами. Браузер звертається до Plausible лише через домен fluxradar.net: і скрипт, і
+            події проходять через наш сервер. Див.{' '}
+            <a href="https://plausible.io/data-policy">Data Policy Plausible</a>.
+          </li>
+          <li>
             <strong>Sentry</strong> (Functional Software, Inc.) — моніторинг помилок сайту й
             сервісу; дані зберігаються в європейському регіоні Sentry (Німеччина). Sentry отримує
             звіти про помилки: текст помилки та stack trace, версію застосунку, версію браузера й
@@ -357,6 +397,12 @@ function UkrainianPrivacy(): JSX.Element {
           </li>
           <li>Звіти про помилки в Sentry — до 90 днів.</li>
           <li>
+            Зведена статистика відвідувань зберігається у Plausible, доки FluxRadar ним
+            користується, і ми видаляємо її, коли припиняємо користуватися сервісом або на запит. У
+            ній немає ні IP‑адрес, ні cookies, ні ідентифікаторів, тому пов’язати її з людиною
+            неможливо.
+          </li>
+          <li>
             Незв’язані або відхилені payment events можуть видалятися через 30 днів. Пов’язані
             purchase records зберігаються стільки, скільки потрібно для договору, бухгалтерських,
             податкових, fraud і dispute obligations.
@@ -380,7 +426,10 @@ function UkrainianPrivacy(): JSX.Element {
           видаляє її cookies. Google Signals, ads personalization і remarketing вимкнені, а user та
           event data зберігаються 2 місяці. Google Analytics також вимірює, чи прийшов візит з
           реклами Google, і повідомляє про це Google Ads; рекламного тега Google Ads та інших
-          рекламних trackers FluxRadar не завантажує. Повний перелік, строки й керування наведено в{' '}
+          рекламних trackers FluxRadar не завантажує. Окремо від цього вибору працює Plausible:
+          статистику відвідувань без cookies ми ведемо для всіх, бо вона нічого не зберігає у
+          браузері, тож вимикати її в налаштуваннях cookies нема чого. Як заперечити проти неї,
+          сказано в Політиці cookies. Повний перелік, строки й керування наведено в{' '}
           <a href="/uk/cookies">Політиці cookies</a>.
         </p>
       </section>
@@ -470,6 +519,17 @@ function EnglishPrivacy(): JSX.Element {
             identifier (<code>gclid</code>), and Google Analytics reports to Google Ads that the
             visit and the steps in it came from that ad.
           </li>
+          <li>
+            <strong>Cookieless visit statistics, for every visitor:</strong> the page viewed on
+            fluxradar.net (without query strings or check identifiers), the referring site, the
+            country, region and city derived from your IP address, the device type, browser,
+            operating system and screen size, and the time on the page and how far down it you
+            scrolled. Plausible keeps these statistics (section 06). It asks for no consent because
+            it sets no cookies and writes nothing to your browser. It needs your IP address and user
+            agent only to compute a daily identifier as a salted hash, and the salt itself is
+            destroyed every 24 hours; neither the IP address nor the user agent is stored. The
+            Google click identifier is never passed to Plausible.
+          </li>
         </ul>
         <p>
           A public page or supplied context can contain personal data. Do not provide passwords,
@@ -551,6 +611,13 @@ function EnglishPrivacy(): JSX.Element {
           legal obligation. Optional browser storage and site analytics rely on your consent, which
           you give and withdraw in cookie settings; we use site analytics only to understand which
           pages and steps help visitors and where they stop.
+        </p>
+        <p>
+          The cookieless visit statistics Plausible keeps rely on our legitimate interest under GDPR
+          Article 6(1)(f) rather than on consent: we want to know how many visits there are and
+          which pages get read, and aggregate measurements with no cookies and no stored identifier
+          are enough for that. You can object to this processing, and the{' '}
+          <a href="/cookies">Cookie Policy</a> explains how.
         </p>
         <p>
           Paid audits include the applicable AI analysis: Basic includes AI SEO / GEO, and Complete
@@ -680,6 +747,15 @@ function EnglishPrivacy(): JSX.Element {
             .
           </li>
           <li>
+            <strong>Plausible</strong> (Plausible Insights OÜ, Estonia) keeps the cookieless visit
+            statistics described above as our processor. The data is processed and stored in the EU
+            only and does not leave it. Plausible sets no cookies, writes nothing to the browser,
+            does not follow a person across sites, days or devices, and does not use this data for
+            advertising. The browser only ever contacts Plausible through the fluxradar.net domain:
+            both the script and the events pass through our own server. See the{' '}
+            <a href="https://plausible.io/data-policy">Plausible Data Policy</a>.
+          </li>
+          <li>
             <strong>Sentry</strong> (Functional Software, Inc.) provides error monitoring for the
             site and the service, with data stored in Sentry’s EU region (Germany). It receives
             error reports: the error message and stack trace, the app release, the browser and
@@ -714,6 +790,11 @@ function EnglishPrivacy(): JSX.Element {
           </li>
           <li>Error reports in Sentry: up to 90 days.</li>
           <li>
+            The aggregated visit statistics stay in Plausible for as long as FluxRadar uses it, and
+            we delete them when we stop using the service or on request. They hold no IP addresses,
+            no cookies and no identifiers, so they cannot be tied to a person.
+          </li>
+          <li>
             Unlinked or rejected payment events may be removed after 30 days. Linked purchase
             records remain as needed for contract, accounting, tax, fraud and dispute obligations.
           </li>
@@ -736,8 +817,11 @@ function EnglishPrivacy(): JSX.Element {
           and deletes its cookies. Google Signals, ads personalization and remarketing are disabled,
           and user and event data are kept for 2 months. Google Analytics also measures whether a
           visit came from a Google Ads click and reports that to Google Ads; FluxRadar loads no
-          Google Ads tag and no other advertising tracker. See the full inventory, durations and
-          controls in the <a href="/cookies">Cookie Policy</a>.
+          Google Ads tag and no other advertising tracker. Plausible works independently of that
+          choice: we keep its cookieless visit statistics for everyone, because it stores nothing in
+          the browser and so there is nothing for cookie settings to switch off. The Cookie Policy
+          explains how to object to it. See the full inventory, durations and controls in the{' '}
+          <a href="/cookies">Cookie Policy</a>.
         </p>
       </section>
       <section id="privacy-rights" className="legal-section">

@@ -10,6 +10,7 @@ import { defineConfig, runnerImport } from 'vite';
 import { legacyPublicRedirect, publicRequestRewrite } from './src/public-page-routing.js';
 import { blogIndexUrl } from './src/blog-routing.js';
 import { sentryDsnProblem } from './src/sentry-dsn.js';
+import { PLAUSIBLE_SITE_SCRIPT, plausibleSiteScriptProblem } from './src/plausible-config.js';
 
 /**
  * Serve standalone content HTML for clean /blog and /knowledge-base paths in `vite dev` and
@@ -156,6 +157,43 @@ function sentryDsnCheckPlugin(): Plugin {
   };
 }
 
+/**
+ * A Plausible site script id that has been filled in and is wrong fails the
+ * build, for the same reason the Sentry DSN does: the alternative is a site
+ * whose tracker 404s on every page, which nothing but a browser console would
+ * report.
+ *
+ * The placeholder itself is not an error — it means the Plausible account does
+ * not exist yet, and a build carrying it simply counts nothing
+ * (src/plausible-config.ts). What fails here is a half-pasted value: the whole
+ * snippet URL, the `.js` left on the end, or a name that is not Plausible's.
+ * The id must also reach deploy/Caddyfile and public/blog/blog.js; DEPLOY-023
+ * and blog-page.test.ts fail while only some of the three have it.
+ */
+function plausibleSiteScriptCheckPlugin(): Plugin {
+  return {
+    name: 'plausible-site-script-check',
+    apply: 'build',
+    configResolved() {
+      const problem = plausibleSiteScriptProblem(PLAUSIBLE_SITE_SCRIPT);
+      if (problem !== null) {
+        throw new Error(
+          `PLAUSIBLE_SITE_SCRIPT in apps/web/src/plausible-config.ts is unusable: ${problem}. ` +
+            'Copy the "pa-XXXXX" name out of the snippet in Plausible → site settings → ' +
+            'General → Site Installation, and put the same id in deploy/Caddyfile and ' +
+            'apps/web/public/blog/blog.js.',
+        );
+      }
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), blogIndexRewritePlugin(), staticPageHeadsPlugin(), sentryDsnCheckPlugin()],
+  plugins: [
+    react(),
+    blogIndexRewritePlugin(),
+    staticPageHeadsPlugin(),
+    sentryDsnCheckPlugin(),
+    plausibleSiteScriptCheckPlugin(),
+  ],
 });

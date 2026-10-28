@@ -37,6 +37,24 @@
   var ANALYTICS_HOSTNAME = 'fluxradar.net';
   var GA_SCRIPT_ID = 'fluxradar-ga';
 
+  // The same Plausible site as src/plausible-config.ts, which is the source of
+  // truth; blog-page.test.ts keeps this copy equal to it and DEPLOY-023 keeps
+  // deploy/Caddyfile's rewrite equal to both. While the id reads
+  // PLAUSIBLE_SITE_SCRIPT_PLACEHOLDER there is no site to count into and
+  // nothing is requested.
+  //
+  // Unlike GA4 this asks for no consent, because it stores nothing on the
+  // device: Plausible keeps no cookie and no identifier, and the only device
+  // state it touches is a READ of localStorage.plausible_ignore, its documented
+  // per-browser opt-out. The script and its events are served from this origin
+  // (deploy/Caddyfile proxies them), which is why the CSP needs no Plausible
+  // source.
+  var PLAUSIBLE_SITE_SCRIPT = 'pa-RdP8FeGFozbbu7f5BnXd1';
+  var PLAUSIBLE_SITE_SCRIPT_PLACEHOLDER = 'pa-REPLACE-WITH-PLAUSIBLE-SITE-SCRIPT-ID';
+  var PLAUSIBLE_SCRIPT_PATH = '/js/script.js';
+  var PLAUSIBLE_EVENT_PATH = '/js/event';
+  var PLAUSIBLE_SCRIPT_ID = 'fluxradar-plausible';
+
   var TEXT = {
     'nav.navigate': { en: 'Navigate', uk: 'Навігація' },
     'nav.system': { en: 'System', uk: 'Система' },
@@ -779,6 +797,97 @@
     sendPageView();
   }
 
+  // ── Plausible ───────────────────────────────────────────────────────────
+  // The cookieless count, which every reader is part of. src/plausible.ts is
+  // the same code for the React app; this copy exists because the blog is not
+  // part of that bundle.
+
+  /**
+   * Last stop before an event leaves the browser, and the only place that can
+   * refuse one: a null answer makes the tracker drop the request unsent.
+   *
+   * A page view is the one event this file sends, so anything else arriving
+   * here was captured by the script itself — an outbound-link click, a file
+   * download, a form submission — and is refused by name. Those are dashboard
+   * settings baked into the script Plausible serves, so one can appear without
+   * a change here, and the outbound capture carries props.url: the link's full
+   * href. Every article links out, and startPlausible turns all three off
+   * through init; this is the half that holds if one is switched back on.
+   *
+   * For the page view that does pass, the one field left to clean is the
+   * referrer the tracker reads from document.referrer on its own. An article
+   * reached from a report or a mailed link would otherwise hand Plausible a
+   * same-origin URL with its query still on it, so it is reduced to the cleaned
+   * form GA4 is given here too (cleanReferrer). The payload is copied rather
+   * than edited in place, as src/plausible.ts does: it belongs to the tracker,
+   * which keeps reading it after this returns.
+   */
+  function plausibleTransformRequest(payload) {
+    if (payload.n !== 'pageview') return null;
+    if (typeof payload.r !== 'string' || payload.r === '') return payload;
+    return Object.assign({}, payload, { r: cleanReferrer(payload.r) || null });
+  }
+
+  /**
+   * The page this view reports: the address without its query string, plus the
+   * approved campaign pair when the reader arrived with one. Plausible reads
+   * utm_source and utm_medium out of the address it is given, so an approved
+   * pair has to travel there; nothing else a query holds ever does, and the
+   * Google Ads click id goes to GA4 alone.
+   */
+  function plausiblePageUrl() {
+    var clean = cleanLocation();
+    if (landingCampaign === null) return clean;
+    var query = new URLSearchParams({
+      utm_source: landingCampaign.campaign_source,
+      utm_medium: landingCampaign.campaign_medium,
+    });
+    return clean + '?' + query.toString();
+  }
+
+  /**
+   * Starts the count, on the production host and nowhere else — the same check
+   * syncAnalytics makes, and what keeps the tracker out of tests and a local
+   * build. No consent is read, and one page view is sent per page load: the
+   * blog navigates by real page loads, and the language filter only rewrites a
+   * query string this page view does not carry.
+   */
+  function startPlausible() {
+    if (PLAUSIBLE_SITE_SCRIPT === PLAUSIBLE_SITE_SCRIPT_PLACEHOLDER) return;
+    if (window.location.hostname !== ANALYTICS_HOSTNAME) return;
+    // Plausible's own snippet, run from this file rather than an inline
+    // <script> because the production CSP allows neither (inline-script-policy.test.ts).
+    var plausible =
+      window.plausible ||
+      function () {
+        (plausible.q = plausible.q || []).push(arguments);
+      };
+    plausible.init =
+      plausible.init ||
+      function (options) {
+        plausible.o = options || {};
+      };
+    window.plausible = plausible;
+    plausible.init({
+      endpoint: PLAUSIBLE_EVENT_PATH,
+      autoCapturePageviews: false,
+      // All four are dashboard settings compiled into the served script, and an
+      // init option overrides that compiled config. Passed explicitly so
+      // turning one on in Plausible cannot start sending link hrefs from here.
+      outboundLinks: false,
+      fileDownloads: false,
+      formSubmissions: false,
+      hashBasedRouting: false,
+      transformRequest: plausibleTransformRequest,
+    });
+    var script = document.createElement('script');
+    script.id = PLAUSIBLE_SCRIPT_ID;
+    script.async = true;
+    script.src = PLAUSIBLE_SCRIPT_PATH;
+    document.head.appendChild(script);
+    plausible('pageview', { url: plausiblePageUrl() });
+  }
+
   // ── Session ─────────────────────────────────────────────────────────────
   // The blog's half of src/app-session.ts. Served outside the bundle, it keeps its
   // own copies of the API base and the tab paths; blog-session.test.ts holds them
@@ -938,6 +1047,8 @@
   syncLanguageControls(currentLanguage);
   sweepLinkerData();
   syncAnalytics();
+  // Consent-free, so it does not wait for the banner and is not re-run by it.
+  startPlausible();
   window.addEventListener('storage', function (event) {
     if (event.key === CONSENT_KEY || event.key === null) {
       cookieSaveFailed = false;
