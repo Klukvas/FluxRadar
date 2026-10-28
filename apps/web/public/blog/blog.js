@@ -564,14 +564,98 @@
     window['ga-disable-' + GA_MEASUREMENT_ID] = disabled;
   }
 
-  function clearAnalyticsCookies() {
-    var names = ['_ga', '_ga_' + GA_MEASUREMENT_ID.replace(/^G-/, '')];
+  // The conversion-linker cookies Google documents by name, and the prefix
+  // everything it stores carries: support.google.com/tagmanager/answer/7549390.
+  // The tag is now configured with conversion_linker:false, so nothing writes
+  // them any more — but a reader who allowed analytics while the linker was
+  // still on carries one until it is cleared, so the jar is swept by prefix as
+  // well and a name Google renames goes with the documented ones.
+  var LINKER_PREFIX = '_gcl_';
+  var LINKER_COOKIES = ['_gcl_aw', '_gcl_au', '_gcl_dc', '_gcl_gb', '_gcl_gs'];
+
+  function linkerCookieNames() {
+    var present = document.cookie.split(';').map(function (pair) {
+      return pair.split('=')[0].trim();
+    });
+    return LINKER_COOKIES.concat(
+      present.filter(function (name, index) {
+        return (
+          name.indexOf(LINKER_PREFIX) === 0 &&
+          LINKER_COOKIES.indexOf(name) === -1 &&
+          present.indexOf(name) === index
+        );
+      }),
+    );
+  }
+
+  function analyticsCookieNames() {
+    return ['_ga', '_ga_' + GA_MEASUREMENT_ID.replace(/^G-/, '')].concat(linkerCookieNames());
+  }
+
+  /**
+   * The linker's other copy: the _gcl_ls entry it keeps in localStorage, which
+   * outlives a cleared cookie and is read by nothing here. Swept by prefix, so
+   * a key Google renames goes too, and never by name — the reader's own
+   * fluxradar.* keys answer to the consent record, not to this. Reading storage
+   * can throw where the browser has blocked site data, and both callers have to
+   * finish anyway — a withdrawal still clears the cookies, start-up still
+   * starts — so a failure is passed over like storeLanguage's.
+   */
+  function clearLinkerStorage() {
+    try {
+      var storage = window.localStorage;
+      var stale = [];
+      for (var index = 0; index < storage.length; index += 1) {
+        var key = storage.key(index);
+        if (key !== null && key.indexOf(LINKER_PREFIX) === 0) stale.push(key);
+      }
+      stale.forEach(function (name) {
+        storage.removeItem(name);
+      });
+    } catch {
+      // A blocked storage context must not stop the caller.
+    }
+  }
+
+  /**
+   * Removes named cookies in both forms gtag may have written them: host-only,
+   * and on the registrable domain its cookie_domain:'auto' picks. A leading dot
+   * is ignored by browsers (RFC 6265 §5.2.3), so the dotted form also covers
+   * domain=fluxradar.net.
+   */
+  function deleteCookies(names) {
     names.forEach(function (name) {
       ['', '; domain=.' + ANALYTICS_HOSTNAME].forEach(function (domain) {
         document.cookie =
           name + '=; expires=Thu, 01 Jan 1970 00:00:00 GMT; Max-Age=0; path=/' + domain;
       });
     });
+  }
+
+  function clearAnalyticsCookies() {
+    deleteCookies(analyticsCookieNames());
+  }
+
+  /**
+   * Drops everything the conversion linker ever stored, whatever the reader has
+   * answered: _gcl_aw keeps the rest of its 90 days and _gcl_ls never expires,
+   * and nothing here reads either one. Clearing them only on withdrawal would
+   * leave both with every reader who never withdraws, so the sweep runs at
+   * start-up too, consent or no consent, and on the production host alone — the
+   * same check syncAnalytics makes before it clears gtag's cookies.
+   *
+   * Only the _gcl_ prefix goes: _ga and _ga_* are the tag's working cookies and
+   * end with the consent that allowed them, and the reader's own fluxradar.*
+   * keys and the session cookie are no business of this sweep.
+   */
+  function sweepLinkerData() {
+    if (window.location.hostname !== ANALYTICS_HOSTNAME) return;
+    try {
+      deleteCookies(linkerCookieNames());
+    } catch {
+      // A context that refuses the cookie jar must not stop start-up.
+    }
+    clearLinkerStorage();
   }
 
   function loadAnalytics() {
@@ -587,6 +671,12 @@
           send_page_view: false,
           allow_google_signals: false,
           allow_ad_personalization_signals: false,
+          // Google's documented opt-out from the conversion linker and its own
+          // first-party _gcl_* cookies, which nothing here reads: the click id
+          // reaches GA4 in the landing page view's page_location, and no Google
+          // Ads tag is loaded. It belongs in config, before gtag.js is
+          // requested — support.google.com/google-ads/answer/2476688.
+          conversion_linker: false,
           cookie_expires: CONSENT_TTL_MS / 1000,
           cookie_flags: 'SameSite=Lax;Secure',
           page_location: cleanLocation(),
@@ -657,7 +747,7 @@
   function syncAnalytics() {
     var onProduction = window.location.hostname === ANALYTICS_HOSTNAME;
     if (!onProduction || !analyticsAllowed()) {
-      // A withdrawal ends the visit as GA sees it, and takes the _ga cookies
+      // A withdrawal ends the visit as GA sees it, and takes gtag's cookies
       // with it: a new allowance is a new client, whose visit needs a landing
       // hit of its own or the ad click behind it goes unreported. On the landing
       // page a withdraw-and-allow cycle therefore reports the click once more.
@@ -677,7 +767,10 @@
         captureLandingAttribution();
       }
       analyticsActive = false;
-      if (onProduction) clearAnalyticsCookies();
+      if (onProduction) {
+        clearLinkerStorage();
+        clearAnalyticsCookies();
+      }
       return;
     }
     if (analyticsActive) return;
@@ -843,6 +936,7 @@
   captureLandingAttribution();
   applyLanguage(currentLanguage, { pushUrl: false });
   syncLanguageControls(currentLanguage);
+  sweepLinkerData();
   syncAnalytics();
   window.addEventListener('storage', function (event) {
     if (event.key === CONSENT_KEY || event.key === null) {

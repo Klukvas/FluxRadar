@@ -604,6 +604,11 @@ describe('blog cookie choices', () => {
     window.localStorage.clear();
     document.getElementById('fluxradar-ga')?.remove();
     delete window.dataLayer;
+    // Before the host changes back: a `domain=` write is rejected elsewhere.
+    for (const name of ['_ga', '_gcl_aw', '_gcl_zz', 'fluxradar_session']) {
+      document.cookie = `${name}=; Max-Age=0; path=/`;
+      document.cookie = `${name}=; Max-Age=0; path=/; domain=.${ANALYTICS_HOSTNAME}`;
+    }
     visit('http://localhost:3000/');
   });
 
@@ -632,6 +637,38 @@ describe('blog cookie choices', () => {
 
   function reportedPages(): unknown[] {
     return pageViews().map((params) => (params as { page_location: unknown }).page_location);
+  }
+
+  /**
+   * Every string `run` assigns to `document.cookie`. happy-dom's jar neither
+   * honours a past `expires` nor reads a cookie back once it was written with a
+   * `domain`, so the deletions themselves are what a test can watch — and they
+   * are what matters here, because the domain each one carries is the point.
+   */
+  function cookieWrites(run: () => void): readonly string[] {
+    const written = vi.spyOn(document, 'cookie', 'set');
+    try {
+      run();
+      return written.mock.calls.map(([value]) => String(value));
+    } finally {
+      written.mockRestore();
+    }
+  }
+
+  /** Each cookie a deletion write names, as `name` or `name@<domain>`. */
+  function deletedCookies(writes: readonly string[]): readonly string[] {
+    return writes
+      .filter((write) => write.includes('Max-Age=0'))
+      .map((write) => {
+        const name = write.slice(0, write.indexOf('='));
+        const domain = /; domain=([^;]+)/.exec(write)?.[1];
+        return domain === undefined ? name : `${name}@${domain}`;
+      });
+  }
+
+  /** Both forms of the same name: host-only, and the registrable domain. */
+  function bothDomainForms(names: readonly string[]): readonly string[] {
+    return names.flatMap((name) => [name, `${name}@.${ANALYTICS_HOSTNAME}`]);
   }
 
   // The static banner carries its own copy of the app's wording, and the
@@ -866,6 +903,227 @@ describe('blog cookie choices', () => {
     expect((window as unknown as Record<string, unknown>)[`ga-disable-${GA_MEASUREMENT_ID}`]).toBe(
       true,
     );
+  });
+
+  // The same opt-out the app takes (src/analytics.ts): without it gtag keeps the
+  // ad click in first-party _gcl_* cookies of its own, which nothing here reads
+  // — the click id travels in the landing page view's location, and no Google
+  // Ads tag is loaded. A config-time setting, taken before gtag.js is
+  // requested: support.google.com/google-ads/answer/2476688.
+  it('turns the conversion linker off in the config call, and nowhere else', () => {
+    document.body.innerHTML = '';
+    visit('https://fluxradar.net/blog');
+    bootIndex();
+    choose('all');
+
+    const configured = calls().filter((call) => call[0] === 'config');
+    expect(configured).toHaveLength(1);
+    expect(configured[0]?.[1]).toBe(GA_MEASUREMENT_ID);
+    expect(configured[0]?.[2]).toMatchObject({
+      conversion_linker: false,
+      allow_google_signals: false,
+      allow_ad_personalization_signals: false,
+    });
+    expect(calls().filter((call) => JSON.stringify(call).includes('conversion_linker'))).toEqual(
+      configured,
+    );
+  });
+
+  // A reader who allowed analytics while the linker was still on carries its
+  // cookie until a withdrawal clears it. Each name goes on both domain forms
+  // gtag may have used, and _gcl_zz stands for a name Google has not
+  // documented: only the prefix sweep reaches that one.
+  it('deletes the conversion linker’s cookies as well, on both domain forms', () => {
+    document.body.innerHTML = '';
+    visit('https://fluxradar.net/blog');
+    bootIndex();
+    choose('all');
+    document.cookie = '_gcl_aw=GCL.1.click; path=/';
+    document.cookie = '_gcl_zz=GCL.1.other; path=/';
+    // The one necessary cookie in the Cookie Policy's inventory: it stays.
+    document.cookie = 'fluxradar_session=keep; path=/';
+    document.querySelector<HTMLElement>('[data-cookie-settings]')?.click();
+
+    const writes = cookieWrites(() => choose('necessary'));
+
+    expect(new Set(deletedCookies(writes))).toEqual(
+      new Set(
+        bothDomainForms([
+          '_ga',
+          `_ga_${GA_MEASUREMENT_ID.replace(/^G-/, '')}`,
+          '_gcl_aw',
+          '_gcl_au',
+          '_gcl_dc',
+          '_gcl_gb',
+          '_gcl_gs',
+          '_gcl_zz',
+        ]),
+      ),
+    );
+    expect(document.cookie).not.toContain('_gcl_');
+    expect(document.cookie).toContain('fluxradar_session=keep');
+  });
+
+  // The linker kept a second copy outside the jar: a _gcl_ls entry in
+  // localStorage, which no cookie deletion reaches. A reader measured before the
+  // opt-out shipped carries it until a withdrawal takes it away. Swept by
+  // prefix, which is why _gcl_x goes as well, and never by name: the reader's
+  // own fluxradar.* keys answer to the consent record, not to this.
+  it('removes the linker’s localStorage keys on withdrawal, and only those', () => {
+    document.body.innerHTML = '';
+    visit('https://fluxradar.net/blog');
+    bootIndex();
+    choose('all');
+    window.localStorage.setItem('_gcl_ls', '{"sid":1}');
+    window.localStorage.setItem('_gcl_x', 'another');
+
+    // Analytics withdrawn, the language permission left standing.
+    document.querySelector<HTMLElement>('[data-cookie-settings]')?.click();
+    document.querySelector<HTMLElement>('[data-cookie-option="analytics"]')?.click();
+    choose('save');
+
+    expect(storedConsent()).toMatchObject({ version: 'v3', preferences: true, analytics: false });
+    expect(window.localStorage.getItem('_gcl_ls')).toBeNull();
+    expect(window.localStorage.getItem('_gcl_x')).toBeNull();
+    expect(window.localStorage.getItem('fluxradar.language')).toBe('en');
+  });
+
+  // Storage access can throw by itself where the browser has blocked site data,
+  // and the withdrawal is the one thing that must still happen: gtag is told to
+  // stop, its cookies go, and the banner still reports the save it could not
+  // make instead of leaving the reader with a dead button.
+  it('withdraws even when localStorage throws', () => {
+    document.body.innerHTML = '';
+    visit('https://fluxradar.net/blog');
+    bootIndex();
+    choose('all');
+    window.localStorage.setItem('_gcl_ls', '{"sid":1}');
+    document.cookie = '_gcl_aw=GCL.1.click; path=/';
+    document.querySelector<HTMLElement>('[data-cookie-settings]')?.click();
+    const blocked = vi.spyOn(window.localStorage, 'removeItem').mockImplementation(() => {
+      throw new Error('storage is blocked');
+    });
+
+    try {
+      const writes = cookieWrites(() => choose('necessary'));
+
+      expect(new Set(deletedCookies(writes))).toEqual(
+        new Set(
+          bothDomainForms([
+            '_ga',
+            `_ga_${GA_MEASUREMENT_ID.replace(/^G-/, '')}`,
+            '_gcl_aw',
+            '_gcl_au',
+            '_gcl_dc',
+            '_gcl_gb',
+            '_gcl_gs',
+          ]),
+        ),
+      );
+      expect(
+        (window as unknown as Record<string, unknown>)[`ga-disable-${GA_MEASUREMENT_ID}`],
+      ).toBe(true);
+      expect(document.querySelector('.blog-cookie-consent__error')).not.toBeNull();
+    } finally {
+      blocked.mockRestore();
+    }
+  });
+
+  // Both entries outlive the opt-out that stopped new ones: _gcl_aw has 90 days
+  // of its own and _gcl_ls has no expiry at all, so a reader who accepted
+  // analytics before the linker was turned off keeps them for months while
+  // nothing reads either. Start-up therefore sweeps the prefix whatever the
+  // reader has answered — and sweeps nothing else: _ga is the tag's working
+  // cookie and belongs to a consent that is still standing.
+  it('sweeps the linker\u2019s leftovers at start-up with analytics still allowed', () => {
+    document.body.innerHTML = '';
+    visit('https://fluxradar.net/blog');
+    saveCookieConsent({ preferences: true, analytics: true });
+    window.localStorage.setItem('fluxradar.language', 'en');
+    document.cookie = '_ga=GA1.1.123.456; path=/';
+    document.cookie = '_gcl_aw=GCL.1.click; path=/';
+    document.cookie = '_gcl_zz=GCL.1.other; path=/';
+    document.cookie = 'fluxradar_session=keep; path=/';
+    window.localStorage.setItem('_gcl_ls', '{"sid":1}');
+
+    const writes = cookieWrites(() => bootIndex());
+
+    expect(new Set(deletedCookies(writes))).toEqual(
+      new Set(bothDomainForms(['_gcl_aw', '_gcl_au', '_gcl_dc', '_gcl_gb', '_gcl_gs', '_gcl_zz'])),
+    );
+    expect(document.cookie).not.toContain('_gcl_');
+    expect(window.localStorage.getItem('_gcl_ls')).toBeNull();
+    // What the standing consent allowed is left exactly as it was.
+    expect(document.cookie).toContain('_ga=GA1.1.123.456');
+    expect(document.cookie).toContain('fluxradar_session=keep');
+    expect(window.localStorage.getItem('fluxradar.language')).toBe('en');
+    expect(document.getElementById('fluxradar-ga')).not.toBeNull();
+    expect(pageViews()).toHaveLength(1);
+  });
+
+  // A reader who refused, or who has not answered the banner at all, is in the
+  // same position: the entries are already on the device and nothing is ever
+  // going to read them. The sweep waits for no consent event to arrive, and
+  // still asks Google for nothing.
+  it('sweeps the linker\u2019s leftovers at start-up with no consent on record', () => {
+    document.body.innerHTML = '';
+    visit('https://fluxradar.net/blog');
+    document.cookie = '_gcl_aw=GCL.1.click; path=/';
+    document.cookie = 'fluxradar_session=keep; path=/';
+    window.localStorage.setItem('_gcl_ls', '{"sid":1}');
+
+    bootIndex();
+
+    expect(storedConsent()).toBeNull();
+    expect(document.cookie).not.toContain('_gcl_');
+    expect(window.localStorage.getItem('_gcl_ls')).toBeNull();
+    expect(document.cookie).toContain('fluxradar_session=keep');
+    expect(document.getElementById('fluxradar-ga')).toBeNull();
+    expect(window.dataLayer).toBeUndefined();
+  });
+
+  // Off production the tag never ran, so there is nothing of Google's to find,
+  // and the jar belongs to whoever else answers on that host. The sweep takes
+  // the host check syncAnalytics already takes before it clears gtag's cookies.
+  it('leaves the jar and storage alone at start-up on a host other than production', () => {
+    document.body.innerHTML = '';
+    visit('http://localhost:3000/blog');
+    saveCookieConsent({ preferences: true, analytics: true });
+    document.cookie = '_gcl_aw=GCL.1.click; path=/';
+    window.localStorage.setItem('_gcl_ls', '{"sid":1}');
+
+    const writes = cookieWrites(() => bootIndex());
+
+    expect(deletedCookies(writes)).toEqual([]);
+    expect(document.cookie).toContain('_gcl_aw=GCL.1.click');
+    expect(window.localStorage.getItem('_gcl_ls')).toBe('{"sid":1}');
+  });
+
+  // Storage access can throw by itself where the browser has blocked site data,
+  // and the page is not allowed to fail with it: the cookies still go, the
+  // consent on record still takes effect, and the reader still gets the chrome.
+  // The entry that could not be removed stays — the honest outcome.
+  it('boots even when localStorage throws during the sweep', () => {
+    document.body.innerHTML = '';
+    visit('https://fluxradar.net/blog');
+    saveCookieConsent({ preferences: true, analytics: true });
+    document.cookie = '_gcl_aw=GCL.1.click; path=/';
+    window.localStorage.setItem('_gcl_ls', '{"sid":1}');
+    const blocked = vi.spyOn(window.localStorage, 'removeItem').mockImplementation(() => {
+      throw new Error('storage is blocked');
+    });
+
+    try {
+      expect(() => bootIndex()).not.toThrow();
+
+      expect(document.cookie).not.toContain('_gcl_');
+      expect(document.getElementById('fluxradar-ga')).not.toBeNull();
+      expect(pageViews()).toHaveLength(1);
+      expect(document.querySelector('[data-cookie-settings]')).not.toBeNull();
+    } finally {
+      blocked.mockRestore();
+    }
+    expect(window.localStorage.getItem('_gcl_ls')).toBe('{"sid":1}');
   });
 
   it('never reports from a host other than production', () => {
