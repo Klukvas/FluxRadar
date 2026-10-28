@@ -19,6 +19,12 @@
 //   money and conversion figure. A purchase with no checkout row at all — a
 //   historical order, or one whose checkout was removed with its account —
 //   cannot be shown to be a test, so it counts as real.
+// - TEST ACCOUNTS DO NOT COUNT. An account the owner marked as a test account
+//   (`Account.isTestAccount`) is left out of every figure — accounts, scans,
+//   checkouts, purchases, refunds and the daily series — whatever its rows hold.
+//   The one figure that cannot follow the rule is free checks: `FreeCheckClaim`
+//   is keyed by origin, with no account relation, so it cannot be attributed.
+//   Marking an account never rewrites its rows; every figure just skips them.
 
 import type { Prisma, PrismaClient } from '@prisma/client';
 
@@ -77,6 +83,8 @@ export interface BusinessStats {
 /** A purchase paid through a checkout opened in the provider's test mode. */
 const TEST_MODE_PURCHASE: Prisma.PurchaseWhereInput = { checkout: { is: { liveMode: false } } };
 export const REAL_PURCHASE: Prisma.PurchaseWhereInput = { NOT: TEST_MODE_PURCHASE };
+/** The accounts the dashboard counts; those the owner marked as test are not. */
+export const REAL_ACCOUNT: Prisma.AccountWhereInput = { isTestAccount: false };
 
 export async function readBusinessStats(
   prisma: PrismaClient,
@@ -100,27 +108,37 @@ async function readPeriodStats(prisma: PrismaClient, since: Date | null): Promis
   const created = since === null ? {} : { createdAt: { gte: since } };
   const [accounts, verified, freeChecks, scans, checkouts, purchases, testPurchases, refunds] =
     await Promise.all([
-      prisma.account.count({ where: created }),
-      prisma.account.count({ where: { ...created, emailVerifiedAt: { not: null } } }),
+      prisma.account.count({ where: { ...created, ...REAL_ACCOUNT } }),
+      prisma.account.count({
+        where: { ...created, emailVerifiedAt: { not: null }, ...REAL_ACCOUNT },
+      }),
+      // No account link exists: FreeCheckClaim is keyed by origin, so a claim a
+      // test account made cannot be told apart from a real one. Counted as is.
       prisma.freeCheckClaim.count({
         where: since === null ? {} : { claimedAt: { gte: since } },
       }),
-      prisma.scan.groupBy({ by: ['plan', 'status'], where: created, _count: { _all: true } }),
+      prisma.scan.groupBy({
+        by: ['plan', 'status'],
+        where: { ...created, account: REAL_ACCOUNT },
+        _count: { _all: true },
+      }),
       prisma.checkoutSession.groupBy({
         by: ['liveMode', 'status'],
-        where: created,
+        where: { ...created, account: REAL_ACCOUNT },
         _count: { _all: true },
       }),
       prisma.purchase.groupBy({
         by: ['status', 'currency', 'settledCurrency'],
-        where: { ...created, ...REAL_PURCHASE },
+        where: { ...created, ...REAL_PURCHASE, account: REAL_ACCOUNT },
         _count: { _all: true },
         _sum: { amountUsd: true, settledAmount: true },
       }),
-      prisma.purchase.count({ where: { ...created, ...TEST_MODE_PURCHASE } }),
+      prisma.purchase.count({
+        where: { ...created, ...TEST_MODE_PURCHASE, account: REAL_ACCOUNT },
+      }),
       prisma.providerRefund.groupBy({
         by: ['currency'],
-        where: { ...created, purchase: REAL_PURCHASE },
+        where: { ...created, purchase: { is: { ...REAL_PURCHASE, account: REAL_ACCOUNT } } },
         _count: { _all: true },
         _sum: { amountCharged: true },
       }),
@@ -232,7 +250,9 @@ interface DayCountRow {
  * columns are `timestamp without time zone` holding UTC, which is why the day is
  * read straight off the stored value and the bound instant is converted to UTC
  * explicitly: comparing it as a `timestamptz` would shift it by whatever time
- * zone the database session happens to run in.
+ * zone the database session happens to run in. Rows owned by an account marked
+ * as a test account are left out, exactly as the per-period figures leave them
+ * out.
  */
 async function readDailySeries(prisma: PrismaClient, window: StatsWindow): Promise<DailyPoint[]> {
   const from = window.from.toISOString();
@@ -240,11 +260,17 @@ async function readDailySeries(prisma: PrismaClient, window: StatsWindow): Promi
     SELECT 'accounts' AS "series", to_char("createdAt", 'YYYY-MM-DD') AS "day", COUNT(*)::int AS "count"
       FROM "Account"
      WHERE "createdAt" >= (${from}::timestamptz AT TIME ZONE 'UTC')
+       AND "isTestAccount" = false
      GROUP BY 2
     UNION ALL
     SELECT 'scans', to_char("createdAt", 'YYYY-MM-DD'), COUNT(*)::int
       FROM "Scan"
      WHERE "createdAt" >= (${from}::timestamptz AT TIME ZONE 'UTC')
+       AND NOT EXISTS (
+         SELECT 1 FROM "Account" AS account
+          WHERE account."id" = "Scan"."accountId"
+            AND account."isTestAccount"
+       )
      GROUP BY 2
     UNION ALL
     SELECT 'purchases', to_char(purchase."createdAt", 'YYYY-MM-DD'), COUNT(*)::int
@@ -255,6 +281,11 @@ async function readDailySeries(prisma: PrismaClient, window: StatsWindow): Promi
            FROM "CheckoutSession" AS checkout
           WHERE checkout."purchaseId" = purchase."id"
             AND checkout."liveMode" = false
+       )
+       AND NOT EXISTS (
+         SELECT 1 FROM "Account" AS account
+          WHERE account."id" = purchase."accountId"
+            AND account."isTestAccount"
        )
      GROUP BY 2`;
   return fillDailySeries(window, rows);

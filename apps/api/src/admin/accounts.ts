@@ -16,6 +16,9 @@ import { REAL_PURCHASE } from './stats.ts';
 
 export const ACCOUNTS_PAGE_SIZE = 50;
 
+/** Where the tutorial stands for one account, from the two onboarding timestamps. */
+export type TutorialStatus = 'pending' | 'completed' | 'skipped';
+
 export interface AccountRow {
   readonly email: string;
   readonly createdAt: string;
@@ -25,6 +28,8 @@ export interface AccountRow {
   readonly purchases: number;
   /** The latest of sign-up, newest scan and newest real purchase. */
   readonly lastActivityAt: string;
+  readonly tutorial: TutorialStatus;
+  readonly testAccount: boolean;
 }
 
 export interface AccountList {
@@ -74,6 +79,9 @@ export async function readAccountList(
         createdAt: true,
         emailVerifiedAt: true,
         freeCheckUsedAt: true,
+        onboardingCompletedAt: true,
+        onboardingSkippedAt: true,
+        isTestAccount: true,
       },
     }),
     prisma.account.count({ where }),
@@ -98,9 +106,38 @@ export async function readAccountList(
         scanActivity.latest,
         purchaseActivity.latest,
       ]).toISOString(),
+      tutorial: tutorialStatusOf(account),
+      testAccount: account.isTestAccount,
     };
   });
   return { page: request.page, pageSize: ACCOUNTS_PAGE_SIZE, total, rows };
+}
+
+/** The one of the three onboarding states the two timestamps spell out. */
+function tutorialStatusOf(account: {
+  readonly onboardingCompletedAt: Date | null;
+  readonly onboardingSkippedAt: Date | null;
+}): TutorialStatus {
+  if (account.onboardingCompletedAt !== null) return 'completed';
+  if (account.onboardingSkippedAt !== null) return 'skipped';
+  return 'pending';
+}
+
+/**
+ * Marks an account as a test account, or back. The address is the key the list
+ * hands out; the match is exact, so a stored address is changed only when the
+ * exact spelling the list showed comes back.
+ */
+export async function setTestAccount(
+  prisma: PrismaClient,
+  email: string,
+  testAccount: boolean,
+): Promise<boolean> {
+  const result = await prisma.account.updateMany({
+    where: { email },
+    data: { isTestAccount: testAccount },
+  });
+  return result.count > 0;
 }
 
 /**

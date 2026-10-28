@@ -12,7 +12,11 @@ import { isCount } from './module-metadata';
 
 /** The API route, under the API origin. */
 export const ADMIN_ACCOUNTS_PATH = '/admin/accounts';
+/** Where the owner marks one account as a test account, or back. */
+export const ADMIN_ACCOUNT_TEST_PATH = '/admin/accounts/test-account';
 export const ACCOUNTS_PAGE_SIZE = 50;
+
+export type TutorialStatus = 'pending' | 'completed' | 'skipped';
 
 export interface AdminAccountRow {
   readonly email: string;
@@ -22,6 +26,8 @@ export interface AdminAccountRow {
   readonly scans: number;
   readonly purchases: number;
   readonly lastActivityAt: string;
+  readonly tutorial: TutorialStatus;
+  readonly testAccount: boolean;
 }
 
 export interface AdminAccounts {
@@ -73,7 +79,21 @@ function isInstant(value: unknown): value is string {
   return typeof value === 'string' && !Number.isNaN(Date.parse(value));
 }
 
-function isAccountRow(value: unknown): value is AdminAccountRow {
+function isTutorialStatus(value: unknown): value is TutorialStatus {
+  return value === 'pending' || value === 'completed' || value === 'skipped';
+}
+
+/**
+ * A row as it may arrive: `tutorial` and `testAccount` are optional so a web
+ * build shipped ahead of the API, or an API rolled back, still draws the list —
+ * the missing fields read as their defaults rather than vanishing with it.
+ */
+type AccountRowInput = Omit<AdminAccountRow, 'tutorial' | 'testAccount'> & {
+  readonly tutorial?: TutorialStatus;
+  readonly testAccount?: boolean;
+};
+
+function isAccountRow(value: unknown): value is AccountRowInput {
   return (
     isShape(value) &&
     typeof value.email === 'string' &&
@@ -82,7 +102,9 @@ function isAccountRow(value: unknown): value is AdminAccountRow {
     (value.freeCheckUsedAt === null || isInstant(value.freeCheckUsedAt)) &&
     isCount(value.scans) &&
     isCount(value.purchases) &&
-    isInstant(value.lastActivityAt)
+    isInstant(value.lastActivityAt) &&
+    (value.tutorial === undefined || isTutorialStatus(value.tutorial)) &&
+    (value.testAccount === undefined || typeof value.testAccount === 'boolean')
   );
 }
 
@@ -106,6 +128,38 @@ export function readAdminAccounts(value: unknown): AdminAccounts | null {
       scans: row.scans,
       purchases: row.purchases,
       lastActivityAt: row.lastActivityAt,
+      tutorial: row.tutorial ?? 'pending',
+      testAccount: row.testAccount ?? false,
     })),
   };
+}
+
+export type TestAccountResult =
+  | { readonly kind: 'updated' }
+  /** 404: the address is no longer in the tables, so nothing was marked. */
+  | { readonly kind: 'unavailable' }
+  /** Network, session or server trouble: the flag is not what the owner asked for. */
+  | { readonly kind: 'failed'; readonly message: string };
+
+/**
+ * Marks one account as a test account, or back. The address is the exact
+ * spelling the list showed — the API refuses any other.
+ */
+export async function setTestAccount(
+  email: string,
+  testAccount: boolean,
+): Promise<TestAccountResult> {
+  try {
+    await apiRequest<unknown>(ADMIN_ACCOUNT_TEST_PATH, {
+      method: 'PATCH',
+      body: JSON.stringify({ email, testAccount }),
+    });
+    return { kind: 'updated' };
+  } catch (caught) {
+    if (caught instanceof ApiRequestError && caught.status === 404) return { kind: 'unavailable' };
+    return {
+      kind: 'failed',
+      message: caught instanceof Error ? caught.message : 'The account could not be updated.',
+    };
+  }
 }

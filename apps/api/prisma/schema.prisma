@@ -23,6 +23,8 @@ model Account {
   // One-time anonymous-quality gate: the Free check is granted once per account.
   // The nullable timestamp is claimed atomically before the scan/job is created.
   freeCheckUsedAt       DateTime?
+  // The owner's dashboard counts this account out of every figure when true.
+  isTestAccount         Boolean   @default(false)
   createdAt             DateTime  @default(now())
 
   sessions           Session[]

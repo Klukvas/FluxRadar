@@ -7,10 +7,11 @@
 // switch, so the page and search survive one. If the list itself is not
 // available it draws nothing, rather than a second "Not available".
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 
 import {
   loadAdminAccounts,
+  setTestAccount,
   type AdminAccountRow,
   type AdminAccounts,
   type AdminAccountsRequest,
@@ -37,6 +38,11 @@ function useAccountList() {
   const [request, setRequest] = useState<AdminAccountsRequest>(FIRST_PAGE);
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<LoadState>(LOADING);
+  /** Addresses whose flag change is on its way to the API, to keep their button quiet. */
+  const [pending, setPending] = useState<ReadonlySet<string>>(new Set());
+  // The synchronous twin of `pending`: the state update lands on the next
+  // render, so only a ref can stop a second click inside the same frame.
+  const pendingRef = useRef<ReadonlySet<string>>(new Set());
 
   useEffect(() => {
     // A slow answer for the page or search the owner just left must not
@@ -58,11 +64,45 @@ function useAccountList() {
     setState(LOADING);
     setAttempt((count) => count + 1);
   };
-  return { request, state, ask, retry };
+
+  /**
+   * Flips one row's test flag on screen at once, then asks the API. A refusal
+   * (or a page that moved on) puts the row back to the flag it showed before
+   * the click; a reload after that shows what the server actually holds.
+   */
+  const markTest = (email: string, testAccount: boolean): void => {
+    if (pendingRef.current.has(email)) return;
+    pendingRef.current = new Set(pendingRef.current).add(email);
+    setPending((current) => new Set(current).add(email));
+    setRowFlag(email, testAccount);
+    void setTestAccount(email, testAccount).then((result) => {
+      pendingRef.current = new Set(
+        [...pendingRef.current].filter((pendingEmail) => pendingEmail !== email),
+      );
+      setPending((current) => {
+        const next = new Set(current);
+        next.delete(email);
+        return next;
+      });
+      if (result.kind !== 'updated') setRowFlag(email, !testAccount);
+    });
+  };
+
+  function setRowFlag(email: string, testAccount: boolean): void {
+    setState((current) => {
+      if (current.kind !== 'ready') return current;
+      const rows = current.accounts.rows.map((row) =>
+        row.email === email ? { ...row, testAccount } : row,
+      );
+      return { kind: 'ready', accounts: { ...current.accounts, rows } };
+    });
+  }
+
+  return { request, state, pending, ask, retry, markTest };
 }
 
 export function AccountsSection() {
-  const { request, state, ask, retry } = useAccountList();
+  const { request, state, pending, ask, retry, markTest } = useAccountList();
   const [draft, setDraft] = useState('');
 
   if (state.kind === 'unavailable') return null;
@@ -76,7 +116,9 @@ export function AccountsSection() {
     <section className="admin-stats__section" aria-label="Accounts">
       <h2 className="section-heading">Accounts</h2>
       <p className="muted">
-        Every registered account, newest first. Purchases leave out test-mode orders.
+        Every registered account, newest first. Purchases leave out test-mode orders, and an account
+        marked as a test account is never counted in the numbers above — free checks cannot be
+        attributed to an account and still count.
       </p>
       <SearchForm
         draft={draft}
@@ -88,8 +130,10 @@ export function AccountsSection() {
       <AccountsBody
         state={state}
         query={request.query}
+        pending={pending}
         onPage={(page) => ask({ ...request, page })}
         onRetry={retry}
+        onMarkTest={markTest}
       />
     </section>
   );
@@ -127,8 +171,10 @@ function SearchForm(props: {
 function AccountsBody(props: {
   state: Exclude<LoadState, { readonly kind: 'unavailable' }>;
   query: string;
+  pending: ReadonlySet<string>;
   onPage: (page: number) => void;
   onRetry: () => void;
+  onMarkTest: (email: string, testAccount: boolean) => void;
 }) {
   const { state } = props;
   if (state.kind === 'loading') return <SkeletonRows rows={4} />;
@@ -154,13 +200,17 @@ function AccountsBody(props: {
   }
   return (
     <>
-      <AccountsTable rows={accounts.rows} />
+      <AccountsTable rows={accounts.rows} pending={props.pending} onMarkTest={props.onMarkTest} />
       <Pager accounts={accounts} onPage={props.onPage} />
     </>
   );
 }
 
-function AccountsTable({ rows }: { rows: readonly AdminAccountRow[] }) {
+function AccountsTable(props: {
+  rows: readonly AdminAccountRow[];
+  pending: ReadonlySet<string>;
+  onMarkTest: (email: string, testAccount: boolean) => void;
+}) {
   return (
     <DataTable>
       <thead>
@@ -168,20 +218,29 @@ function AccountsTable({ rows }: { rows: readonly AdminAccountRow[] }) {
           <th>Email</th>
           <th>Registered</th>
           <th>Confirmed</th>
+          <th>Tutorial</th>
           <th>Free check</th>
           <th className="admin-stats__num">Scans</th>
           <th className="admin-stats__num">Purchases</th>
           <th>Last activity</th>
+          <th>Test account</th>
         </tr>
       </thead>
       <tbody>
-        {rows.map((row) => (
+        {props.rows.map((row) => (
           <tr key={row.email}>
             <td data-label="Email" className="technical">
               {row.email}
             </td>
             <td data-label="Registered">{formatDay(row.createdAt)}</td>
             <td data-label="Confirmed">{row.emailVerified ? 'yes' : '—'}</td>
+            <td data-label="Tutorial">
+              {row.tutorial === 'completed'
+                ? 'Completed'
+                : row.tutorial === 'skipped'
+                  ? 'Skipped'
+                  : 'Pending'}
+            </td>
             <td data-label="Free check">
               {row.freeCheckUsedAt === null ? '—' : formatDay(row.freeCheckUsedAt)}
             </td>
@@ -192,6 +251,18 @@ function AccountsTable({ rows }: { rows: readonly AdminAccountRow[] }) {
               {countFormat.format(row.purchases)}
             </td>
             <td data-label="Last activity">{formatDay(row.lastActivityAt)}</td>
+            <td data-label="Test account">
+              <button
+                type="button"
+                className="button admin-accounts__test"
+                aria-pressed={row.testAccount}
+                aria-label={`${row.testAccount ? 'Unmark' : 'Mark'} ${row.email} as a test account`}
+                disabled={props.pending.has(row.email)}
+                onClick={() => props.onMarkTest(row.email, !row.testAccount)}
+              >
+                {row.testAccount ? 'Test ✓' : 'Mark test'}
+              </button>
+            </td>
           </tr>
         ))}
       </tbody>

@@ -239,6 +239,91 @@ describe('GET /admin/stats figures', () => {
     expect(text).not.toContain(owner.accountId);
     expect(text).not.toContain('ord_');
   });
+
+  it('leaves accounts marked as test out of every figure, and unmarking restores them', async () => {
+    const owner = await seedBusiness(db.prisma);
+    // The tester becomes a test account and also makes a real purchase and a
+    // real checkout — without the flag both would count, the purchase as a
+    // legacy-style order with no checkout row.
+    const tester = await db.prisma.account.findUniqueOrThrow({
+      where: { email: 'tester@example.com' },
+    });
+    const testerProfile = await db.prisma.siteProfile.findFirstOrThrow({
+      where: { accountId: tester.id },
+    });
+    const testerOwner = {
+      accountId: tester.id,
+      siteProfileId: testerProfile.id,
+      cookie: 'unused',
+    };
+    await db.prisma.account.update({
+      where: { id: tester.id },
+      data: { isTestAccount: true },
+    });
+    await seedPurchase(db.prisma, testerOwner, { at: '2026-09-21T13:00:00Z', usd: 55 });
+    await seedCheckout(db.prisma, testerOwner, { at: '2026-09-21T12:59:00Z', status: 'created' });
+
+    const response = await request(appFor(ADMINS))
+      .get('/admin/stats?days=7')
+      .set('Cookie', owner.cookie);
+
+    expect(response.status).toBe(200);
+    const { data } = response.body;
+    expect(data.period.accounts).toEqual({ created: 2, verified: 1 });
+    // The one figure that cannot follow the rule: the claim is keyed by origin,
+    // with no account link, so the tester's claim is counted as any other.
+    expect(data.period.freeChecks).toEqual({ claimed: 2 });
+    expect(data.period.scans).toEqual({
+      created: 3,
+      byStatus: [
+        { status: 'Completed', count: 1 },
+        { status: 'Failed', count: 1 },
+        { status: 'Running', count: 1 },
+      ],
+      byPlan: [
+        { plan: 'Basic', count: 1 },
+        { plan: 'Complete', count: 1 },
+        { plan: 'Free', count: 1 },
+      ],
+    });
+    expect(data.period.checkouts).toEqual({
+      opened: 4,
+      completed: 2,
+      rejected: 1,
+      conversion: 0.5,
+    });
+    expect(data.period.purchases.completed).toBe(3);
+    expect(data.period.revenue).toEqual([
+      { currency: 'EUR', gross: 110.5, refunded: 110.5, net: 0 },
+      { currency: 'USD', gross: 110, refunded: 20, net: 90 },
+    ]);
+    expect(data.period.refunds).toEqual({ count: 3 });
+    // The tester's own test-mode rows are not even the "counted apart" kind.
+    expect(data.period.testMode).toEqual({ checkoutsOpened: 0, purchases: 0 });
+    expect(data.allTime.accounts).toEqual({ created: 3, verified: 2 });
+    expect(data.daily).toEqual([
+      { day: '2026-09-15', accounts: 0, scans: 0, purchases: 0 },
+      { day: '2026-09-16', accounts: 1, scans: 0, purchases: 1 },
+      { day: '2026-09-17', accounts: 0, scans: 1, purchases: 0 },
+      { day: '2026-09-18', accounts: 0, scans: 1, purchases: 0 },
+      { day: '2026-09-19', accounts: 0, scans: 0, purchases: 1 },
+      { day: '2026-09-20', accounts: 1, scans: 1, purchases: 1 },
+      // The tester signed up, scanned and ordered today; none of it shows.
+      { day: '2026-09-21', accounts: 0, scans: 0, purchases: 0 },
+    ]);
+
+    await db.prisma.account.update({
+      where: { id: tester.id },
+      data: { isTestAccount: false },
+    });
+    const after = await request(appFor(ADMINS))
+      .get('/admin/stats?days=7')
+      .set('Cookie', owner.cookie);
+
+    expect(after.body.data.period.accounts).toEqual({ created: 3, verified: 2 });
+    expect(after.body.data.period.purchases.completed).toBe(4);
+    expect(after.body.data.period.testMode).toEqual({ checkoutsOpened: 2, purchases: 1 });
+  });
 });
 
 /**

@@ -49,6 +49,8 @@ function row(index: number) {
     scans: index,
     purchases: index === 0 ? 2 : 0,
     lastActivityAt: '2026-09-20T12:00:00.000Z',
+    tutorial: (['completed', 'skipped', 'pending'] as const)[index % 3],
+    testAccount: false,
   };
 }
 
@@ -92,6 +94,36 @@ function stubApi(adminAccounts: (search: string) => Response | Promise<Response>
   return fetchMock;
 }
 
+/** Like stubApi, but the test-account PATCH gets its own answer and its body is recorded. */
+function stubWithPatch(
+  adminAccounts: (search: string) => Response | Promise<Response>,
+  patch: (body: { email: string; testAccount: boolean }) => Response | Promise<Response>,
+) {
+  const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+    const url = new URL(String(input));
+    if (url.pathname === '/auth/me') return Promise.resolve(envelope(account));
+    if (url.pathname === '/profiles') return Promise.resolve(envelope([]));
+    if (url.pathname === '/admin/stats') return Promise.resolve(envelope(stats));
+    if (url.pathname === '/admin/accounts') return Promise.resolve(adminAccounts(url.search));
+    if (url.pathname === '/admin/accounts/test-account') {
+      return Promise.resolve(
+        patch(JSON.parse(String(init?.body)) as { email: string; testAccount: boolean }),
+      );
+    }
+    return Promise.resolve(envelope(null));
+  });
+  vi.stubGlobal('fetch', fetchMock);
+  return fetchMock;
+}
+
+function patchRequests(
+  fetchMock: ReturnType<typeof vi.fn>,
+): { email: string; testAccount: boolean }[] {
+  return fetchMock.mock.calls
+    .filter(([input]) => new URL(String(input)).pathname === '/admin/accounts/test-account')
+    .map(([, init]) => JSON.parse(String(init?.body)) as { email: string; testAccount: boolean });
+}
+
 function accountRequests(fetchMock: ReturnType<typeof vi.fn>): string[] {
   return fetchMock.mock.calls
     .map(([input]) => new URL(String(input)))
@@ -122,9 +154,19 @@ describe('owner dashboard accounts list', () => {
     expect(within(first).getByText('yes')).toBeInTheDocument();
     expect(within(first).getByText('2026-09-17')).toBeInTheDocument();
     expect(within(first).getByText('2026-09-20')).toBeInTheDocument();
+    expect(within(first).getByText('Completed')).toBeInTheDocument();
+    expect(
+      within(first).getByRole('button', {
+        name: 'Mark person-0@example.com as a test account',
+      }),
+    ).toHaveAttribute('aria-pressed', 'false');
     const second = screen.getByText('person-1@example.com').closest('tr');
     if (!(second instanceof HTMLElement)) throw new Error('no row');
+    expect(within(second).getByText('Skipped')).toBeInTheDocument();
     expect(within(second).getAllByText('—')).toHaveLength(2);
+    const third = screen.getByText('person-2@example.com').closest('tr');
+    if (!(third instanceof HTMLElement)) throw new Error('no row');
+    expect(within(third).getByText('Pending')).toBeInTheDocument();
 
     expect(screen.getByRole('heading', { name: 'Accounts' })).toBeInTheDocument();
     expect(screen.getByText('Showing 1–50 of 120')).toBeInTheDocument();
@@ -250,6 +292,104 @@ describe('owner dashboard accounts list', () => {
     expect(await screen.findByText('person-0@example.com')).toBeInTheDocument();
     expect(accountRequests(fetchMock)).toEqual(['?page=1', '?page=1']);
   });
+
+  it('marks an account as a test account through the API, and unmarks it back', async () => {
+    let flagged = false;
+    const fetchMock = stubWithPatch(
+      (search) => {
+        const page = pageOf(search);
+        page.rows[0] = { ...row(0), testAccount: flagged };
+        return envelope(page);
+      },
+      (body) => {
+        flagged = body.testAccount;
+        return envelope({ email: body.email, testAccount: body.testAccount });
+      },
+    );
+    openDashboard();
+
+    const toggle = await screen.findByRole('button', {
+      name: 'Mark person-0@example.com as a test account',
+    });
+    fireEvent.click(toggle);
+
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-pressed', 'true'));
+    expect(toggle).toHaveTextContent('Test ✓');
+    expect(patchRequests(fetchMock)).toEqual([
+      { email: 'person-0@example.com', testAccount: true },
+    ]);
+
+    fireEvent.click(toggle);
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-pressed', 'false'));
+    expect(patchRequests(fetchMock).at(-1)).toEqual({
+      email: 'person-0@example.com',
+      testAccount: false,
+    });
+  });
+
+  it('puts the flag back when the API refuses the change', async () => {
+    const fetchMock = stubWithPatch(
+      (search) => envelope(pageOf(search)),
+      () => failure(500, 'INTERNAL', 'internal server error'),
+    );
+    openDashboard();
+
+    const toggle = await screen.findByRole('button', {
+      name: 'Mark person-0@example.com as a test account',
+    });
+    fireEvent.click(toggle);
+
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-pressed', 'false'));
+    expect(toggle).toHaveTextContent('Mark test');
+    expect(patchRequests(fetchMock)).toEqual([
+      { email: 'person-0@example.com', testAccount: true },
+    ]);
+  });
+
+  it('puts the flag back when the API no longer knows the address', async () => {
+    stubWithPatch(
+      (search) => envelope(pageOf(search)),
+      () => failure(404, 'NOT_FOUND', 'route not found'),
+    );
+    openDashboard();
+
+    const toggle = await screen.findByRole('button', {
+      name: 'Mark person-0@example.com as a test account',
+    });
+    fireEvent.click(toggle);
+
+    await waitFor(() => expect(toggle).toHaveAttribute('aria-pressed', 'false'));
+    expect(toggle).toHaveTextContent('Mark test');
+  });
+
+  it('keeps the toggle quiet while its change is on its way', async () => {
+    let resolvePatch: (response: Response) => void = () => undefined;
+    const fetchMock = stubWithPatch(
+      (search) => envelope(pageOf(search)),
+      () =>
+        new Promise<Response>((resolve) => {
+          resolvePatch = resolve;
+        }),
+    );
+    openDashboard();
+
+    const toggle = await screen.findByRole('button', {
+      name: 'Mark person-0@example.com as a test account',
+    });
+    fireEvent.click(toggle);
+
+    await waitFor(() => expect(toggle).toBeDisabled());
+    // A second click while the answer is pending must not fire another PATCH.
+    fireEvent.click(toggle);
+    expect(patchRequests(fetchMock)).toHaveLength(1);
+
+    await act(async () => {
+      resolvePatch(envelope({ email: 'person-0@example.com', testAccount: true }));
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+    expect(toggle).toBeEnabled();
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  });
 });
 
 describe('reading the accounts answer', () => {
@@ -262,5 +402,29 @@ describe('reading the accounts answer', () => {
     expect(readAdminAccounts({ ...page, rows: [{ ...row(0), scans: 1.5 }] })).toBeNull();
     expect(readAdminAccounts({ ...page, rows: [{ ...row(0), createdAt: 'soon' }] })).toBeNull();
     expect(readAdminAccounts({ ...page, page: 0 })).toBeNull();
+    // A tutorial literal the API does not spell is refused, not drawn.
+    expect(readAdminAccounts({ ...page, rows: [{ ...row(0), tutorial: 'done' }] })).toBeNull();
+    expect(readAdminAccounts({ ...page, rows: [{ ...row(0), testAccount: 'yes' }] })).toBeNull();
+  });
+
+  it('still draws rows an older API answers without the new fields, with their defaults', () => {
+    const page = pageOf('?page=1');
+    const legacy = readAdminAccounts({
+      ...page,
+      rows: [
+        {
+          email: 'person-0@example.com',
+          createdAt: '2026-09-16T23:30:00.000Z',
+          emailVerified: true,
+          freeCheckUsedAt: null,
+          scans: 0,
+          purchases: 0,
+          lastActivityAt: '2026-09-20T12:00:00.000Z',
+        },
+      ],
+    });
+
+    expect(legacy).not.toBeNull();
+    expect(legacy?.rows[0]).toMatchObject({ tutorial: 'pending', testAccount: false });
   });
 });

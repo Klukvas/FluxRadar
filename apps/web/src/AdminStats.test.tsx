@@ -83,6 +83,8 @@ const accountsPage = {
       scans: 2,
       purchases: 1,
       lastActivityAt: '2026-09-18T10:00:00.000Z',
+      tutorial: 'completed',
+      testAccount: false,
     },
   ],
 };

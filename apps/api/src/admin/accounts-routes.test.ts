@@ -33,6 +33,8 @@ const ROW_KEYS = [
   'lastActivityAt',
   'purchases',
   'scans',
+  'testAccount',
+  'tutorial',
 ].sort();
 
 let db: TestDb;
@@ -165,6 +167,8 @@ describe('GET /admin/accounts rows', () => {
           scans: 0,
           purchases: 0,
           lastActivityAt: '2026-09-20T23:59:00.000Z',
+          tutorial: 'pending',
+          testAccount: false,
         },
         {
           email: 'buyer@example.com',
@@ -176,6 +180,8 @@ describe('GET /admin/accounts rows', () => {
           purchases: 3,
           // The legacy order, not the later test-mode one.
           lastActivityAt: '2026-09-20T12:00:00.000Z',
+          tutorial: 'pending',
+          testAccount: false,
         },
         {
           email: ADMIN_EMAIL,
@@ -185,6 +191,8 @@ describe('GET /admin/accounts rows', () => {
           scans: 1,
           purchases: 0,
           lastActivityAt: '2026-09-02T10:00:00.000Z',
+          tutorial: 'pending',
+          testAccount: false,
         },
       ],
     });
@@ -299,6 +307,169 @@ describe('GET /admin/accounts rows', () => {
       ADMIN_EMAIL,
     ]);
     expect(beyond.body.data).toEqual({ page: 3, pageSize: 50, total: 53, rows: [] });
+  });
+});
+
+describe('GET /admin/accounts tutorial status', () => {
+  it('reports completed, skipped and pending from the onboarding timestamps', async () => {
+    const owner = await seedOwner();
+    await db.prisma.account.createMany({
+      data: [
+        {
+          email: 'done@example.com',
+          passwordHash: 'test-hash',
+          onboardingCompletedAt: at('2026-09-10T10:00:00Z'),
+          createdAt: at('2026-09-10T09:00:00Z'),
+        },
+        {
+          email: 'skipped@example.com',
+          passwordHash: 'test-hash',
+          onboardingSkippedAt: at('2026-09-10T10:00:00Z'),
+          createdAt: at('2026-09-10T09:00:00Z'),
+        },
+        {
+          email: 'pending@example.com',
+          passwordHash: 'test-hash',
+          createdAt: at('2026-09-10T09:00:00Z'),
+        },
+      ],
+    });
+
+    const response = await getAccounts(owner.cookie, '?q=example.com');
+    const tutorials = Object.fromEntries(
+      response.body.data.rows.map((row: { email: string; tutorial: string }) => [
+        row.email,
+        row.tutorial,
+      ]),
+    );
+
+    expect(tutorials).toMatchObject({
+      'done@example.com': 'completed',
+      'skipped@example.com': 'skipped',
+      'pending@example.com': 'pending',
+    });
+  });
+});
+
+describe('PATCH /admin/accounts/test-account', () => {
+  it('answers a visitor with no session exactly as an unknown route', async () => {
+    const app = appFor();
+    const response = await request(app)
+      .patch('/admin/accounts/test-account')
+      .send({ email: ADMIN_EMAIL, testAccount: true });
+
+    expect({ status: response.status, body: response.body }).toEqual(await unknownRouteAnswer(app));
+    expect(response.status).toBe(404);
+  });
+
+  it('answers a signed-in account that is not listed exactly as an unknown route', async () => {
+    const stranger = await seedStranger();
+    const app = appFor();
+    const response = await request(app)
+      .patch('/admin/accounts/test-account')
+      .set('Cookie', stranger.cookie)
+      .send({ email: ADMIN_EMAIL, testAccount: true });
+
+    expect({ status: response.status, body: response.body }).toEqual(
+      await unknownRouteAnswer(app, stranger.cookie),
+    );
+    expect(response.status).toBe(404);
+  });
+
+  it('does not tell a stranger the body was wrong: the 404 comes first', async () => {
+    const stranger = await seedStranger();
+    const response = await request(appFor())
+      .patch('/admin/accounts/test-account')
+      .set('Cookie', stranger.cookie)
+      .send({ email: 'x', testAccount: 'yes' });
+
+    expect(response.status).toBe(404);
+  });
+
+  it.each([
+    {},
+    { email: ADMIN_EMAIL },
+    { testAccount: true },
+    { email: '', testAccount: true },
+    { email: 'a'.repeat(255), testAccount: true },
+    { email: ADMIN_EMAIL, testAccount: 'yes' },
+  ])('rejects %j with the usual 400', async (body) => {
+    const owner = await seedOwner();
+    const response = await request(appFor())
+      .patch('/admin/accounts/test-account')
+      .set('Cookie', owner.cookie)
+      .send(body);
+
+    expect(response.status).toBe(400);
+    expect(response.body).toMatchObject({ success: false, error: { code: 'VALIDATION' } });
+  });
+
+  it('marks and unmarks an account, and the list shows the flag', async () => {
+    const owner = await seedOwner();
+    const buyer = await db.prisma.account.create({
+      data: {
+        email: 'buyer@example.com',
+        passwordHash: 'test-hash',
+        createdAt: at('2026-09-16T09:00:00Z'),
+      },
+    });
+
+    const mark = await request(appFor())
+      .patch('/admin/accounts/test-account')
+      .set('Cookie', owner.cookie)
+      .send({ email: 'buyer@example.com', testAccount: true });
+    expect(mark.status).toBe(200);
+    expect(mark.body).toEqual({
+      success: true,
+      data: { email: 'buyer@example.com', testAccount: true },
+      error: null,
+    });
+
+    const listed = await getAccounts(owner.cookie, '?q=buyer');
+    expect(listed.body.data.rows[0]).toMatchObject({
+      email: 'buyer@example.com',
+      testAccount: true,
+    });
+
+    const unmark = await request(appFor())
+      .patch('/admin/accounts/test-account')
+      .set('Cookie', owner.cookie)
+      .send({ email: 'buyer@example.com', testAccount: false });
+    expect(unmark.status).toBe(200);
+    expect((await getAccounts(owner.cookie, '?q=buyer')).body.data.rows[0].testAccount).toBe(false);
+
+    // The flag is the only thing the call changed.
+    expect(
+      await db.prisma.account.findUnique({ where: { id: buyer.id }, select: { email: true } }),
+    ).toEqual({ email: 'buyer@example.com' });
+  });
+
+  it('answers an address the tables do not hold with 404 NOT_FOUND', async () => {
+    const owner = await seedOwner();
+    const response = await request(appFor())
+      .patch('/admin/accounts/test-account')
+      .set('Cookie', owner.cookie)
+      .send({ email: 'nobody@example.com', testAccount: true });
+
+    expect(response.status).toBe(404);
+    expect(response.body.error.code).toBe('NOT_FOUND');
+  });
+
+  it('matches the exact address the list showed, not a different case', async () => {
+    const owner = await seedOwner();
+    await db.prisma.account.create({
+      data: {
+        email: 'Buyer@example.com',
+        passwordHash: 'test-hash',
+        createdAt: at('2026-09-16T09:00:00Z'),
+      },
+    });
+    const response = await request(appFor())
+      .patch('/admin/accounts/test-account')
+      .set('Cookie', owner.cookie)
+      .send({ email: 'buyer@example.com', testAccount: true });
+
+    expect(response.status).toBe(404);
   });
 });
 

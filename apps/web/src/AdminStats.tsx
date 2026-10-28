@@ -115,7 +115,8 @@ export function AdminStatsScreen() {
             <p className="muted">
               Counted in FluxRadar’s own database: every sign-up and every paid order, not only the
               visitors GA4 sees. Days are UTC. Test-mode orders are counted apart and never as
-              revenue.
+              revenue, and accounts marked as test accounts are left out of every figure that can be
+              attributed to an account.
             </p>
           </div>
           <WindowSwitch days={days} onChoose={chooseWindow} />

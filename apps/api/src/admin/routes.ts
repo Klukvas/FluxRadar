@@ -1,5 +1,6 @@
-// GET /admin/stats — the owner's business dashboard — and GET /admin/accounts,
-// the list of registered accounts it shows beneath the numbers.
+// GET /admin/stats — the owner's business dashboard — GET /admin/accounts,
+// the list of registered accounts it shows beneath the numbers, and
+// PATCH /admin/accounts/test-account, the list's per-account test flag.
 //
 // Only an account whose address is listed in FLUXRADAR_ADMIN_EMAILS reaches it,
 // and to everyone else it does not exist: no session, an expired one, a
@@ -14,8 +15,9 @@ import { z } from 'zod';
 
 import { sendOk } from '../http/envelope.ts';
 import type { ApiLogger } from '../http/logger.ts';
+import { notFound } from '../http/errors.ts';
 import { parseInput } from '../http/validate.ts';
-import { readAccountList } from './accounts.ts';
+import { readAccountList, setTestAccount } from './accounts.ts';
 import { isAdminRequest, type AdminAccessDeps } from './admin-access.ts';
 import { ADMIN_EMAILS_ENV } from './admin-emails.ts';
 import { readBusinessStats } from './stats.ts';
@@ -28,6 +30,7 @@ import {
 
 export const ADMIN_STATS_PATH = '/admin/stats';
 export const ADMIN_ACCOUNTS_PATH = '/admin/accounts';
+export const ADMIN_ACCOUNT_TEST_PATH = '/admin/accounts/test-account';
 
 /** The longest an email address can be, so the longest part of one worth searching for. */
 const MAX_EMAIL_QUERY_LENGTH = 254;
@@ -59,6 +62,17 @@ const accountsQuerySchema = z.object({
     .max(MAX_EMAIL_QUERY_LENGTH)
     .optional()
     .transform((query) => (query === undefined || query === '' ? null : query)),
+});
+
+/**
+ * The test flag of one account, keyed by the exact address the list showed.
+ * The address is a plain string rather than an email schema: a stored address
+ * the owner can see must be settable, and an address the tables do not hold
+ * simply finds no account.
+ */
+const accountTestSchema = z.object({
+  email: z.string().trim().min(1).max(MAX_EMAIL_QUERY_LENGTH),
+  testAccount: z.boolean(),
 });
 
 export interface AdminStatsRouterDeps extends AdminAccessDeps {
@@ -98,6 +112,20 @@ export function adminStatsRouter(deps: AdminStatsRouterDeps): Router {
     // Email addresses: never kept by a shared cache or the browser's.
     res.setHeader('Cache-Control', 'private, no-store');
     sendOk(res, accounts);
+  });
+
+  router.patch(ADMIN_ACCOUNT_TEST_PATH, async (req, res, next) => {
+    if (!(await isAdminRequest(deps, req))) {
+      next();
+      return;
+    }
+    const { email, testAccount } = parseInput(accountTestSchema, req.body);
+    if (!(await setTestAccount(deps.prisma, email, testAccount))) {
+      // An address the tables do not hold: nothing was marked, and the list
+      // most likely moved under the owner since the page was drawn.
+      throw notFound();
+    }
+    sendOk(res, { email, testAccount });
   });
 
   return router;

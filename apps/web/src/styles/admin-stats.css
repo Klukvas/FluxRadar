@@ -121,3 +121,17 @@
 .admin-accounts__pager > p {
   margin: 0;
 }
+
+/* The per-row test-account switch: compact enough for a wide table; the
+   pressed state is the row's badge rather than a separate column of labels. */
+.admin-accounts__test {
+  padding: 2px var(--sp-2);
+  font-size: 11px;
+}
+.admin-accounts__test[aria-pressed='true'] {
+  border-color: var(--selection);
+  color: var(--selection);
+  box-shadow:
+    inset 1px 1px 0 var(--plat-300),
+    inset -1px -1px 0 #fff;
+}
