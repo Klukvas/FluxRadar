@@ -110,7 +110,9 @@ describe.each(['en', 'uk'] as const)('branded %s PDF', (language) => {
     expect(text).not.toContain(plan.metadata.modelId);
     expect(text).not.toContain(plan.metadata.promptVersion);
     expect(text).toContain(brandedCopy(language).aiGenerated);
-    expect(text).toContain(plan.metadata.generatedAt);
+    // Written the way the rest of the document writes a moment, not as raw ISO.
+    expect(text).toContain('2026-09-22 11:30');
+    expect(text).not.toContain(plan.metadata.generatedAt);
     pages.forEach((page, index) => {
       expect(page).toContain(brandedCopy(language).footer);
       expect(footerCounter(page)).toEqual({ index: index + 1, total: pages.length });

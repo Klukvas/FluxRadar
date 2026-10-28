@@ -26,16 +26,38 @@ export function preparedBy(name: string, language: FindingLanguage): string {
   return language === 'uk' ? `Підготовлено: ${name}` : `Prepared by ${name}`;
 }
 
+const LOGO_BOX = { width: 150, height: 36 } as const;
+const NAME_X_AFTER_LOGO = 180;
+
+/**
+ * The agency's header block: logo, name in the agency colour, and who prepared
+ * the report with how to reach them. Returns where the block ends.
+ */
 export function brandedCover(
   doc: ReportDocument,
   brand: ReportBrand,
   language: FindingLanguage,
-): void {
-  if (brand.logo !== null) doc.image(brand.logo.png, { width: 180, height: 56 });
-  doc.text(brand.displayName, { font: 'bold', size: 12, colour: 'brand' });
-  doc.rule('brand', 2);
-  doc.text(preparedBy(brand.displayName, language), { colour: 'muted', size: 9 });
-  if (brand.contactLine !== null) doc.text(brand.contactLine, { colour: 'muted', size: 9 });
+): number {
+  const top = doc.y;
+  const left = doc.contentLeft;
+  if (brand.logo !== null) doc.imageAt(brand.logo.png, left, top, LOGO_BOX);
+  const textX = brand.logo === null ? left : NAME_X_AFTER_LOGO;
+  const width = left + doc.contentWidth - textX;
+  const nameBottom = doc.textAt(brand.displayName, textX, top + 2, {
+    font: 'bold',
+    size: 12,
+    colour: 'structure',
+    width,
+  });
+  const contact = [preparedBy(brand.displayName, language), brand.contactLine]
+    .filter((part): part is string => part !== null && part !== '')
+    .join(' · ');
+  const contactBottom = doc.textAt(contact, textX, nameBottom + 3, {
+    size: 8,
+    colour: 'muted',
+    width,
+  });
+  return Math.max(brand.logo === null ? 0 : top + LOGO_BOX.height, contactBottom);
 }
 
 export function brandedFilename(unbranded: string): string {

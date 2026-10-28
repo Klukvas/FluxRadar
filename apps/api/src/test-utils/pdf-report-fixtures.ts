@@ -135,18 +135,26 @@ export function fakePrisma(issues: readonly Issue[]): { prisma: PrismaClient; lo
         where.status === undefined
           ? ordered.length
           : ordered.filter((issue) => where.status?.in.includes(issue.status) === true).length,
-      groupBy: async ({ by }: { by: readonly string[] }) => {
-        const key = by[0] === 'severity' ? 'severity' : 'ruleId';
-        const counts = new Map<string, number>();
-        for (const issue of ordered) {
-          const value = key === 'severity' ? issue.severity : issue.ruleId;
-          counts.set(value, (counts.get(value) ?? 0) + 1);
-        }
-        return [...counts.entries()].map(([value, count]) =>
-          key === 'severity'
-            ? { severity: value, _count: { _all: count } }
-            : { ruleId: value, _count: { _all: count } },
+      // Groups by every key it is given and honours the status filter, as
+      // Prisma does: the summary asks for `severity` (all, and open only), the
+      // findings index for (ruleId, severity, module).
+      groupBy: async ({
+        by,
+        where,
+      }: {
+        by: readonly (keyof Issue)[];
+        where: { status?: { in: string[] } };
+      }) => {
+        const groups = new Map<string, { row: Record<string, unknown>; count: number }>();
+        const matching = ordered.filter(
+          (issue) => where.status === undefined || where.status.in.includes(issue.status),
         );
+        for (const issue of matching) {
+          const row = Object.fromEntries(by.map((key) => [key, issue[key]]));
+          const id = JSON.stringify(row);
+          groups.set(id, { row, count: (groups.get(id)?.count ?? 0) + 1 });
+        }
+        return [...groups.values()].map(({ row, count }) => ({ ...row, _count: { _all: count } }));
       },
       findMany: async ({ where, take }: { where: Record<string, unknown>; take: number }) => {
         const page = ordered.filter((issue) => after(issue, where)).slice(0, take);
@@ -181,12 +189,18 @@ export function isPdf(bytes: Buffer): boolean {
   return bytes.subarray(0, 5).toString('latin1') === '%PDF-';
 }
 
-/** The footer line of one page, as `n / m`, or null when the page has none. */
+/**
+ * The footer line of one page, as `n / m`, or null when the page has none.
+ *
+ * The LAST match: the footer is written after everything else on the page, and
+ * a page's own content (evidence quoting "Page 1 / 3", say) may contain the
+ * same shape earlier.
+ */
 export function footerCounter(
   page: string,
 ): { readonly index: number; readonly total: number } | null {
-  const match = /(\d+) \/ (\d+)/.exec(page);
-  return match === null ? null : { index: Number(match[1]), total: Number(match[2]) };
+  const match = [...page.matchAll(/(\d+) \/ (\d+)/g)].at(-1);
+  return match === undefined ? null : { index: Number(match[1]), total: Number(match[2]) };
 }
 
 /** What a page says once its footer lines are taken away. */
