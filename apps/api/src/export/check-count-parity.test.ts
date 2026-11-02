@@ -1,8 +1,9 @@
 // The number of SEO checks the public pages promise, against the registry.
 //
 // Three places tell a visitor how many deterministic SEO checks a paid scan
-// runs: the coverage page (`checks-copy.<locale>.ts`), the FAQ (`faq-copy.ts`)
-// and the home page and pricing copy (`i18n.ts`), each in every interface
+// runs: the coverage page (`checks-copy.<locale>.ts`), the FAQ (`faq-copy.ts`,
+// and `faq-copy.ru.ts` for Russian) and the home page and pricing copy
+// (`i18n.ts`, and `i18n.ru.site.ts` for Russian), each in every interface
 // language. The figure is prose, not a computed value — `apps/web`
 // has no workspace dependency on `packages/contracts` on purpose — so adding a
 // rule to the registry leaves those sentences quietly claiming the old number.
@@ -88,11 +89,19 @@ describe('the SEO check count the public pages promise', () => {
   });
 
   it('matches in the home page, pricing and package copy in every language', () => {
-    const counts = claimedCounts('i18n.ts', [
-      /'(\d+) checks for Google search/g,
+    // One file per language, since the Russian copy outgrew `i18n.ts`: that
+    // file still holds the English and Ukrainian strings, while `i18n.ru.ts`
+    // is now only the merge of `i18n.ru.site.ts` and `i18n.ru.scan.ts` — and
+    // a home page, a coverage list and a pricing table are what a visitor
+    // reads, so the Russian four live in the site half.
+    const english = claimedCounts('i18n.ts', [/'(\d+) checks for Google search/g]);
+    const ukrainian = claimedCounts('i18n.ts', [
       /'(\d+) перевір(?:к[а-яіїєґ']*|ок) для пошуку Google/g,
+    ]);
+    const russian = claimedCounts('i18n.ru.site.ts', [
       /'(\d+) провер(?:к[а-яё]*|ок) для поиска Google/g,
     ]);
+    const counts = [...english, ...ukrainian, ...russian];
     // Pinned exactly, not as a floor: a reworded sentence stops matching its
     // pattern, and a floor would let that pass while the guard on it quietly
     // disappeared. Twelve — four per language, all one plain phrase opening a
@@ -104,19 +113,28 @@ describe('the SEO check count the public pages promise', () => {
     // "SEO checks, AI crawler readiness" coverage sentence and the "full SEO
     // analysis" card and table lines) with this one, so the set and the count
     // are unchanged. If this fails after a copy edit, the phrase moved —
-    // update the pattern, do not lower the number.
+    // update the pattern or the file it is read from, do not lower the number.
+    expect(english).toHaveLength(4);
+    expect(ukrainian).toHaveLength(4);
+    expect(russian).toHaveLength(4);
     expect(counts).toHaveLength(12);
     expect([...new Set(counts)]).toEqual([expected]);
   });
 
   it('matches in the FAQ in every language, where the figure is spelled out', () => {
+    // `faq-copy.ts` keeps the shape and the English and Ukrainian answers; the
+    // Russian ones are in `faq-copy.ru.ts`, which a third locale's worth of
+    // prose earned itself. A language whose sentence stops matching reads as
+    // `undefined` here rather than as the registry's number, so neither half
+    // can go unread quietly.
     const source = webSource('faq-copy.ts');
+    const russianSource = webSource('faq-copy.ru.ts');
     const english = /'([A-Z][a-z]+(?:-[a-z]+)?) rule-based checks/.exec(source)?.[1];
     const ukrainian = /'(Дев’ятнадцять|Двадцять(?: одне| два| три| чотири| сім)?) правил/.exec(
       source,
     )?.[1];
     const russian = /'(Девятнадцать|Двадцать(?: одно| два| три| четыре| семь)?) правил/.exec(
-      source,
+      russianSource,
     )?.[1];
 
     expect(english === undefined ? undefined : WRITTEN_NUMBERS[english]).toBe(expected);
