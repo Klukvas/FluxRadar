@@ -5,6 +5,21 @@ import { RussianPrivacy } from './PrivacyPolicy.ru';
 import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } from './SharedLegal';
 
 /**
+ * 2 November 2026: the cookieless count now also counts three product steps,
+ * not page views alone: a completed registration, a free check requested, and a
+ * completed purchase. Each one is a bare count of that step against the cleaned
+ * page it happened on, with no parameter of any kind and nothing about the
+ * person who reached it, so it adds no new category of data to this policy and
+ * nothing that could be tied back to a reader. The same three steps are already
+ * reported to Google Analytics 4 with parameters, where they wait for the
+ * analytics category; that is unchanged, and the point of counting them again
+ * without consent is that the consent-gated count sees only part of the
+ * visitors. The lawful basis, the processor, the EU storage and the opt-out are
+ * unchanged, and what is sent is still what apps/web/src/plausible.ts allows:
+ * four event names and nothing else. Nothing new is written to the device by
+ * either tag: a repeated confirmation is recognised from the browser's own
+ * navigation type, which is read and never stored.
+ *
  * 28 October 2026: Plausible (Plausible Insights OÜ, Estonia) joined as a
  * second, cookieless site analytics that runs for every visitor without
  * consent, beside the consent-gated Google Analytics 4, which is unchanged and
@@ -56,9 +71,9 @@ import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } fro
  * Plan as an AI purpose, and consent-based Google Analytics 4.
  */
 const PRIVACY_EFFECTIVE: EffectiveDate = {
-  uk: '28 жовтня 2026 року',
-  en: '28 October 2026',
-  ru: '28 октября 2026 года',
+  uk: '2 листопада 2026 року',
+  en: '2 November 2026',
+  ru: '2 ноября 2026 года',
 };
 
 export function PrivacyPolicy({ language }: { readonly language: Language }): JSX.Element {
@@ -137,11 +152,15 @@ function UkrainianPrivacy(): JSX.Element {
             <strong>Статистика відвідувань без cookies, для всіх відвідувачів:</strong> переглянута
             сторінка fluxradar.net (без query string та ідентифікаторів перевірок), сайт, з якого ви
             перейшли, країна, регіон і місто за IP‑адресою, тип пристрою, браузер, операційна
-            система й розмір екрана, а також час на сторінці та глибина прокручування. Цю статистику
-            веде Plausible (розділ 06). Вона не питає згоди, бо не встановлює cookies і нічого не
-            записує у ваш браузер. IP‑адреса та user agent потрібні їй лише щоб обчислити денний
-            ідентифікатор як хеш із секретною сіллю, і сама сіль знищується кожні 24 години; ні
-            IP‑адреса, ні user agent не зберігаються. Ідентифікатор кліку Google до Plausible не
+            система й розмір екрана, а також час на сторінці та глибина прокручування. Так само
+            підраховуються три кроки в продукті: завершена реєстрація, запит безкоштовної перевірки
+            та завершена покупка. Кожен із них передається як назва кроку й сторінка, на якій він
+            стався, з тими самими деталями відвідування, що й перегляд сторінки. Параметрів немає
+            жодних: ні тарифу, ні ціни, ні того, чи ви увійшли в акаунт, ні будь‑чого про вас. Цю
+            статистику веде Plausible (розділ 06). Вона не питає згоди, бо не встановлює cookies і
+            нічого не записує у ваш браузер. IP‑адреса та user agent потрібні їй лише щоб обчислити
+            денний ідентифікатор як хеш із секретною сіллю, і сама сіль знищується кожні 24 години;
+            ні IP‑адреса, ні user agent не зберігаються. Ідентифікатор кліку Google до Plausible не
             передається.
           </li>
         </ul>
@@ -531,10 +550,14 @@ function EnglishPrivacy(): JSX.Element {
             fluxradar.net (without query strings or check identifiers), the referring site, the
             country, region and city derived from your IP address, the device type, browser,
             operating system and screen size, and the time on the page and how far down it you
-            scrolled. Plausible keeps these statistics (section 06). It asks for no consent because
-            it sets no cookies and writes nothing to your browser. It needs your IP address and user
-            agent only to compute a daily identifier as a salted hash, and the salt itself is
-            destroyed every 24 hours; neither the IP address nor the user agent is stored. The
+            scrolled. Three product steps are counted the same way: a completed registration, a free
+            check requested, and a completed purchase. Each one is sent as the name of the step and
+            the page it happened on, with the same visit details as a page view. There are no
+            parameters of any kind: not the plan, not the price, not whether you were signed in,
+            nothing about you. Plausible keeps these statistics (section 06). It asks for no consent
+            because it sets no cookies and writes nothing to your browser. It needs your IP address
+            and user agent only to compute a daily identifier as a salted hash, and the salt itself
+            is destroyed every 24 hours; neither the IP address nor the user agent is stored. The
             Google click identifier is never passed to Plausible.
           </li>
         </ul>

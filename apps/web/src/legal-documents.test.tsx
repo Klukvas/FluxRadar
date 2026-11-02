@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { LegalDocumentScreen } from './LegalDocuments';
 import type { Language } from './i18n';
+import { PLAUSIBLE_GOALS } from './plausible';
 
 /**
  * Every interface language the documents are published in.
@@ -153,7 +154,7 @@ describe('public legal documents', () => {
     );
     expect(policy).toHaveTextContent(/Google OAuth tokens are never sent to an AI provider/i);
     expect(policy).toHaveTextContent(/Disconnecting Google deletes the stored tokens/i);
-    expect(policy).toHaveTextContent(/Effective 28 October 2026/);
+    expect(policy).toHaveTextContent(/Effective 2 November 2026/);
     // The merchant of record is Creem, and the policy says what FluxRadar sends
     // it before the buyer ever sees Creem's page — the account email, product
     // and checkout reference — as well as what comes back by webhook.
@@ -305,7 +306,7 @@ describe('public legal documents', () => {
       'https://creem.io/privacy',
     );
     expect(document.body).not.toHaveTextContent(/FastSpring/i);
-    expect(policy).toHaveTextContent(/Effective 28 October 2026/);
+    expect(policy).toHaveTextContent(/Effective 2 November 2026/);
     const sections = screen.getByRole('navigation', { name: 'Document sections' });
     expect(sections).toHaveTextContent('Storage inventory');
     expect(sections).toHaveTextContent('Google Analytics');
@@ -399,6 +400,20 @@ describe('public legal documents', () => {
   // wording may not promise a fixed period: both documents say the statistics
   // live as long as we use Plausible, and `noFixedPeriod` keeps the old
   // 25-month promise from creeping back in either language.
+  //
+  // Since 2 November 2026 the same measurement also counts three product steps
+  // (plausible.ts), so both documents have to name all three and say that a
+  // counter carries no parameters. That sentence is the one a reader cannot
+  // check from outside, so it is pinned in every language the documents have
+  // and in both of them: three languages with different facts about one
+  // measurement would be three different disclosures.
+  //
+  // `visitDetails` is the other half of that sentence, and it is the half that
+  // keeps it true: a counter is not barer than a page view. It carries the
+  // cleaned referrer (`COUNTER_KEPT_FIELDS` in plausible.ts), and Plausible
+  // derives the country, the device and the browser from the request for every
+  // event it receives. A disclosure that stopped at the name and the page would
+  // promise less collection than the tracker performs.
   it.each([
     [
       'uk' as const,
@@ -416,6 +431,12 @@ describe('public legal documents', () => {
         noStorage: /не встановлює cookies/,
         optOut: /localStorage\.plausible_ignore=true/,
         eu: /зберігаються лише в ЄС/,
+        steps: /три кроки в продукті/,
+        // Nominative in the Privacy Policy, accusative in the Cookie Policy.
+        counters: /завершен\S+ реєстраці\S+, запит безкоштовної перевірки та завершен\S+ покупк\S+/,
+        visitDetails: /з тими самими деталями відвідування, що й перегляд сторінки/,
+        noParameters:
+          /Параметрів немає жодних: ні тарифу, ні ціни, ні того, чи ви увійшли в акаунт/,
       },
     ],
     [
@@ -432,6 +453,34 @@ describe('public legal documents', () => {
         noStorage: /sets no cookies/,
         optOut: /localStorage\.plausible_ignore=true/,
         eu: /processed and stored in the EU only/,
+        // Opens the sentence in the Privacy Policy, mid-sentence in the Cookie
+        // Policy, so the leading letter may be either case.
+        steps: /[Tt]hree product steps/,
+        counters: /a completed registration, a free check requested, and a completed purchase/,
+        visitDetails: /with the same visit details as a page view/,
+        noParameters:
+          /There are no parameters of any kind: not the plan, not the price, not whether you were signed in/,
+      },
+    ],
+    [
+      'ru' as const,
+      {
+        processor: /Plausible Insights OÜ/,
+        country: /Эстония/,
+        basis: /законн\S+ интерес\S* по пункту \(f\) части 1 статьи 6 GDPR/,
+        retention:
+          /Сводная статистика посещений хранится в Plausible, пока FluxRadar им пользуется, и мы удаляем её, когда прекращаем пользоваться сервисом или по запросу\./,
+        notPersonal:
+          /В ней нет ни IP‑адресов, ни cookies, ни идентификаторов, поэтому связать её с человеком невозможно\./,
+        noFixedPeriod: /25 месяц/,
+        noStorage: /не устанавливает cookies/,
+        optOut: /localStorage\.plausible_ignore=true/,
+        // The two documents put the same fact in a different word order.
+        eu: /(обрабатываются и хранятся|хранятся и обрабатываются) только в ЕС/,
+        steps: /три шага в продукте/,
+        counters: /завершённ\S+ регистраци\S+, запрос бесплатной проверки и завершённ\S+ покупк\S+/,
+        visitDetails: /с теми же деталями посещения, что и просмотр страницы/,
+        noParameters: /Параметров нет никаких: ни тарифа, ни цены, ни того, вошли ли вы в аккаунт/,
       },
     ],
   ])('discloses consent-free Plausible analytics in %s', (language, expected) => {
@@ -445,6 +494,10 @@ describe('public legal documents', () => {
     expect(privacy).not.toHaveTextContent(expected.noFixedPeriod);
     expect(privacy).toHaveTextContent(expected.noStorage);
     expect(privacy).toHaveTextContent(expected.eu);
+    expect(privacy).toHaveTextContent(expected.steps);
+    expect(privacy).toHaveTextContent(expected.counters);
+    expect(privacy).toHaveTextContent(expected.visitDetails);
+    expect(privacy).toHaveTextContent(expected.noParameters);
 
     cleanup();
     render(<LegalDocumentScreen kind="cookies" language={language} onLanguageChange={() => {}} />);
@@ -455,13 +508,26 @@ describe('public legal documents', () => {
     expect(cookies).toHaveTextContent(expected.retention);
     expect(cookies).toHaveTextContent(expected.notPersonal);
     expect(cookies).not.toHaveTextContent(expected.noFixedPeriod);
+    expect(cookies).toHaveTextContent(expected.steps);
+    expect(cookies).toHaveTextContent(expected.counters);
+    expect(cookies).toHaveTextContent(expected.visitDetails);
+    expect(cookies).toHaveTextContent(expected.noParameters);
     // The documented per-browser opt-out, which is the objection route for a
-    // measurement the cookie banner deliberately does not gate.
+    // measurement the cookie banner deliberately does not gate. It covers the
+    // counters too: it switches off the tracker, not one event.
     expect(cookies).toHaveTextContent(expected.optOut);
     expect(screen.getByRole('link', { name: /localStorage/i })).toHaveAttribute(
       'href',
       'https://plausible.io/docs/excluding-localstorage',
     );
+  });
+
+  // The counters are a closed list of three, and the list the documents give is
+  // what makes a consent-free measurement a disclosed one. A fourth name added
+  // to plausible.ts without a new sentence above would be undisclosed
+  // measuring, so the app's own list is read here rather than restated.
+  it('counts exactly the three steps the documents name', () => {
+    expect(PLAUSIBLE_GOALS).toEqual(['sign_up', 'free_check_requested', 'purchase']);
   });
 
   // The consent story for GA4 must not be quietly loosened by the arrival of a
@@ -550,7 +616,7 @@ describe('public legal documents', () => {
     expect(cookies).toHaveTextContent(
       /На сторінках FluxRadar Creem не завантажує скриптів і не встановлює cookies/,
     );
-    expect(cookies).toHaveTextContent(/Чинна з 28 жовтня 2026 року/);
+    expect(cookies).toHaveTextContent(/Чинна з 2 листопада 2026 року/);
     expect(screen.getByRole('navigation', { name: 'Розділи документа' })).toHaveTextContent(
       'Checkout Creem',
     );
@@ -561,7 +627,7 @@ describe('public legal documents', () => {
     const privacy = screen.getByRole('article');
     expect(privacy).toHaveTextContent(/Аналітика сайту — лише з вашого дозволу/);
     expect(privacy).toHaveTextContent(/Google \(Google Analytics 4\).*як наш обробник/s);
-    expect(privacy).toHaveTextContent(/Чинна з 28 жовтня 2026 року/);
+    expect(privacy).toHaveTextContent(/Чинна з 2 листопада 2026 року/);
     expect(privacy).toHaveTextContent(
       /Creem \(Armitage Labs OÜ, Rotermanni 14, Tallinn 10111, Естонія\) — merchant of record і checkout provider/,
     );

@@ -7,6 +7,16 @@ import type { Language } from '../i18n';
 import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } from './SharedLegal';
 
 /**
+ * 2 November 2026: section 05 grew by three counters. Besides page views, the
+ * cookieless count now counts a completed registration, a free check requested
+ * and a completed purchase, each as a bare count of that step against the
+ * cleaned page it happened on, with no parameter of any kind. Nothing about the
+ * three consent categories changed, and nothing about this document's own
+ * subject changed either: a counter still sets no cookie and writes no storage
+ * key, so the inventory in section 03 gains no row, the lawful basis stays
+ * legitimate interest, and the opt-out in section 07 covers the counters along
+ * with the page views because it switches off the tracker and not one event.
+ *
  * 28 October 2026: Plausible (Plausible Insights OÜ, Estonia) joined as a
  * cookieless visit count that runs for every visitor, and it sits OUTSIDE the
  * three consent categories rather than inside the analytics one, because it
@@ -34,9 +44,9 @@ import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } fro
  * 21 September 2026 added the analytics category and Google Analytics 4.
  */
 const COOKIES_EFFECTIVE: EffectiveDate = {
-  uk: '28 жовтня 2026 року',
-  en: '28 October 2026',
-  ru: '28 октября 2026 года',
+  uk: '2 листопада 2026 року',
+  en: '2 November 2026',
+  ru: '2 ноября 2026 года',
 };
 
 /** The second cookie gtag sets is named after the stream, so the inventory names it exactly. */
@@ -225,11 +235,16 @@ function UkrainianCookiePolicy(): JSX.Element {
         <p>
           Передається адреса сторінки без query string та ідентифікаторів перевірок, сайт, з якого
           ви перейшли, країна, регіон і місто за IP‑адресою, тип пристрою, браузер, операційна
-          система й розмір екрана, а також час на сторінці та глибина прокручування. IP‑адреса й
-          user agent потрібні лише щоб обчислити денний ідентифікатор як хеш із секретною сіллю;
-          сама сіль знищується кожні 24 години, а ні IP‑адреса, ні user agent не зберігаються. Тому
-          та сама людина наступного дня вже не розпізнається, і між сайтами чи пристроями її не
-          відслідковують. Ідентифікатор кліку Google (gclid) до Plausible не передається.
+          система й розмір екрана, а також час на сторінці та глибина прокручування. Окрім
+          переглядів сторінок, Plausible підраховує три кроки в продукті: завершену реєстрацію,
+          запит безкоштовної перевірки та завершену покупку. Кожен із них передається як назва кроку
+          й сторінка, на якій він стався, з тими самими деталями відвідування, що й перегляд
+          сторінки. Параметрів немає жодних: ні тарифу, ні ціни, ні того, чи ви увійшли в акаунт, ні
+          будь‑чого про вас. IP‑адреса й user agent потрібні лише щоб обчислити денний ідентифікатор
+          як хеш із секретною сіллю; сама сіль знищується кожні 24 години, а ні IP‑адреса, ні user
+          agent не зберігаються. Тому та сама людина наступного дня вже не розпізнається, і між
+          сайтами чи пристроями її не відслідковують. Ідентифікатор кліку Google (gclid) до
+          Plausible не передається.
         </p>
         <p>
           Правовою підставою є наш законний інтерес за пунктом (f) частини 1 статті 6 GDPR: ми
@@ -472,11 +487,15 @@ function EnglishCookiePolicy(): JSX.Element {
           What is sent is the page address without query strings or check identifiers, the referring
           site, the country, region and city derived from your IP address, the device type, browser,
           operating system and screen size, and the time on the page and how far down it you
-          scrolled. The IP address and user agent are needed only to compute a daily identifier as a
-          salted hash; the salt itself is destroyed every 24 hours, and neither the IP address nor
-          the user agent is stored. The same person is therefore no longer recognisable the next
-          day, and is not followed across sites or devices. The Google click identifier (gclid) is
-          never passed to Plausible.
+          scrolled. Besides page views, Plausible counts three product steps: a completed
+          registration, a free check requested, and a completed purchase. Each one is sent as the
+          name of the step and the page it happened on, with the same visit details as a page view.
+          There are no parameters of any kind: not the plan, not the price, not whether you were
+          signed in, nothing about you. The IP address and user agent are needed only to compute a
+          daily identifier as a salted hash; the salt itself is destroyed every 24 hours, and
+          neither the IP address nor the user agent is stored. The same person is therefore no
+          longer recognisable the next day, and is not followed across sites or devices. The Google
+          click identifier (gclid) is never passed to Plausible.
         </p>
         <p>
           The lawful basis is our legitimate interest under GDPR Article 6(1)(f): we want to know

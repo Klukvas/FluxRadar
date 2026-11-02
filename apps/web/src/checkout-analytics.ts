@@ -4,15 +4,45 @@
 // Only live-mode checkouts are reported. While the Creem store runs in test
 // mode every order is a test card, and a test purchase sent to GA becomes
 // revenue in the property that can never be taken out again.
+//
+// A confirmed live purchase is also one of the three milestones the cookieless
+// count reports (plausible.ts), so it is counted for every buyer and not only
+// for the ones who accepted cookies. It travels there as a bare name: no
+// transaction id, no plan, no price. The test-mode rule above covers it too —
+// it is counted from inside the same guard.
 
 import { trackEvent } from './analytics';
 import type { CheckoutConfig, CheckoutSession, CheckoutStatus } from './api';
+import { plausibleGoal } from './plausible';
 
 // What this page load already reported. A purchase seen again after a reload is
 // left to GA's transaction_id deduplication; within one page these keep a second
 // poll or a re-render from sending it twice.
 const reportedCheckouts = new Set<string>();
 const reportedPurchases = new Set<string>();
+
+/**
+ * The purchases the cookieless count has already counted — a set of its own,
+ * not `reportedPurchases` above, and that is the whole point of it.
+ *
+ * `reportedPurchases` is filled only when gtag actually took the event, because
+ * `trackEvent` answers false without consent and a purchase that was never sent
+ * must stay retryable. The cookieless counter has no consent to wait for, so a
+ * guard built on that answer would never close for a buyer who refused cookies,
+ * and every poll of the confirmation would count the same order again. This set
+ * is filled the moment the counter is called, whatever gtag did.
+ *
+ * It holds for one page load, which is as far as a guard can reach without
+ * writing a marker to the device — and nothing here may write one (the privacy
+ * sweep in `funnel-analytics.test.ts` asserts that). The residual is therefore
+ * a FRESH load of the return address with the order reference still on it —
+ * a second tab, a bookmark, a link back from Creem's page — which rebuilds the
+ * pending checkout out of the query, polls, and counts that order once more.
+ * Reload and Back/Forward are not that case: the return address is rewritten to
+ * the workspace path before the first poll (`pending-checkout.ts`), so a
+ * reloaded success screen has no reference to re-confirm.
+ */
+const countedPurchases = new Set<string>();
 
 function purchasedItems(plan: string): readonly Readonly<Record<string, string>>[] {
   return [{ item_id: plan, item_name: `FluxRadar ${plan}` }];
@@ -72,6 +102,20 @@ export function trackPurchase(status: CheckoutStatus, config: CheckoutConfig | n
     items: purchasedItems(status.plan),
   });
   if (sent) reportedPurchases.add(status.purchaseId);
+  countPurchase(status.purchaseId);
+}
+
+/**
+ * The cookieless +1 for the same confirmed order: once per confirmed purchase,
+ * whatever the buyer answered about cookies and however often the window polls.
+ * Called last, so that nothing it does can reach the GA4 report above — it
+ * cannot throw either (`plausibleGoal`), and this order means it would not
+ * matter if it could.
+ */
+function countPurchase(purchaseId: string): void {
+  if (countedPurchases.has(purchaseId)) return;
+  countedPurchases.add(purchaseId);
+  plausibleGoal('purchase');
 }
 
 /**
@@ -94,4 +138,5 @@ export function reportPurchaseWhenConfigReady(
 export function resetCheckoutAnalyticsForTests(): void {
   reportedCheckouts.clear();
   reportedPurchases.clear();
+  countedPurchases.clear();
 }
