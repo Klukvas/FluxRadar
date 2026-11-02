@@ -11,6 +11,7 @@ import { GoogleProperties } from './GoogleProperties';
 import { copy, type Copy, type Language } from './i18n';
 import { useDelayedFlag } from './use-delayed-flag';
 import { useModalDialogBehavior } from './use-modal-dialog';
+import { siteChromeCopy } from './site-chrome-copy';
 
 /**
  * Connections the API offers that this screen does not.
@@ -112,7 +113,7 @@ export function IntegrationsScreen(props: {
         <Window
           title={t.loadingTitle}
           onClose={props.onClose}
-          closeLabel={props.language === 'uk' ? 'Закрити вікно' : 'Close window'}
+          closeLabel={siteChromeCopy[props.language].closeWindow}
         >
           {/* The loading window draws the same header split and policy panel as
               the loaded one, so when the data lands only the list rows swap —
@@ -140,7 +141,7 @@ export function IntegrationsScreen(props: {
       <Window
         title={t.windowTitle}
         onClose={props.onClose}
-        closeLabel={props.language === 'uk' ? 'Закрити вікно' : 'Close window'}
+        closeLabel={siteChromeCopy[props.language].closeWindow}
       >
         <div className="split">
           <div>

@@ -7,6 +7,7 @@ import { CheckoutPending, type PendingCheckout } from './Checkout';
 import { copy } from './i18n';
 import { NewScanScreen } from './NewScanScreen';
 import { PrintReport } from './PrintReport';
+import { reportLanguage } from './report-language';
 import { IssuesScreen } from './Issues';
 import { ResultsScreen } from './Report';
 import { ScanScreen } from './ScanProgress';
@@ -156,7 +157,7 @@ export function PrintRoute({
       <PrintReport
         scanId={printScanId}
         language={language}
-        planLanguage={planLanguageFromSearch(window.location.search) ?? language}
+        planLanguage={planLanguageFromSearch(window.location.search) ?? reportLanguage(language)}
         onBack={() => navigate('results', printScanId)}
         onError={setError}
       />

@@ -7,7 +7,7 @@
 // renders nothing, and the row reads exactly as it did before.
 
 import type { IssueRuleGroup } from './api';
-import { evidenceCopy } from './finding-evidence-copy';
+import { evidenceChromeCopy } from './finding-evidence-copy';
 import {
   cleanEvidenceText,
   evidenceLine,
@@ -22,7 +22,7 @@ const FULL_ADDRESS_MAX_CHARS = 2048;
 export function ProblemEvidence(props: { group: IssueRuleGroup; language: Language }) {
   const samples = readIssueSamples(props.group);
   if (samples.length === 0) return null;
-  const copy = evidenceCopy[props.language];
+  const copy = evidenceChromeCopy[props.language];
   const more = props.group.openIssues - samples.length;
   return (
     <ul className="problem-evidence" aria-label={copy.listLabel}>

@@ -34,6 +34,7 @@ import {
   type ProfileSuggestionsResponse,
 } from './profile-autofill';
 import { normalizeSiteAddress, siteNameFromAddress } from './site-address-input';
+import { reportLanguage } from './report-language';
 
 /** Whether a read of the site was asked for by the owner or by the form itself. */
 type SuggestionTrigger = 'manual' | 'auto';
@@ -314,7 +315,13 @@ export function useProfileAutofill(options: ProfileAutofillOptions): ProfileAuto
     try {
       const suggestions = await apiRequest<ProfileSuggestionsResponse>('/profiles/suggestions', {
         method: 'POST',
-        body: JSON.stringify({ domain: origin, targetLanguage: languageAtSubmit }),
+        // The suggestion is prose that is stored on the profile and read
+        // back by the report and the AI prompts, so it is written in a report
+        // language rather than in the interface language.
+        body: JSON.stringify({
+          domain: origin,
+          targetLanguage: reportLanguage(languageAtSubmit),
+        }),
         signal: controller.signal,
       });
       // An edit that moved the form on while the request was in flight wins.

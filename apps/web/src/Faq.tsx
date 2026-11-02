@@ -1,6 +1,7 @@
 import { publicPagePath } from './public-page-routing';
 import { MenuBar, CreatedByFluxLab } from './components';
 import { copy, type Language } from './i18n';
+import { siteChromeCopy } from './site-chrome-copy';
 
 // Public FAQ page (/faq). It reuses the document shell of the other public
 // pages, so the reading layout, the sticky index and the responsive rules stay
@@ -94,14 +95,9 @@ export function FaqScreen(props: {
         <footer className="legal-footer">
           <span>{t.footerBrand}</span>
           <span>
-            <a href="/knowledge-base">
-              {props.language === 'uk'
-                ? 'База знань: як працювати зі звітом'
-                : 'Knowledge base: use your report (Ukrainian)'}
-            </a>{' '}
-            ·{' '}
+            <a href="/knowledge-base">{siteChromeCopy[props.language].knowledgeBaseReport}</a> ·{' '}
             <a href={publicPagePath('checks', props.language) + '#methodology'}>
-              {props.language === 'uk' ? 'Методика' : 'Methodology'}
+              {siteChromeCopy[props.language].methodology}
             </a>{' '}
             · <a href={publicPagePath('home', props.language)}>{t.footerHome}</a> ·{' '}
             <a href={publicPagePath('checks', props.language)}>{t.footerCoverage}</a> ·{' '}

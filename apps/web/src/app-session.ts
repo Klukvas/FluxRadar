@@ -18,7 +18,7 @@ import {
 import type { AppState } from './app-state';
 import { authCopy } from './auth-copy';
 import { consumeGoogleReturn } from './google-auth-return';
-import type { Language } from './i18n';
+import { isLanguage, type Language } from './i18n';
 
 type ConfirmEmailSignedIn = (token: string, current: Account) => Promise<void>;
 
@@ -155,9 +155,12 @@ async function restoreSignedInSession(value: Account, boot: SessionBoot): Promis
       return;
     }
     if (entryRoute.emailAction?.kind === 'reset') return;
-    const googleLanguage = new URLSearchParams(window.location.search).get('lang');
-    const languageSearch =
-      googleLanguage === 'uk' || googleLanguage === 'en' ? `?lang=${googleLanguage}` : '';
+    // The language the visitor signed in from, handed back by the API on the
+    // redirect so the workspace opens in it. Any interface language is valid
+    // here: nothing is written in it, it only selects the UI.
+    const requested = new URLSearchParams(window.location.search).get('lang');
+    const googleLanguage = isLanguage(requested) ? requested : null;
+    const languageSearch = googleLanguage === null ? '' : `?lang=${googleLanguage}`;
     const googleReturn = consumeGoogleReturn();
     if (new URLSearchParams(window.location.search).get('google_auth') === 'success') {
       const pending = googleReturn?.intent;
@@ -172,7 +175,7 @@ async function restoreSignedInSession(value: Account, boot: SessionBoot): Promis
           googleReturn.route.scanId,
           scanRoutePreference(googleReturn.route.screen),
         );
-        if (googleLanguage === 'uk' || googleLanguage === 'en') {
+        if (googleLanguage !== null) {
           const restoredUrl = new URL(window.location.href);
           restoredUrl.searchParams.set('lang', googleLanguage);
           window.history.replaceState(
@@ -207,8 +210,7 @@ async function restoreSignedInSession(value: Account, boot: SessionBoot): Promis
             : pathForScreen(target, null),
           window.location.origin,
         );
-        if (googleLanguage === 'uk' || googleLanguage === 'en')
-          targetUrl.searchParams.set('lang', googleLanguage);
+        if (googleLanguage !== null) targetUrl.searchParams.set('lang', googleLanguage);
         window.history.replaceState(null, '', targetUrl.pathname + targetUrl.search);
         if (value.onboarding?.status === 'pending') setTourOpen(true);
       }

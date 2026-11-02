@@ -1,5 +1,5 @@
 // Shared metadata for prerendered public documents and client navigation.
-import { publicPagePath, type PublicPageId } from './public-page-routing';
+import { PUBLIC_LOCALES, publicPagePath, type PublicPageId } from './public-page-routing';
 export { PUBLIC_PAGE_PATHS, type PublicPageId } from './public-page-routing';
 import { copy, type Language } from './i18n';
 
@@ -8,7 +8,25 @@ export const SITE_ORIGIN = 'https://fluxradar.net';
 /** Everything else is behind sign-in and is deliberately not indexable. */
 export type SeoPageId = PublicPageId | 'workspace';
 
-export const OG_LOCALES: Readonly<Record<Language, string>> = { en: 'en_US', uk: 'uk_UA' };
+export const OG_LOCALES: Readonly<Record<Language, string>> = {
+  en: 'en_US',
+  uk: 'uk_UA',
+  ru: 'ru_RU',
+};
+
+/**
+ * The other locales a page exists in, as Open Graph locale codes.
+ *
+ * Per page rather than site-wide: `index.html` is the English home page, and
+ * copying its two alternates into every head listed a page's own locale as an
+ * alternate of itself and left the locale it was translated from out. A
+ * crawler reading /ru/faq was told its alternates were Ukrainian and Russian.
+ */
+export function ogLocaleAlternates(language: Language): readonly string[] {
+  return (Object.keys(OG_LOCALES) as Language[])
+    .filter((other) => other !== language)
+    .map((other) => OG_LOCALES[other]);
+}
 
 /** Marks the tags this module owns, so a re-render replaces them instead of stacking. */
 export const MANAGED_ATTRIBUTE = 'data-fluxradar-seo';
@@ -20,7 +38,8 @@ function isPublicPage(page: SeoPageId): page is PublicPageId {
 /**
  * The absolute URL a public page has in one language.
  *
- * English uses the bare path; Ukrainian uses /uk and /uk/<page>.
+ * English uses the bare path; every other locale uses its own prefix, /uk and
+ * /uk/<page>, /ru and /ru/<page>.
  */
 export function publicPageUrl(page: PublicPageId, language: Language): string {
   return `${SITE_ORIGIN}${publicPagePath(page, language)}`;
@@ -52,8 +71,7 @@ export function pageMetadata(page: SeoPageId, language: Language): PageMetadata 
     description: seo[page].description,
     canonical: publicPageUrl(page, language),
     alternates: {
-      en: publicPageUrl(page, 'en'),
-      uk: publicPageUrl(page, 'uk'),
+      ...Object.fromEntries(PUBLIC_LOCALES.map((locale) => [locale, publicPageUrl(page, locale)])),
       'x-default': publicPageUrl(page, 'en'),
     },
     indexable: true,
@@ -121,6 +139,16 @@ export function applyPageMetadata(page: SeoPageId, language: Language): void {
   upsertMeta('property', 'og:title', meta.title);
   upsertMeta('property', 'og:description', meta.description);
   upsertMeta('property', 'og:locale', OG_LOCALES[language]);
+  // Owned by this module in full, like the canonical link: the ones shipped in
+  // `index.html` belong to the English home page, not to the page being drawn.
+  removeOgLocaleAlternates();
+  for (const locale of ogLocaleAlternates(language)) {
+    const tag = document.createElement('meta');
+    tag.setAttribute('property', 'og:locale:alternate');
+    tag.setAttribute('content', locale);
+    tag.setAttribute(MANAGED_ATTRIBUTE, 'og:locale:alternate');
+    document.head.append(tag);
+  }
   upsertMeta('name', 'twitter:title', meta.title);
   upsertMeta('name', 'twitter:description', meta.description);
 
@@ -175,6 +203,12 @@ function upsertCanonical(href: string): void {
 
 function removeCanonical(): void {
   document.head.querySelector('link[rel="canonical"]')?.remove();
+}
+
+function removeOgLocaleAlternates(): void {
+  for (const tag of document.head.querySelectorAll('meta[property="og:locale:alternate"]')) {
+    tag.remove();
+  }
 }
 
 /**

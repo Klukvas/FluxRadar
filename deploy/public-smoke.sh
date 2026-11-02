@@ -200,7 +200,7 @@ check_endpoint() {
 # cannot import TypeScript, so apps/web/src/static-page-heads.test.ts fails when
 # the two lists differ.
 # fluxradar:public-pages
-PUBLIC_PAGE_PATHS=(/faq /checks /bot /example-report /privacy /terms /cookies)
+PUBLIC_PAGE_PATHS=(/faq /checks /bot /example-report /privacy /terms /cookies /uk/faq /uk/checks /uk/bot /uk/example-report /uk/privacy /uk/terms /uk/cookies /ru/faq /ru/checks /ru/bot /ru/example-report /ru/privacy /ru/terms /ru/cookies)
 CANONICAL_ORIGIN='https://fluxradar.net'
 # fluxradar:end-public-pages
 

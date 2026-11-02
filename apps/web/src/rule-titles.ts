@@ -10,6 +10,7 @@
 // reach a report as a bare id.
 
 import type { Language } from './i18n';
+import { reportLanguage } from './report-language';
 
 export interface RuleTitle {
   readonly en: string;
@@ -309,23 +310,36 @@ export const RULE_TITLES: Readonly<Record<string, RuleTitle>> = {
 
 /** The rule's title in the report language, or its id when the rule is unknown. */
 export function ruleTitle(ruleId: string, language: Language): string {
-  return RULE_TITLES[ruleId]?.[language] ?? ruleId;
+  return RULE_TITLES[ruleId]?.[reportLanguage(language)] ?? ruleId;
 }
 
-const MODULE_LABELS: Readonly<Record<string, RuleTitle>> = {
-  SEO: { en: 'SEO', uk: 'SEO' },
-  'AI SEO / GEO': { en: 'AI SEO / GEO', uk: 'AI SEO / GEO' },
-  Security: { en: 'Security', uk: 'Безпека' },
-  Performance: { en: 'Performance', uk: 'Швидкодія' },
-  Accessibility: { en: 'Accessibility', uk: 'Доступність' },
-  Reliability: { en: 'Reliability', uk: 'Надійність' },
-  'Content Quality': { en: 'Content quality', uk: 'Якість контенту' },
-  Privacy: { en: 'Privacy', uk: 'Приватність' },
-  'UX/Conversion': { en: 'UX / conversion', uk: 'UX / конверсія' },
-  Analytics: { en: 'Analytics', uk: 'Аналітика' },
+/**
+ * A section's name, unlike a rule's, is the app's own word for one of its ten
+ * modules: it heads a column, fills the Issue Center's section filter and
+ * names a row of the report's section table. So it is chrome, and it exists in
+ * the interface's three languages rather than the report's two.
+ *
+ * The printed document still reads Ukrainian, because every caller inside it
+ * is handed a `ReportLanguage` (`PrintReport.tsx`).
+ */
+interface ModuleLabel extends RuleTitle {
+  readonly ru: string;
+}
+
+const MODULE_LABELS: Readonly<Record<string, ModuleLabel>> = {
+  SEO: { en: 'SEO', uk: 'SEO', ru: 'SEO' },
+  'AI SEO / GEO': { en: 'AI SEO / GEO', uk: 'AI SEO / GEO', ru: 'AI SEO / GEO' },
+  Security: { en: 'Security', uk: 'Безпека', ru: 'Безопасность' },
+  Performance: { en: 'Performance', uk: 'Швидкодія', ru: 'Быстродействие' },
+  Accessibility: { en: 'Accessibility', uk: 'Доступність', ru: 'Доступность' },
+  Reliability: { en: 'Reliability', uk: 'Надійність', ru: 'Надёжность' },
+  'Content Quality': { en: 'Content quality', uk: 'Якість контенту', ru: 'Качество контента' },
+  Privacy: { en: 'Privacy', uk: 'Приватність', ru: 'Приватность' },
+  'UX/Conversion': { en: 'UX / conversion', uk: 'UX / конверсія', ru: 'UX / конверсия' },
+  Analytics: { en: 'Analytics', uk: 'Аналітика', ru: 'Аналитика' },
 };
 
-/** A report section's name in the report language. */
+/** A report section's name, in the reader's own language. */
 export function moduleLabel(module: string, language: Language): string {
   return MODULE_LABELS[module]?.[language] ?? module;
 }

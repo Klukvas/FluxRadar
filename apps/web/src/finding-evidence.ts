@@ -10,6 +10,7 @@
 
 import type { FindingMessageRef, IssueRuleGroup, IssueSample } from './api';
 import { evidenceCopy, type EvidenceValues } from './finding-evidence-copy';
+import { reportLanguage } from './report-language';
 import type { Language } from './i18n';
 
 /** How many findings a row names; the summary carries at most this many. */
@@ -157,7 +158,7 @@ function evidenceValues(params: Readonly<Record<string, string | number>>): Evid
 }
 
 function plainLine(messages: NonNullable<IssueSample['messages']>, language: Language) {
-  const { lines } = evidenceCopy[language];
+  const { lines } = evidenceCopy[reportLanguage(language)];
   // Own keys only: a code such as "constructor" must not reach Object.prototype.
   const line = Object.hasOwn(lines, messages.evidence.code)
     ? lines[messages.evidence.code]
@@ -184,7 +185,10 @@ function plainLine(messages: NonNullable<IssueSample['messages']>, language: Lan
 export function evidenceLine(sample: IssueSample, language: Language): string | null {
   const plain = sample.messages === null ? null : plainLine(sample.messages, language);
   if (plain !== null) return plain;
-  const sentence = sample.evidence?.[language];
+  // The API renders this map in the report's two languages, so a Russian
+  // reader is handed the Ukrainian sentence rather than nothing
+  // (`report-language.ts`).
+  const sentence = sample.evidence?.[reportLanguage(language)];
   if (typeof sentence !== 'string') return null;
   const cleaned = cleanEvidenceText(sentence, EVIDENCE_SENTENCE_MAX_CHARS);
   return cleaned === '' ? null : cleaned;

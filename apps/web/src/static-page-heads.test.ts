@@ -6,9 +6,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ADMIN_STATS_PATH } from './admin-stats';
 import type { Language } from './i18n';
 import {
+  OG_LOCALES,
   PUBLIC_PAGE_PATHS,
   SITE_ORIGIN,
   applyPageMetadata,
+  ogLocaleAlternates,
   pageMetadata,
   pageStructuredData,
   publicPageUrl,
@@ -21,6 +23,7 @@ import {
   staticPageHeadFiles,
   type StaticHeadPageId,
 } from './static-page-heads';
+import { PUBLIC_LOCALES, publicPagePath } from './public-page-routing';
 import { WORKSPACE_PATHS } from './workspace-paths';
 
 // The production build writes these heads into dist/<path>/index.html, and the
@@ -34,7 +37,7 @@ const WEB_ROOT = resolve(__dirname, '..');
 const REPO_ROOT = resolve(WEB_ROOT, '..', '..');
 const TEMPLATE = readFileSync(resolve(WEB_ROOT, 'index.html'), 'utf8');
 
-const LANGUAGES: readonly Language[] = ['en', 'uk'];
+const LANGUAGES: readonly Language[] = ['en', 'uk', 'ru'];
 
 function parse(html: string): Document {
   return new DOMParser().parseFromString(html, 'text/html');
@@ -46,6 +49,12 @@ function count(document: Document, selector: string): number {
 
 function content(document: Document, selector: string): string | null {
   return document.head.querySelector(selector)?.getAttribute('content') ?? null;
+}
+
+function ogLocaleAlternatesOf(document: Document): (string | null)[] {
+  return Array.from(document.head.querySelectorAll('meta[property="og:locale:alternate"]'), (tag) =>
+    tag.getAttribute('content'),
+  );
 }
 
 function alternatesOf(document: Document): Record<string, string> {
@@ -99,7 +108,9 @@ describe('static page heads', () => {
     expect(content(document, 'meta[property="og:title"]')).toBe(meta.title);
     expect(content(document, 'meta[property="og:description"]')).toBe(meta.description);
     expect(content(document, 'meta[property="og:locale"]')).toBe('en_US');
-    expect(content(document, 'meta[property="og:locale:alternate"]')).toBe('uk_UA');
+    // One alternate tag per *other* locale. The template's own two are the
+    // English home page's, so they are rewritten rather than copied.
+    expect(ogLocaleAlternatesOf(document)).toEqual([...ogLocaleAlternates('en')]);
     expect(content(document, 'meta[name="twitter:title"]')).toBe(meta.title);
     expect(content(document, 'meta[name="twitter:description"]')).toBe(meta.description);
 
@@ -221,6 +232,10 @@ describe('static page heads at runtime', () => {
       Object.keys(meta.alternates).length,
     );
     expect(document.head.querySelector('meta[name="robots"]')).toBeNull();
+    // Rewritten, not stacked: the template's own alternates are the English
+    // home page's and must not survive into another locale's head.
+    expect(ogLocaleAlternatesOf(document)).toEqual([...ogLocaleAlternates(language)]);
+    expect(content(document, 'meta[property="og:locale"]')).toBe(OG_LOCALES[language]);
   }
 
   for (const language of LANGUAGES) {
@@ -234,12 +249,23 @@ describe('static page heads at runtime', () => {
     );
   }
 
+  it('lists every other locale as an alternate, and never its own', () => {
+    for (const page of staticHeadPages()) {
+      for (const language of LANGUAGES) {
+        const document = parse(renderStaticPageHead(TEMPLATE, page, language));
+        const own = OG_LOCALES[language];
+        expect(content(document, 'meta[property="og:locale"]')).toBe(own);
+        expect(ogLocaleAlternatesOf(document)).toEqual([...ogLocaleAlternates(language)]);
+        expect(ogLocaleAlternatesOf(document)).not.toContain(own);
+        expect(ogLocaleAlternatesOf(document)).toHaveLength(LANGUAGES.length - 1);
+      }
+    }
+  });
+
   it('stays at one of each across language switches', () => {
     for (const page of staticHeadPages()) {
       loadStaticHead(page);
-      applyPageMetadata(page, 'en');
-      applyPageMetadata(page, 'uk');
-      applyPageMetadata(page, 'en');
+      for (const language of [...LANGUAGES, 'en' as const]) applyPageMetadata(page, language);
       expectOneOfEach(page, 'en');
     }
   });
@@ -259,8 +285,11 @@ describe('what serves and verifies the static heads', () => {
 
   // The smoke script cannot import TypeScript, so its page list is a copy; this
   // keeps the copy honest. A page added to seo.ts and not to the script would
-  // ship without anything checking its head after a release.
-  it('checks every public page after a release', () => {
+  // ship without anything checking its head after a release — and so would a
+  // locale, which is why the list is every locale's copy of every page. Home
+  // is left out of both: it is `index.html`, and the script checks it first to
+  // get the title the others must differ from.
+  it('checks every public page in every locale after a release', () => {
     const script = readFileSync(resolve(REPO_ROOT, 'deploy', 'public-smoke.sh'), 'utf8');
     const begin = script.indexOf('# fluxradar:public-pages');
     const end = script.indexOf('# fluxradar:end-public-pages');
@@ -270,7 +299,10 @@ describe('what serves and verifies the static heads', () => {
 
     const list = /^PUBLIC_PAGE_PATHS=\(([^)]*)\)$/m.exec(region)?.[1];
     expect(list).toBeDefined();
-    expect((list ?? '').trim().split(/\s+/).sort()).toEqual(nonHomePaths().sort());
+    const expected = PUBLIC_LOCALES.flatMap((language) =>
+      staticHeadPages().map((page) => publicPagePath(page, language)),
+    );
+    expect((list ?? '').trim().split(/\s+/).sort()).toEqual(expected.sort());
     expect(region).toContain(`CANONICAL_ORIGIN='${SITE_ORIGIN}'`);
   });
 });

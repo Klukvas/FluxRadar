@@ -1,17 +1,22 @@
 import { createContext, useContext } from 'react';
 import { findingsCopy } from './findings-copy';
+import { findingsDocumentCopy } from './findings-document-copy';
 import { actionPlanCopy } from './action-plan-copy';
 import { reportFailureCopy } from './report-failure-copy';
 import { copy, type Language } from './i18n';
+import { reportLanguage, type ReportLanguage } from './report-language';
 
 export const PrintBrandedContext = createContext(false);
 
-function findingsFor(language: Language, branded: boolean) {
+function findingsFor(language: ReportLanguage, branded: boolean) {
+  // The document's own words, plus the four chrome labels the pages borrow.
+  // Both are indexed by the report's language, never by the reader's.
+  const printed = findingsDocumentCopy[language];
   const original = findingsCopy[language];
   const print = !branded
-    ? original.print
+    ? printed.print
     : {
-        ...original.print,
+        ...printed.print,
         generated: (date: string) => (language === 'uk' ? `Створено ${date}` : `Generated ${date}`),
         noFindings:
           language === 'uk'
@@ -30,7 +35,7 @@ function findingsFor(language: Language, branded: boolean) {
   };
 }
 
-function failureFor(language: Language, branded: boolean) {
+function failureFor(language: ReportLanguage, branded: boolean) {
   const original = reportFailureCopy[language];
   const base = {
     heading: original.heading,
@@ -75,7 +80,7 @@ function failureFor(language: Language, branded: boolean) {
   };
 }
 
-function actionFor(language: Language, branded: boolean) {
+function actionFor(language: ReportLanguage, branded: boolean) {
   const original = actionPlanCopy[language];
   return {
     heading: original.heading,
@@ -94,7 +99,12 @@ function actionFor(language: Language, branded: boolean) {
   };
 }
 
-export function printCopyFor(language: Language, branded: boolean) {
+/**
+ * The print document's copy. It takes a `ReportLanguage`, not a `Language`:
+ * the printed report exists in English and Ukrainian, and a Russian reader is
+ * mapped to Ukrainian by `usePrintCopy` (see `report-language.ts`).
+ */
+export function printCopyFor(language: ReportLanguage, branded: boolean) {
   return {
     findings: findingsFor(language, branded),
     failure: failureFor(language, branded),
@@ -109,12 +119,13 @@ const printCopies = {
   uk: { branded: printCopyFor('uk', true), plain: printCopyFor('uk', false) },
 };
 export function usePrintCopy(language: Language) {
-  return printCopies[language][useContext(PrintBrandedContext) ? 'branded' : 'plain'];
+  const copies = printCopies[reportLanguage(language)];
+  return copies[useContext(PrintBrandedContext) ? 'branded' : 'plain'];
 }
 
 /** Explicit inventory for the sweep: only keys the print/score/comparison paths read. */
 export function printSharedCopy(language: Language) {
-  const report = copy[language].report;
+  const report = copy[reportLanguage(language)].report;
   return {
     report: Object.fromEntries(
       Object.entries(report).filter(
@@ -123,6 +134,6 @@ export function printSharedCopy(language: Language) {
           ['comparison', 'noScore', 'unscoredLabel', 'informationalLabel'].includes(key),
       ),
     ),
-    scanProgress: copy[language].scanProgress,
+    scanProgress: copy[reportLanguage(language)].scanProgress,
   };
 }

@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react';
 
 import { apiRequest, type EgressLaunchConfig, type EgressLocation, type LaunchConfig } from './api';
 import type { Language } from './i18n';
+import { reportLanguage } from './report-language';
 
 export type LaunchConfigState =
   | { readonly status: 'loading' }
@@ -65,9 +66,33 @@ function isEgressLocation(value: unknown): value is EgressLocation {
   );
 }
 
-/** "Україна, Київ" in the reader's language, or the bare code for an id the API no longer knows. */
+/**
+ * The Russian name of a place the API names in English and Ukrainian only.
+ *
+ * A country is a proper noun, and the label it sits in is chrome ("Страна
+ * проверки"), so «Украина, Киев» is what a Russian reader should read there,
+ * not «Україна, Київ». Keyed by the id a scan records, which is the stable
+ * part; a location added to the API and not to this list keeps reading in
+ * Ukrainian until it is named here, which is the honest fallback.
+ */
+const RUSSIAN_EGRESS_LABELS: Readonly<Record<string, string>> = {
+  ua: 'Украина, Киев',
+};
+
+/**
+ * "Україна, Київ" in the reader's language, or the bare code for an id the API
+ * no longer knows.
+ *
+ * Takes the interface language, not the report's: where the place is printed,
+ * the words around it are the app's own. The printed report still reads
+ * Ukrainian, because every caller inside it is handed a `ReportLanguage`.
+ */
 export function egressLocationLabel(location: EgressLocation, language: Language): string {
-  return location.label?.[language] ?? location.id.toUpperCase();
+  if (language === 'ru') {
+    const russian = RUSSIAN_EGRESS_LABELS[location.id];
+    if (russian !== undefined) return russian;
+  }
+  return location.label?.[reportLanguage(language)] ?? location.id.toUpperCase();
 }
 
 /**

@@ -4,6 +4,7 @@ import {
   MANAGED_ATTRIBUTE,
   OG_LOCALES,
   PUBLIC_PAGE_PATHS,
+  ogLocaleAlternates,
   pageMetadata,
   pageStructuredData,
   type PublicPageId,
@@ -25,6 +26,7 @@ const SAFE_PAGE_PATH = /^(\/[a-z0-9-]+)+$/;
 const TITLE_PATTERN = /<title>[\s\S]*?<\/title>/g;
 const CANONICAL_PATTERN = /<link\b[^>]*\srel="canonical"[^>]*>/g;
 const ALTERNATE_PATTERN = /[ \t]*<link\b(?=[^>]*\srel="alternate")(?=[^>]*\shreflang=)[^>]*>\n?/g;
+const OG_LOCALE_ALTERNATE_PATTERN = /[ \t]*<meta\b[^>]*\sproperty="og:locale:alternate"[^>]*>\n?/g;
 const STRUCTURED_DATA_PATTERN =
   /<script\b[^>]*\stype="application\/ld\+json"[^>]*>[\s\S]*?<\/script>/g;
 
@@ -56,9 +58,13 @@ export function staticPageHeadFiles(template: string): readonly StaticPageHeadFi
  * The built `index.html` with the head of one public page.
  *
  * Everything that is not page metadata — the hashed script and stylesheet tags,
- * the icon, `og:image`, `og:locale:alternate` — is kept byte for byte. A
- * template that is missing a tag this function must replace fails the build
- * instead of shipping a page with half a head.
+ * the icon, `og:image` — is kept byte for byte. A template that is missing a
+ * tag this function must replace fails the build instead of shipping a page
+ * with half a head.
+ *
+ * `og:locale:alternate` is page metadata and is rewritten: the template's two
+ * belong to the English home page, so copying them gave /ru/faq itself as one
+ * of its own alternates and left English out.
  */
 export function renderStaticPageHead(
   template: string,
@@ -73,7 +79,7 @@ export function renderStaticPageHead(
     alternateTag(hreflang, href),
   );
 
-  let html = template.replace(ALTERNATE_PATTERN, '');
+  let html = template.replace(ALTERNATE_PATTERN, '').replace(OG_LOCALE_ALTERNATE_PATTERN, '');
   html = replaceOnly(html, TITLE_PATTERN, `<title>${escapeText(meta.title)}</title>`, '<title>');
   html = replaceMeta(html, 'name', 'description', meta.description);
   html = replaceOnly(
@@ -85,7 +91,17 @@ export function renderStaticPageHead(
   html = replaceMeta(html, 'property', 'og:title', meta.title);
   html = replaceMeta(html, 'property', 'og:description', meta.description);
   html = replaceMeta(html, 'property', 'og:url', meta.canonical);
-  html = replaceMeta(html, 'property', 'og:locale', OG_LOCALES[language]);
+  html = replaceOnly(
+    html,
+    metaPattern('property', 'og:locale'),
+    [
+      metaTag('property', 'og:locale', OG_LOCALES[language]),
+      ...ogLocaleAlternates(language).map((locale) =>
+        metaTag('property', 'og:locale:alternate', locale),
+      ),
+    ].join('\n    '),
+    'meta property="og:locale"',
+  );
   html = replaceMeta(html, 'name', 'twitter:title', meta.title);
   html = replaceMeta(html, 'name', 'twitter:description', meta.description);
   return replaceStructuredData(
@@ -123,9 +139,20 @@ function replaceMeta(
   key: string,
   value: string,
 ): string {
-  const pattern = new RegExp(`<meta\\b[^>]*\\s${keyAttribute}="${escapeRegExp(key)}"[^>]*>`, 'g');
-  const tag = `<meta ${keyAttribute}="${key}" content="${escapeAttribute(value)}" ${MANAGED_ATTRIBUTE}="${key}" />`;
-  return replaceOnly(html, pattern, tag, `meta ${keyAttribute}="${key}"`);
+  return replaceOnly(
+    html,
+    metaPattern(keyAttribute, key),
+    metaTag(keyAttribute, key, value),
+    `meta ${keyAttribute}="${key}"`,
+  );
+}
+
+function metaPattern(keyAttribute: 'name' | 'property', key: string): RegExp {
+  return new RegExp(`<meta\\b[^>]*\\s${keyAttribute}="${escapeRegExp(key)}"[^>]*>`, 'g');
+}
+
+function metaTag(keyAttribute: 'name' | 'property', key: string, value: string): string {
+  return `<meta ${keyAttribute}="${key}" content="${escapeAttribute(value)}" ${MANAGED_ATTRIBUTE}="${key}" />`;
 }
 
 function replaceOnly(

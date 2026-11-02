@@ -15,9 +15,28 @@ export interface PublicPageRoute {
   readonly page: PublicPageId;
   readonly language: Language;
 }
+
+/**
+ * The URL prefix each locale's public documents live under.
+ *
+ * English keeps the bare path, because it was the site's only language when
+ * these addresses were first published and the links are still in the wild.
+ * Every other locale is a prefix of its own.
+ */
+export const PUBLIC_LOCALE_PREFIXES: Readonly<Record<Language, string>> = {
+  en: '',
+  uk: '/uk',
+  ru: '/ru',
+};
+
+/** The locales a public document is published in, in URL-matching order. */
+export const PUBLIC_LOCALES = Object.keys(PUBLIC_LOCALE_PREFIXES) as readonly Language[];
+
 export function publicPagePath(page: PublicPageId, language: Language): string {
   const path = PUBLIC_PAGE_PATHS[page];
-  return language === 'en' ? path : `/uk${path === '/' ? '' : path}`;
+  const prefix = PUBLIC_LOCALE_PREFIXES[language];
+  if (prefix === '') return path;
+  return `${prefix}${path === '/' ? '' : path}`;
 }
 /** Match nginx URI decoding, slash merging and dot segments only for known public documents. */
 function normalizedPublicPath(pathname: string): string | null {
@@ -47,7 +66,7 @@ function normalizedPublicPath(pathname: string): string | null {
 export function publicPageRoute(pathname: string): PublicPageRoute | null {
   const path = normalizedPublicPath(pathname);
   for (const page of Object.keys(PUBLIC_PAGE_PATHS) as PublicPageId[]) {
-    for (const language of ['en', 'uk'] as const) {
+    for (const language of PUBLIC_LOCALES) {
       if (path === publicPagePath(page, language)) return { page, language };
     }
   }
@@ -79,23 +98,38 @@ export function publicRequestRewrite(target: string): string | null {
   const route = publicPageRoute(parsed.pathname);
   return route === null ? null : publicPagePath(route.page, route.language) + parsed.search;
 }
-/** Only the eight old public locale aliases migrate; account links retain their exact URL. */
+/**
+ * The locale an `?lang=` alias on a bare public path names, and the canonical
+ * path it belongs on.
+ *
+ * One entry, because one such address was ever published: `?lang=uk` is how
+ * the eight public documents were addressed before the `/uk` prefix existed,
+ * and those links are still shared. A locale added after the prefixes exist
+ * gets no alias — it is linked by its own path, and this map is only here to
+ * keep the old links working.
+ */
+const PUBLIC_LOCALE_ALIASES: Readonly<Record<string, Language>> = {
+  'lang=uk': 'uk',
+};
+
+/** Only a bare public path's own locale alias migrates; account links retain their exact URL. */
 export function legacyPublicRedirect(url: string): string | null {
   const parsed = publicRequestTarget(url);
   if (parsed === null) return null;
   const route = publicPageRoute(parsed.pathname);
   const raw = parsed.search.slice(1).split('&');
   const languages = raw.filter((part) => part === 'lang' || part.startsWith('lang='));
+  const alias = languages.length === 1 ? (languages[0] ?? '') : '';
+  const language = PUBLIC_LOCALE_ALIASES[alias];
   if (
     route?.language !== 'en' ||
-    languages.length !== 1 ||
-    languages[0] !== 'lang=uk' ||
+    language === undefined ||
     hasPrivateEntry(parsed.search) ||
     raw.some((part) => /%[0-9a-f]{2}/i.test(part.split('=')[0] ?? ''))
   )
     return null;
-  const remaining = raw.filter((part) => part !== 'lang=uk').join('&');
-  return `${publicPagePath(route.page, 'uk')}${remaining ? '?' + remaining : ''}${parsed.hash}`;
+  const remaining = raw.filter((part) => part !== alias).join('&');
+  return `${publicPagePath(route.page, language)}${remaining ? '?' + remaining : ''}${parsed.hash}`;
 }
 /** A marker never contains user data and is accepted only for the actual public URL. */
 export function matchingPublicSnapshot(

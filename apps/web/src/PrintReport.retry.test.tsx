@@ -42,7 +42,9 @@ afterEach(() => {
 });
 
 it('shows the failure with a retry instead of the eternal loading skeleton, and retries', async () => {
-  const f = findingsCopy.en.print;
+  // The window's own words, not the document's: the toolbar and the two
+  // states that stand in for the pages are chrome (`findings-copy.ts`).
+  const f = findingsCopy.en.print.toolbar;
   const { dashboardCalls } = stubFetch();
   render(<PrintReport scanId="scan-print" language="en" onBack={() => {}} onError={() => {}} />);
 

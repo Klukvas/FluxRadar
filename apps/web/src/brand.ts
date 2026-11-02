@@ -27,4 +27,5 @@ export const FLUXLAB_URL = 'https://flux-lab.dev';
 export const createdByFluxLab: Record<Language, string> = {
   en: 'Created by FluxLab',
   uk: 'Створено FluxLab',
+  ru: 'Создано FluxLab',
 };

@@ -1,10 +1,16 @@
-// Copy for reading findings: the Issue Center's problem view and filters, the
+// Chrome for reading findings: the Issue Center's problem view and filters, the
 // report's "fix these first" and "since your last scan" blocks, the Free
-// report's next step, and the printable client report.
+// report's next step, and the buttons that export the report.
 //
 // Kept beside `i18n.ts` rather than inside it, as `support-copy.ts` is: the
 // shared file is already far past the size anyone can review, and these screens
 // are read together.
+//
+// Everything here is interface, so it exists in all three languages; the
+// Russian half is written in `findings-copy.ru.ts`. What the report itself
+// says — the printable document and the message the copy button writes — is
+// the other half of this catalogue and lives in `findings-document-copy.ts`,
+// in the report's two languages only (`report-language.ts`).
 
 import {
   takesUkSingular,
@@ -14,6 +20,7 @@ import {
   type Language,
 } from './i18n';
 import { BASIC_PRICE } from './tariff-prices';
+import { russianFindingsCopy } from './findings-copy.ru';
 
 export type FindingsCopy = {
   readonly severity: Readonly<Record<string, string>>;
@@ -113,28 +120,12 @@ export type FindingsCopy = {
     readonly explainsCount: (problem: string, findings: number) => string;
     readonly copied: string;
     readonly failed: string;
+    /** The label of the text box a refused copy leaves on screen. */
     readonly textLabel: string;
-    readonly heading: (title: string) => string;
-    readonly check: (technicalTitle: string, ruleId: string) => string;
-    /** Every finding is loaded: the page count is exact. */
-    readonly whereComplete: (findings: number, pages: number) => string;
-    /** Only part is loaded, but one finding is one page: the total is the page count. */
-    readonly wherePages: (pages: number) => string;
-    /** Only part is loaded and findings are not pages: say both, and which is partial. */
-    readonly wherePartial: (findings: number, loaded: number, pages: number) => string;
-    /** No summary and only part loaded: the loaded open findings are a lower bound. */
-    readonly whereAtLeast: (loaded: number, pages: number) => string;
-    /** Open findings exist, none of them loaded: only the count is known. */
-    readonly whereOpen: (findings: number) => string;
     /** No summary, part loaded, and nothing loaded is open: there is nothing to copy yet. */
     readonly notLoaded: string;
     /** Every finding of the problem is settled: there is no task to copy. */
     readonly nothingOpen: string;
-    readonly examples: string;
-    readonly found: string;
-    /** The plain-language advice, sent along when no localized recommendation exists. */
-    readonly advice: string;
-    readonly recommendation: string;
   };
   readonly fixFirst: {
     readonly heading: string;
@@ -196,36 +187,31 @@ export type FindingsCopy = {
     readonly failed: string;
     readonly tooLarge: string;
   };
+  /**
+   * The two controls that open the printable report, and the window the print
+   * route draws around it. The document itself is not translated: it is the
+   * report, and it lives in `findings-document-copy.ts`.
+   */
   readonly print: {
     readonly open: string;
     readonly openHint: string;
-    readonly windowTitle: string;
-    readonly print: string;
-    readonly back: string;
-    readonly loading: string;
-    readonly loadFailed: string;
-    readonly retry: string;
-    readonly documentTitle: (domain: string) => string;
-    readonly preparedFor: (domain: string) => string;
-    readonly generated: (date: string) => string;
-    readonly plan: string;
-    readonly scanned: string;
-    readonly score: string;
-    readonly noScore: string;
-    readonly coverage: string;
-    readonly summaryHeading: string;
-    readonly sectionsHeading: string;
-    readonly section: string;
-    readonly result: string;
-    readonly problemsHeading: string;
-    readonly problemsLead: string;
-    readonly affectedPages: (count: number) => string;
-    readonly morePages: (count: number) => string;
-    readonly evidence: string;
-    readonly recommendation: string;
-    readonly noFindings: string;
-    readonly truncated: (shown: number, total: number) => string;
-    readonly footer: string;
+    /**
+     * The print route's own window: the toolbar above the document and the two
+     * states that stand in for it while it is being prepared.
+     *
+     * Chrome, so it is translated. A Russian reader prints the Ukrainian
+     * document, and the buttons that print it, go back from it and retry its
+     * load are the app speaking, not the report — the same rule the branding
+     * notice and the alert beside them already follow.
+     */
+    readonly toolbar: {
+      readonly windowTitle: string;
+      readonly print: string;
+      readonly back: string;
+      readonly loading: string;
+      readonly loadFailed: string;
+      readonly retry: string;
+    };
   };
 };
 
@@ -236,7 +222,7 @@ const enFindings = (count: number): string => (count === 1 ? 'finding' : 'findin
 const ukPagesOn = (count: number): string => (takesUkSingular(count) ? 'сторінці' : 'сторінках');
 
 export { ukPagesAccusative };
-export const findingsCopy: Record<Language, FindingsCopy> = {
+export const findingsCopy: Readonly<Record<Language, FindingsCopy>> = {
   en: {
     severity: { Critical: 'Critical', High: 'High', Medium: 'Medium', Low: 'Low' },
     severityMeaning: {
@@ -330,24 +316,8 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
       failed:
         'The task could not be copied automatically. Select the text below and copy it yourself.',
       textLabel: 'Task for your developer',
-      heading: (title) => `Task: ${title}`,
-      check: (technicalTitle, ruleId) => `FluxRadar check: ${technicalTitle} (${ruleId})`,
-      whereComplete: (findings, pages) =>
-        findings === pages
-          ? `Found on ${pages} ${enPages(pages)}.`
-          : `${findings} ${enFindings(findings)} on ${pages} ${enPages(pages)}.`,
-      wherePages: (pages) => `Found on ${pages} ${enPages(pages)}.`,
-      wherePartial: (findings, loaded, pages) =>
-        `${findings} open ${enFindings(findings)}; the ${loaded} open ${loaded === 1 ? 'one loaded so far is' : 'ones loaded so far are'} on ${pages} ${enPages(pages)}.`,
-      whereAtLeast: (loaded, pages) =>
-        `At least ${loaded} open ${enFindings(loaded)} on ${pages} ${enPages(pages)}; only part of the list is loaded.`,
-      whereOpen: (findings) => `${findings} open ${enFindings(findings)}.`,
       notLoaded: 'No open finding is loaded yet. Show more findings to copy a task.',
       nothingOpen: 'Nothing is open for this problem, so there is no task to copy.',
-      examples: 'Example pages:',
-      found: 'What was found:',
-      advice: 'What to do:',
-      recommendation: 'Recommendation:',
     },
     fixFirst: {
       heading: 'Fix these first',
@@ -417,36 +387,14 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
       open: 'Printable report',
       openHint:
         'A printable version of this report, limited to the first 1 000 findings. Use your browser’s print dialog to save it as a PDF.',
-      windowTitle: 'Client report',
-      print: 'Print or save as PDF',
-      back: 'Back to the report',
-      loading: 'Preparing the report…',
-      loadFailed: 'The report could not be prepared. Check the connection and try again.',
-      retry: 'Try again',
-      documentTitle: (domain) => `Website audit — ${domain}`,
-      preparedFor: (domain) => `Public website audit of ${domain}`,
-      generated: (date) => `Generated ${date} by FluxRadar`,
-      plan: 'Plan',
-      scanned: 'Scanned',
-      score: 'Score',
-      noScore: 'Not scored',
-      coverage: 'Coverage',
-      summaryHeading: 'Summary',
-      sectionsHeading: 'Sections',
-      section: 'Section',
-      result: 'Result',
-      problemsHeading: 'Problems and fixes',
-      problemsLead:
-        'Most urgent first. Each problem lists the pages it was found on, one piece of evidence and the recommended fix.',
-      affectedPages: (count) => `${count} ${count === 1 ? 'page' : 'pages'}`,
-      morePages: (count) => `…and ${count} more`,
-      evidence: 'Evidence',
-      recommendation: 'Fix',
-      noFindings: 'FluxRadar found nothing to report on the pages it could read.',
-      truncated: (shown, total) =>
-        `This document lists the first ${shown} of ${total} findings. The full list is in the Issue Center and the CSV export.`,
-      footer:
-        'FluxRadar reads public pages only. Findings describe what was observed at scan time; they are not a legal or certification statement.',
+      toolbar: {
+        windowTitle: 'Client report',
+        print: 'Print or save as PDF',
+        back: 'Back to the report',
+        loading: 'Preparing the report…',
+        loadFailed: 'The report could not be prepared. Check the connection and try again.',
+        retry: 'Try again',
+      },
     },
   },
   uk: {
@@ -540,25 +488,9 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
       failed:
         'Не вдалося скопіювати завдання автоматично. Виділіть текст нижче й скопіюйте його самостійно.',
       textLabel: 'Завдання для вашого розробника',
-      heading: (title) => `Завдання: ${title}`,
-      check: (technicalTitle, ruleId) => `Перевірка FluxRadar: ${technicalTitle} (${ruleId})`,
-      whereComplete: (findings, pages) =>
-        findings === pages
-          ? `Знайдено на ${pages} ${ukPagesOn(pages)}.`
-          : `Знахідок: ${findings}, на ${pages} ${ukPagesOn(pages)}.`,
-      wherePages: (pages) => `Знайдено на ${pages} ${ukPagesOn(pages)}.`,
-      wherePartial: (findings, loaded, pages) =>
-        `Відкритих знахідок: ${findings}; серед завантажених відкрито ${loaded} — на ${pages} ${ukPagesOn(pages)}.`,
-      whereAtLeast: (loaded, pages) =>
-        `Відкритих знахідок: щонайменше ${loaded}, на ${pages} ${ukPagesOn(pages)}; завантажено лише частину списку.`,
-      whereOpen: (findings) => `Відкритих знахідок: ${findings}.`,
       notLoaded:
         'Відкритих знахідок ще не завантажено. Покажіть більше знахідок, щоб скопіювати завдання.',
       nothingOpen: 'Для цієї проблеми нічого не відкрито, тож і завдання копіювати нічого.',
-      examples: 'Приклади сторінок:',
-      found: 'Що знайдено:',
-      advice: 'Що зробити:',
-      recommendation: 'Рекомендація:',
     },
     fixFirst: {
       heading: 'Виправте це першим',
@@ -629,36 +561,15 @@ export const findingsCopy: Record<Language, FindingsCopy> = {
       open: 'Версія для друку',
       openHint:
         'Версія цього звіту для друку, обмежена першою 1 000 знахідок. Щоб зберегти PDF, скористайтеся діалогом друку браузера.',
-      windowTitle: 'Звіт для клієнта',
-      print: 'Друк або збереження в PDF',
-      back: 'Назад до звіту',
-      loading: 'Готуємо звіт…',
-      loadFailed: 'Не вдалося підготувати звіт. Перевірте зʼєднання і спробуйте ще раз.',
-      retry: 'Спробувати ще раз',
-      documentTitle: (domain) => `Аудит сайту — ${domain}`,
-      preparedFor: (domain) => `Аудит публічного сайту ${domain}`,
-      generated: (date) => `Створено ${date} у FluxRadar`,
-      plan: 'Тариф',
-      scanned: 'Перевірено',
-      score: 'Оцінка',
-      noScore: 'Без оцінки',
-      coverage: 'Покриття',
-      summaryHeading: 'Підсумок',
-      sectionsHeading: 'Розділи',
-      section: 'Розділ',
-      result: 'Результат',
-      problemsHeading: 'Проблеми та виправлення',
-      problemsLead:
-        'Спершу найтерміновіші. Для кожної проблеми — сторінки, де її знайдено, один доказ і рекомендоване виправлення.',
-      affectedPages: (count) => `Сторінок: ${count}`,
-      morePages: (count) => `…і ще ${count}`,
-      evidence: 'Доказ',
-      recommendation: 'Виправлення',
-      noFindings: 'FluxRadar не знайшов нічого вартого звіту на сторінках, які зміг прочитати.',
-      truncated: (shown, total) =>
-        `У документі перші ${shown} з ${total} знахідок. Повний список — у Центрі проблем і в експорті CSV.`,
-      footer:
-        'FluxRadar читає лише публічні сторінки. Знахідки описують те, що було видно під час перевірки; це не юридичний висновок і не сертифікація.',
+      toolbar: {
+        windowTitle: 'Звіт для клієнта',
+        print: 'Друк або збереження в PDF',
+        back: 'Назад до звіту',
+        loading: 'Готуємо звіт…',
+        loadFailed: 'Не вдалося підготувати звіт. Перевірте зʼєднання і спробуйте ще раз.',
+        retry: 'Спробувати ще раз',
+      },
     },
   },
+  ru: russianFindingsCopy,
 };

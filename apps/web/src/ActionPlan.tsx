@@ -24,6 +24,7 @@ import { ACTION_PLAN_NOTICE_VERSION } from './ai-processing-notice';
 import { Button, SelectField, StatusChip } from './components';
 import { formatDate } from './format-date';
 import type { Language } from './i18n';
+import { reportLanguage } from './report-language';
 import { planIncludesActionPlan } from './plan-modules';
 import { reportFailureCopy } from './report-failure-copy';
 import { problemTitle } from './finding-explainers';
@@ -68,6 +69,18 @@ export interface ActionPlanProps {
    * it back when the reader switches to a language that has none.
    */
   readonly onPlanReadyChange?: (ready: boolean) => void;
+  /**
+   * Told which plan language the picker is showing, so the report screen can
+   * say beside its PDF button when the PDF carries a different one.
+   */
+  readonly onPlanLanguageChange?: (language: string) => void;
+  /**
+   * Told which languages this scan already has a plan written in, so the report
+   * screen can say whether the PDF beside it carries one at all. The server
+   * embeds only the document-language plan, with no fallback, so "a plan
+   * exists" and "the file has a plan" are not the same statement.
+   */
+  readonly onPlanLanguagesChange?: (languages: readonly string[]) => void;
 }
 
 function planPath(scanId: string, language: string): string {
@@ -111,7 +124,11 @@ function languageOptions(
 
 export function ActionPlan(props: ActionPlanProps) {
   const t = actionPlanCopy[props.language];
-  const [selected, setSelected] = useState<string>(props.language);
+  // The report's language, not the interface's: the plan the reader is most
+  // likely to want is the one the rest of their report and their PDF are
+  // written in, and for Russian those are Ukrainian (`report-language.ts`).
+  // Russian is still one choice in the picker below.
+  const [selected, setSelected] = useState<string>(reportLanguage(props.language));
   const [state, setState] = useState<ActionPlanState | null>(null);
   const [unavailable, setUnavailable] = useState(false);
   const [starting, setStarting] = useState(false);
@@ -154,6 +171,17 @@ export function ActionPlan(props: ActionPlanProps) {
   useEffect(() => {
     notifyPlanReady?.(planReady);
   }, [notifyPlanReady, planReady]);
+
+  const notifyPlanLanguage = props.onPlanLanguageChange;
+  useEffect(() => {
+    notifyPlanLanguage?.(selected);
+  }, [notifyPlanLanguage, selected]);
+
+  const notifyPlanLanguages = props.onPlanLanguagesChange;
+  const writtenLanguages = state?.languages;
+  useEffect(() => {
+    if (writtenLanguages !== undefined) notifyPlanLanguages?.(writtenLanguages);
+  }, [notifyPlanLanguages, writtenLanguages]);
 
   // Poll only while a run is in flight, so a reload during generation picks the
   // plan up and an idle report makes no repeated requests.

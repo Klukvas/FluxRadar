@@ -24,6 +24,7 @@ import {
   StatusChip,
   Window,
 } from './components';
+import { actionPlanCopy } from './action-plan-copy';
 import { checkCopyTitle } from './check-titles';
 import { findingsCopy } from './findings-copy';
 import { geoVisibilitySummaryOf } from './geo-visibility';
@@ -56,6 +57,7 @@ import { ScanComparisonPanel } from './ScanComparison';
 import { SiteCoveragePanel } from './SiteCoverage';
 import { statusKind } from './status-kind';
 import { useDelayedFlag } from './use-delayed-flag';
+import { reportLanguage } from './report-language';
 
 /** The dashboard's own layout, drawn as placeholders while it loads. */
 function ReportSkeleton() {
@@ -101,6 +103,14 @@ export function ResultsScreen(props: {
 }) {
   const t = copy[props.language].report;
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
+  // Which plan language the Action Plan block below is showing. The PDF is
+  // built in the report's language, so a reader who has picked another one has
+  // to be told what the file will actually contain.
+  const [planLanguage, setPlanLanguage] = useState<string>(reportLanguage(props.language));
+  // And which languages a plan has actually been written in: the file carries
+  // the document-language one or no plan at all, so the note below has to know
+  // whether that one exists before it promises it.
+  const [writtenPlanLanguages, setWrittenPlanLanguages] = useState<readonly string[]>([]);
   const [loading, setLoading] = useState(true);
   // Kept on the screen instead of only in the app-wide dialog: a report that
   // could not be opened has to say so where the report would have been, and
@@ -256,6 +266,8 @@ export function ResultsScreen(props: {
           siteFailure={siteFailure}
           nothingChecked={checkedNothing}
           hasGeoFactFindings={hasGeoFactFindings}
+          onPlanLanguageChange={setPlanLanguage}
+          onPlanLanguagesChange={setWrittenPlanLanguages}
         />
         <ReportHelp unscoredPlan={unscoredPlan} plan={scan.plan} language={props.language} />
         {/* Before the section cards, because every coverage figure on them is
@@ -402,6 +414,22 @@ export function ResultsScreen(props: {
                 {findingsCopy[props.language].download.pdfHint}
               </p>
             )}
+            {/* The PDF is a report document, so the plan inside it is the one
+                written in the document's language and nothing else: the server
+                embeds that one and never falls back. Whenever the picker is
+                showing some other language — Russian, which is never a report
+                language (`report-language.ts`), but equally English under a
+                Ukrainian report — the file beside the button carries something
+                different from what the reader is looking at, and this says so.
+                Which of the two things it says depends on whether the plan the
+                file would carry has been written at all. */}
+            {scan.plan !== 'Free' && planLanguage !== reportLanguage(props.language) ? (
+              <p className="muted report-print-hint">
+                {writtenPlanLanguages.includes(reportLanguage(props.language))
+                  ? actionPlanCopy[props.language].pdfPlanLanguage
+                  : actionPlanCopy[props.language].pdfPlanMissing}
+              </p>
+            ) : null}
             {props.onPrint === undefined ? null : (
               <p id="print-hint" className="muted report-print-hint">
                 {findingsCopy[props.language].print.openHint}
@@ -699,8 +727,11 @@ function PdfDownloadButton(props: {
   const download = async () => {
     setBusy(true);
     try {
+      // The PDF is a report document, so it is asked for in the report's
+      // language: a Russian interface downloads the Ukrainian PDF rather than
+      // a 400 from an enum that has two values (see `report-language.ts`).
       const result = await apiDownload(
-        `/scans/${props.scan.id}/report.pdf?language=${props.language}`,
+        `/scans/${props.scan.id}/report.pdf?language=${reportLanguage(props.language)}`,
       );
       saveBlob(result.filename ?? `${exportBaseName(props.scan)}.pdf`, result.blob);
     } catch (caught) {

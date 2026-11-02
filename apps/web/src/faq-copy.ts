@@ -5,6 +5,11 @@ import { BASIC_PRICE, COMPLETE_PRICE } from './tariff-prices';
 // turning the shared translation file into a wall of prose. Every locale builds
 // its sections through `faqSections`, so a missing translated section is a type
 // error rather than a page that silently loses an anchor in one language.
+//
+// The shape, the section order and the English and Ukrainian answers are here;
+// the Russian ones are in `faq-copy.ru.ts`, which a third locale's worth of
+// prose earned itself. The dependency runs that way only: this file knows
+// nothing of the Russian half.
 
 export type FaqSectionId =
   | 'basics'
@@ -75,7 +80,8 @@ export interface FaqCopy {
   readonly footerTerms: string;
 }
 
-function faqSections(sections: Record<FaqSectionId, FaqSectionText>): readonly FaqSection[] {
+/** Exported for `faq-copy.ru.ts`, which builds its sections the same way. */
+export function faqSections(sections: Record<FaqSectionId, FaqSectionText>): readonly FaqSection[] {
   return SECTION_ORDER.map((id) => ({ id, ...sections[id] }));
 }
 

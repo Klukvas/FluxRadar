@@ -156,6 +156,19 @@
   margin-top: 0;
 }
 
+/* The one callout that is about the document rather than about a number: it
+   says the six problems below are translated and the reader's own report will
+   not be. In the warning palette the EXAMPLE banner uses, so it is not read as
+   another "what it means" aside, and first in the document, so it has no step
+   above it. Russian only: the two languages a report is written in render
+   nothing here (`example-report-content.ts`). */
+.example-translation {
+  margin-top: 0;
+  border-left-color: var(--warn-line);
+  background: var(--warn-fill);
+  color: var(--warn-text);
+}
+
 /* ─── The list of sections ───────────────────────────────────────────────── */
 
 .example-sections {
@@ -410,6 +423,14 @@
    the first page. */
 @media print {
   .example-banner {
+    border: 2px solid #000;
+    background: #fff;
+    color: #000;
+  }
+  /* Its own rule rather than a selector list with the banner above: the
+     banner's print rule is pinned by name in `example-report.route.test.tsx`,
+     which is the test that keeps the EXAMPLE label on paper. */
+  .example-translation {
     border: 2px solid #000;
     background: #fff;
     color: #000;

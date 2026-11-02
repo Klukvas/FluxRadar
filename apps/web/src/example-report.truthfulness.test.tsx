@@ -27,6 +27,7 @@ import {
 } from './example-report-test-support';
 import { hasFindingExplainer, problemTitle } from './finding-explainers';
 import { findingsCopy } from './findings-copy';
+import { findingsDocumentCopy } from './findings-document-copy';
 import { copy } from './i18n';
 import { PLAN_MODULES, PLAN_URL_LIMIT, isLegacyPlan, SIDE_SCORE_MODULES } from './plan-modules';
 
@@ -415,7 +416,7 @@ describe('the report it shows is truthful about the product', () => {
     if (task === null) throw new Error('expected the developer message');
     // Produced by the real generator, so it is the message the product sends.
     expect(task.textContent).toContain(
-      findingsCopy.en.task.heading(problemTitle('SEO-TECH-006', 'en')),
+      findingsDocumentCopy.en.task.heading(problemTitle('SEO-TECH-006', 'en')),
     );
     expect(task.textContent).toContain(EXAMPLE_DOMAIN);
     // And it reports the same reach as the card above it: the message said

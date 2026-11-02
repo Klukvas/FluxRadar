@@ -15,9 +15,9 @@ import { resolve } from 'node:path';
 import { vi } from 'vitest';
 
 import { App } from './App';
-import { EXAMPLE_REPORT_PATH } from './app-routes';
 import { exampleReportCopy } from './example-report-copy';
 import type { Language } from './i18n';
+import { publicPagePath } from './public-page-routing';
 
 /** The page's own stylesheet, read for the decisions only CSS can carry. */
 export const EXAMPLE_CSS = readFileSync(resolve(__dirname, 'styles/example-report.css'), 'utf8');
@@ -87,8 +87,7 @@ export async function openExample(
   hash = '',
 ): Promise<ReturnType<typeof vi.fn>> {
   const fetchMock = stubSignedOut();
-  const prefix = language === 'uk' ? '/uk' : '';
-  window.history.replaceState(null, '', `${prefix}${EXAMPLE_REPORT_PATH}${hash}`);
+  window.history.replaceState(null, '', `${publicPagePath('exampleReport', language)}${hash}`);
   render(<App />);
   await screen.findByRole('heading', { name: exampleReportCopy[language].title });
   return fetchMock;

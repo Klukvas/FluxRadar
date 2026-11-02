@@ -7,9 +7,13 @@
 // One rule runs through every sentence: an answer *differs from your site*. It
 // never says that an AI is wrong — the site is the only evidence the scan has,
 // and it can be the out-of-date side.
+//
+// Every string here is chrome, so the Russian half is written rather than taken
+// from Ukrainian; it lives in `geo-digest-copy.ru.ts`.
 
 import { takesUkSingular, ukCountForm, type Language } from './i18n';
 import type { GeoAnswerPosition, GeoProsePosition, GeoToneLabel } from './api';
+import { russianGeoDigestCopy } from './geo-digest-copy.ru';
 
 export type GeoDigestCopy = {
   readonly heading: string;
@@ -222,4 +226,15 @@ const UK: GeoDigestCopy = {
   },
 };
 
-export const geoDigestCopy: Readonly<Record<Language, GeoDigestCopy>> = { en: EN, uk: UK };
+/**
+ * The block is interface, not report text, so it exists in all three languages.
+ *
+ * What the scan found — an answer, the words of the page it differs from, the
+ * brand names in a list — is handed in as data and stays in the language the
+ * provider answered in.
+ */
+export const geoDigestCopy: Readonly<Record<Language, GeoDigestCopy>> = {
+  en: EN,
+  uk: UK,
+  ru: russianGeoDigestCopy,
+};

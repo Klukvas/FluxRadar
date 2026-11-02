@@ -2,6 +2,16 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { LegalDocumentScreen } from './LegalDocuments';
+import type { Language } from './i18n';
+
+/**
+ * Every interface language the documents are published in.
+ *
+ * Russian joined as a faithful translation: the Ukrainian text is still the
+ * controlling one, and each disclosure below has to survive the translation,
+ * because a consent notice that lost a sentence in one language has lost it.
+ */
+const LOCALES: readonly Language[] = ['en', 'uk', 'ru'];
 
 afterEach(() => {
   cleanup();
@@ -41,6 +51,42 @@ describe('public legal documents', () => {
     expect(screen.getAllByRole('link', { name: 'support@fluxradar.net' }).length).toBeGreaterThan(
       0,
     );
+  });
+
+  it('carries the same operator identity in Russian and still says Ukrainian binds', () => {
+    render(<LegalDocumentScreen kind="terms" language="ru" onLanguageChange={() => {}} />);
+
+    const terms = screen.getByRole('article');
+    expect(terms).toHaveAttribute('lang', 'ru');
+    expect(terms).toHaveTextContent(/ФЛП Павленко Андрей Владимирович/);
+    expect(terms).toHaveTextContent(/РНУКПН: 3650600237/);
+    expect(terms).toHaveTextContent(/2010350000000049793/);
+    expect(terms).toHaveTextContent(/Не зарегистрирован плательщиком НДС/);
+    expect(terms).toHaveTextContent(/Владимира Великого, д\. 8, кв\. 64/);
+    expect(terms).toHaveTextContent(/\+380 93 360 20 73/);
+    expect(terms).toHaveTextContent(
+      /Creem \(Armitage Labs OÜ, Таллинн, Эстония\) является отдельным merchant of record/,
+    );
+    expect(terms).toHaveTextContent(/Действует с 26 октября 2026 года/);
+    // The translation never claims to be the controlling text.
+    expect(screen.getByText(/Украинская версия имеет юридический приоритет/i)).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(/FastSpring/i);
+  });
+
+  // The same mandatory remedies, in the same order, in the Russian text: a
+  // translation that dropped one would be a different contract.
+  it('keeps the mandatory consumer remedies in the Russian terms', () => {
+    render(<LegalDocumentScreen kind="terms" language="ru" onLanguageChange={() => {}} />);
+
+    const terms = screen.getByRole('article');
+    expect(terms).toHaveTextContent(/любой общедоступный сайт/i);
+    expect(terms).toHaveTextContent(/выключаете соблюдение[\s\S]*законные полномочия/i);
+    expect(terms).toHaveTextContent(/разовые аудиты без подписки и автоматического продления/i);
+    expect(terms).toHaveTextContent(/в течение 24 часов/i);
+    expect(terms).toHaveTextContent(/непредоставления[\s\S]*существенного технического дефекта/i);
+    expect(terms).toHaveTextContent(/обязательного права потребителя[\s\S]*возврат средств/i);
+    expect(terms).toHaveTextContent(/ограничивается суммой, уплаченной за конкретный аудит/i);
+    expect(terms).toHaveTextContent(/правом Украины/i);
   });
 
   it('states the purchase, public-site and report rules without removing mandatory remedies', () => {
@@ -429,17 +475,20 @@ describe('public legal documents', () => {
     expect(screen.getByRole('article')).toHaveTextContent(promise);
   });
 
-  it('names exactly the product steps the analytics measures, in both languages', () => {
+  it('names exactly the product steps the analytics measures, in every language', () => {
     const steps = {
       en: /— sign-up and sign-in, starting a check, a finished check, viewing a report, choosing or changing a plan, starting checkout and a completed purchase \(plan and price/,
       uk: /— реєстрація та вхід, запуск перевірки, завершена перевірка, перегляд звіту, вибір або зміна тарифу, початок оплати, завершена покупка \(тариф і ціна/,
+      ru: /регистрация и вход, запуск проверки, завершённая проверка, просмотр отчёта, выбор или смена тарифа, начало оплаты, завершённая покупка \(тариф и цена/,
     };
-    for (const language of ['en', 'uk'] as const) {
+    for (const language of LOCALES) {
       for (const kind of ['cookies', 'privacy'] as const) {
         render(<LegalDocumentScreen kind={kind} language={language} onLanguageChange={() => {}} />);
         const text = screen.getByRole('article');
         expect(text, `${kind} ${language}`).toHaveTextContent(steps[language]);
-        expect(text).not.toHaveTextContent(/starting a free check|запуск безкоштовної перевірки/);
+        expect(text).not.toHaveTextContent(
+          /starting a free check|запуск безкоштовної перевірки|запуск бесплатной проверки/,
+        );
         cleanup();
       }
     }
@@ -448,7 +497,7 @@ describe('public legal documents', () => {
   // Allowing analytics now also allows Google Ads measurement, so neither
   // document may still promise "no advertising", and both have to say what the
   // click identifier is for and what is still not done with it.
-  it('discloses the Google Ads click measurement in both documents and languages', () => {
+  it('discloses the Google Ads click measurement in both documents, in every language', () => {
     const disclosure = {
       en: {
         claim: /click identifier \(gclid\)/i,
@@ -466,8 +515,14 @@ describe('public legal documents', () => {
         limits:
           /не ведемо remarketing|рекламного тега Google Ads та інших рекламних trackers FluxRadar не завантажує/,
       },
+      ru: {
+        claim: /идентификатор клика \(gclid\)|идентификатор клика Google \(gclid\)/i,
+        shared: /передаёт это измерение в Google Ads|сообщает Google Ads, что этот визит/,
+        limits:
+          /не ведём remarketing|рекламный тег Google Ads и другие рекламные trackers FluxRadar не загружает/,
+      },
     };
-    for (const language of ['en', 'uk'] as const) {
+    for (const language of LOCALES) {
       for (const kind of ['cookies', 'privacy'] as const) {
         render(<LegalDocumentScreen kind={kind} language={language} onLanguageChange={() => {}} />);
         const text = screen.getByRole('article');
@@ -475,7 +530,7 @@ describe('public legal documents', () => {
         expect(text, `${kind} ${language}`).toHaveTextContent(disclosure[language].shared);
         expect(text, `${kind} ${language}`).toHaveTextContent(disclosure[language].limits);
         expect(text, `${kind} ${language}`).not.toHaveTextContent(
-          /uses no advertising trackers|не використовує рекламні trackers|Рекламних trackers FluxRadar не використовує/i,
+          /uses no advertising trackers|не використовує рекламні trackers|Рекламних trackers FluxRadar не використовує|не использует рекламные trackers/i,
         );
         cleanup();
       }

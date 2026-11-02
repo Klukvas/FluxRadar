@@ -1,9 +1,9 @@
 // The number of SEO checks the public pages promise, against the registry.
 //
 // Three places tell a visitor how many deterministic SEO checks a paid scan
-// runs: the coverage page (`checks-copy.en.ts` / `checks-copy.uk.ts`), the FAQ
-// (`faq-copy.ts`) and the home page and pricing copy (`i18n.ts`), each in
-// English and Ukrainian. The figure is prose, not a computed value — `apps/web`
+// runs: the coverage page (`checks-copy.<locale>.ts`), the FAQ (`faq-copy.ts`)
+// and the home page and pricing copy (`i18n.ts`), each in every interface
+// language. The figure is prose, not a computed value — `apps/web`
 // has no workspace dependency on `packages/contracts` on purpose — so adding a
 // rule to the registry leaves those sentences quietly claiming the old number.
 //
@@ -55,6 +55,16 @@ const UK_WRITTEN_NUMBERS: Readonly<Record<string, number>> = {
   'Двадцять три': 23,
 };
 
+const RU_WRITTEN_NUMBERS: Readonly<Record<string, number>> = {
+  Девятнадцать: 19,
+  Двадцать: 20,
+  'Двадцать одно': 21,
+  'Двадцать четыре': 24,
+  'Двадцать семь': 27,
+  'Двадцать два': 22,
+  'Двадцать три': 23,
+};
+
 describe('the SEO check count the public pages promise', () => {
   const expected = rulesForModule('SEO').length;
 
@@ -62,25 +72,30 @@ describe('the SEO check count the public pages promise', () => {
     expect(expected).toBeGreaterThan(15);
   });
 
-  it('matches on the coverage page in both languages', () => {
+  it('matches on the coverage page in every language', () => {
     // One file per language since the coverage page outgrew a single one; the
-    // count has to be claimed in both, so each pattern is asserted separately.
+    // count has to be claimed in each, so each pattern is asserted separately.
     const english = claimedCounts('checks-copy.en.ts', [/\*\*(\d+) deterministic checks\*\*/g]);
     const ukrainian = claimedCounts('checks-copy.uk.ts', [
       /\*\*(\d+) детермінован[а-яіїєґ']+ перевір[а-яіїєґ']+\*\*/g,
     ]);
+    const russian = claimedCounts('checks-copy.ru.ts', [
+      /\*\*(\d+) детерминирован[а-яё]+ проверок\*\*/g,
+    ]);
     expect(english).toEqual([expected]);
     expect(ukrainian).toEqual([expected]);
+    expect(russian).toEqual([expected]);
   });
 
-  it('matches in the home page, pricing and package copy in both languages', () => {
+  it('matches in the home page, pricing and package copy in every language', () => {
     const counts = claimedCounts('i18n.ts', [
       /'(\d+) checks for Google search/g,
       /'(\d+) перевір(?:к[а-яіїєґ']*|ок) для пошуку Google/g,
+      /'(\d+) провер(?:к[а-яё]*|ок) для поиска Google/g,
     ]);
     // Pinned exactly, not as a floor: a reworded sentence stops matching its
     // pattern, and a floor would let that pass while the guard on it quietly
-    // disappeared. Eight — four per language, all one plain phrase opening a
+    // disappeared. Twelve — four per language, all one plain phrase opening a
     // string ("21 checks for Google search" / «21 перевірка для пошуку
     // Google»): the SEO capability card's foot, the first item of the coverage
     // list, the Basic card's "what you get" and the Basic column of the
@@ -90,18 +105,22 @@ describe('the SEO check count the public pages promise', () => {
     // analysis" card and table lines) with this one, so the set and the count
     // are unchanged. If this fails after a copy edit, the phrase moved —
     // update the pattern, do not lower the number.
-    expect(counts).toHaveLength(8);
+    expect(counts).toHaveLength(12);
     expect([...new Set(counts)]).toEqual([expected]);
   });
 
-  it('matches in the FAQ in both languages, where the figure is spelled out', () => {
+  it('matches in the FAQ in every language, where the figure is spelled out', () => {
     const source = webSource('faq-copy.ts');
     const english = /'([A-Z][a-z]+(?:-[a-z]+)?) rule-based checks/.exec(source)?.[1];
     const ukrainian = /'(Дев’ятнадцять|Двадцять(?: одне| два| три| чотири| сім)?) правил/.exec(
       source,
     )?.[1];
+    const russian = /'(Девятнадцать|Двадцать(?: одно| два| три| четыре| семь)?) правил/.exec(
+      source,
+    )?.[1];
 
     expect(english === undefined ? undefined : WRITTEN_NUMBERS[english]).toBe(expected);
     expect(ukrainian === undefined ? undefined : UK_WRITTEN_NUMBERS[ukrainian]).toBe(expected);
+    expect(russian === undefined ? undefined : RU_WRITTEN_NUMBERS[russian]).toBe(expected);
   });
 });

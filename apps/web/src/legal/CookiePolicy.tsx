@@ -2,6 +2,7 @@ import type { JSX } from 'react';
 
 import { GA_MEASUREMENT_ID } from '../analytics-config';
 import { CookieSettingsButton } from '../CookieConsent';
+import { RussianCookiePolicy } from './CookiePolicy.ru';
 import type { Language } from '../i18n';
 import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } from './SharedLegal';
 
@@ -32,13 +33,22 @@ import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } fro
  * page, which loads no provider script on fluxradar.net, and
  * 21 September 2026 added the analytics category and Google Analytics 4.
  */
-const COOKIES_EFFECTIVE: EffectiveDate = { uk: '28 жовтня 2026 року', en: '28 October 2026' };
+const COOKIES_EFFECTIVE: EffectiveDate = {
+  uk: '28 жовтня 2026 року',
+  en: '28 October 2026',
+  ru: '28 октября 2026 года',
+};
 
 /** The second cookie gtag sets is named after the stream, so the inventory names it exactly. */
 const GA_SESSION_COOKIE = `_ga_${GA_MEASUREMENT_ID.replace(/^G-/, '')}`;
 
 export function CookiePolicy({ language }: { readonly language: Language }): JSX.Element {
-  return language === 'uk' ? <UkrainianCookiePolicy /> : <EnglishCookiePolicy />;
+  if (language === 'uk') return <UkrainianCookiePolicy />;
+  if (language === 'ru')
+    return (
+      <RussianCookiePolicy effectiveOn={COOKIES_EFFECTIVE} sessionCookie={GA_SESSION_COOKIE} />
+    );
+  return <EnglishCookiePolicy />;
 }
 
 function UkrainianCookiePolicy(): JSX.Element {

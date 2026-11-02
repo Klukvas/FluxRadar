@@ -175,7 +175,7 @@ describe('one word for a saved site, in both languages', () => {
   const SAVED_RECORD_CALLED_WEBSITE = /website(?!\s*audit)|вебсайт|веб-сайт/i;
 
   it('never calls a saved profile a Website on a workspace surface', () => {
-    for (const language of ['en', 'uk'] as const) {
+    for (const language of ['en', 'uk', 'ru'] as const) {
       for (const surface of workspaceSurfaces) {
         expect(JSON.stringify(copy[language][surface])).not.toMatch(SAVED_RECORD_CALLED_WEBSITE);
       }
@@ -196,8 +196,10 @@ describe('one word for a saved site, in both languages', () => {
   it('names the site picker of the scan screen Site, not a public origin or a profile', () => {
     expect(newScanCopy.en.site.label).toBe('Site');
     expect(newScanCopy.uk.site.label).toBe('Сайт');
+    expect(newScanCopy.ru.site.label).toBe('Сайт');
     expect(JSON.stringify(copy.en.newScan)).not.toMatch(/Public origin/);
     expect(JSON.stringify(copy.uk.newScan)).not.toMatch(/Публічне джерело/);
+    expect(JSON.stringify(copy.ru.newScan)).not.toMatch(/Публичный источник/);
     expect(newScanCopy.en.site.hint).toMatch(/only what any visitor sees/i);
     expect(newScanCopy.uk.site.hint).toMatch(/лише те, що бачить будь-який відвідувач/);
   });
