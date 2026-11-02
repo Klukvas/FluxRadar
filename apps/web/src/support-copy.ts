@@ -111,4 +111,37 @@ export const supportCopy: Record<Language, SupportCopy> = {
       rateLimited: 'Ви надіслали кілька повідомлень за короткий час. Спробуйте за кілька хвилин.',
     },
   },
+  ru: {
+    launcher: 'Поддержка',
+    launcherLabel: 'Обратиться в поддержку',
+    windowTitle: 'FluxRadar / Поддержка',
+    heading: 'Обратиться в поддержку',
+    intro:
+      'Опишите, что пошло не так или что вам нужно. Каждое сообщение читает человек и отвечает по электронной почте.',
+    signedInAs: (email) => `Ответим на ${email}, адрес этого аккаунта.`,
+    email: 'Email',
+    emailPlaceholder: 'you@example.com',
+    emailHint: 'Ответ придёт на этот адрес.',
+    subject: 'Тема',
+    subjectPlaceholder: 'Коротко о сути',
+    message: 'Сообщение',
+    messagePlaceholder: 'Что случилось, на каком сайте или в каком отчёте, и чего вы ожидали.',
+    send: 'Отправить',
+    sending: 'Отправка…',
+    cancel: 'Отменить',
+    close: 'Закрыть',
+    sentHeading: 'Сообщение отправлено',
+    sentBody: (replyTo) =>
+      replyTo === null ? 'Спасибо, скоро ответим.' : `Спасибо, ответим на ${replyTo}.`,
+    errors: {
+      email: 'Укажите email, на который отправить ответ.',
+      subject: `Тема должна содержать хотя бы ${SUPPORT_LIMITS.subjectMin} символа.`,
+      message: `Опишите проблему хотя бы ${SUPPORT_LIMITS.messageMin} символами.`,
+      emailRequired: 'Ваш сеанс завершился. Укажите email, на который отправить ответ.',
+      unavailable: `Поддержка в приложении сейчас недоступна. Напишите на ${SUPPORT_EMAIL}.`,
+      deliveryFailed: 'Не удалось доставить сообщение. Попробуйте ещё раз через минуту.',
+      rateLimited:
+        'Вы отправили несколько сообщений за короткое время. Попробуйте через несколько минут.',
+    },
+  },
 };

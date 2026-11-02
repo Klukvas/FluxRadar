@@ -152,6 +152,25 @@ describe('the Action Plan block', () => {
     expect(notice).toHaveClass('action-plan__other-language');
   });
 
+  // The report screen says beside its PDF button whether the file will carry a
+  // plan, and the file carries the document-language one or none at all. So the
+  // block reports the languages a plan exists in, not only the one on screen.
+  it('reports the languages a plan has been written in', async () => {
+    const written: (readonly string[])[] = [];
+    stubFetch({ state: stateOf({ languages: ['uk', 'ru'] }) });
+    renderPlan({ onPlanLanguagesChange: (languages) => written.push(languages) });
+
+    await waitFor(() => expect(written.at(-1)).toEqual(['uk', 'ru']));
+  });
+
+  it('reports an empty list when no plan has been written yet', async () => {
+    const written: (readonly string[])[] = [];
+    stubFetch({ state: stateOf() });
+    renderPlan({ onPlanLanguagesChange: (languages) => written.push(languages) });
+
+    await waitFor(() => expect(written.at(-1)).toEqual([]));
+  });
+
   it('posts the chosen language and the notice on screen, and shows the run in flight', async () => {
     const posted: unknown[] = [];
     // Idle until the POST lands, exactly as the server behaves.

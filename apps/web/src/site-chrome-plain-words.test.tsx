@@ -22,8 +22,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-const LANGUAGES: readonly Language[] = ['en', 'uk'];
-const STATION_WORDING = /STATION|СТАНЦІ|v0\.1/i;
+const LANGUAGES: readonly Language[] = ['en', 'uk', 'ru'];
+const STATION_WORDING = /STATION|СТАНЦІ|СТАНЦИ|v0\.1/i;
 
 // Vitest runs with `apps/web` as its working directory (see blog-page.test.ts).
 function stylesheet(name: string): string {

@@ -11,12 +11,17 @@
 // And it only says what the loaded findings support: the page count is exact
 // when every finding of the problem is loaded, or when one finding is one page;
 // otherwise it says which part of the count is partial.
+//
+// The message is a document, not chrome: a Russian reader gets it in Ukrainian,
+// which is the language of the finding it quotes (`report-language.ts`), so
+// every line of it is read through `findingsDocumentCopyFor`.
 
 import type { Issue } from './api';
 import { findingCountsPages, findingExplainer, problemTitle } from './finding-explainers';
-import { findingsCopy } from './findings-copy';
+import { findingsDocumentCopyFor } from './findings-document-copy';
 import type { Language } from './i18n';
 import { ruleTitle } from './rule-titles';
+import { reportLanguage } from './report-language';
 
 /** How many example addresses the task lists. */
 export const TASK_EXAMPLE_LIMIT = 3;
@@ -93,7 +98,7 @@ export function taskPageCount(input: DeveloperTaskInput): {
 }
 
 function whereLine(input: DeveloperTaskInput, open: readonly Issue[], pages: number): string {
-  const t = findingsCopy[input.language].task;
+  const t = findingsDocumentCopyFor(input.language).task;
   // A summary fetched before a finding was reopened can lag behind the page:
   // never claim fewer open findings than are loaded.
   const total = input.openFindings === null ? null : Math.max(input.openFindings, open.length);
@@ -110,7 +115,7 @@ function whereLine(input: DeveloperTaskInput, open: readonly Issue[], pages: num
 
 function examplesBlock(language: Language, targets: readonly string[]): readonly string[] {
   if (targets.length === 0) return [];
-  const t = findingsCopy[language].task;
+  const t = findingsDocumentCopyFor(language).task;
   return ['', t.examples, ...targets.slice(0, TASK_EXAMPLE_LIMIT).map((target) => `- ${target}`)];
 }
 
@@ -124,7 +129,7 @@ function examplesBlock(language: Language, targets: readonly string[]): readonly
 export function developerTaskText(input: DeveloperTaskInput): string | null {
   const open = openOf(input.issues);
   if (open.length === 0 && (input.openFindings ?? 0) === 0) return null;
-  const t = findingsCopy[input.language].task;
+  const t = findingsDocumentCopyFor(input.language).task;
   const targets = distinctTargets(open);
   const explainer = findingExplainer(input.ruleId, input.language);
   // The recommendation comes from an open finding only: an AI rule's advice is
@@ -135,7 +140,7 @@ export function developerTaskText(input: DeveloperTaskInput): string | null {
   // older finding, or one written by AI, has only its stored text, which may
   // be in another language. Then the plain-language advice goes along too, so
   // the task still says what to do in the reader's language.
-  const localized = first?.localized?.[input.language]?.recommendation ?? null;
+  const localized = first?.localized?.[reportLanguage(input.language)]?.recommendation ?? null;
   const recommendation = first === undefined ? '' : (localized ?? first.recommendation).trim();
   const advice = localized === null && explainer !== null ? explainer.fix : null;
   const lines = [

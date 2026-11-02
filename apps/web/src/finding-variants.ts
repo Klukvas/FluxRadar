@@ -12,6 +12,7 @@
 
 import type { Issue } from './api';
 import type { Language } from './i18n';
+import { reportLanguage } from './report-language';
 
 /** One distinct piece of evidence among findings of the same problem. */
 export interface EvidenceVariant {
@@ -44,7 +45,9 @@ export interface ProblemBreakdown {
  * stored before those codes existed, or written by AI, has the stored text only.
  */
 export function findingEvidence(issue: Issue, language: Language): string | null {
-  return issue.localized?.[language]?.evidenceExcerpt ?? issue.evidenceExcerpt ?? null;
+  return (
+    issue.localized?.[reportLanguage(language)]?.evidenceExcerpt ?? issue.evidenceExcerpt ?? null
+  );
 }
 
 export function problemBreakdown(issues: readonly Issue[], language: Language): ProblemBreakdown {

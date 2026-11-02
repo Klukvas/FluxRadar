@@ -130,33 +130,36 @@ describe('the plain-language pricing comparison', () => {
   // "not included" used to list six of the eight modules it does not run,
   // leaving out UX/Conversion and Analytics. The home page now names each
   // module in an owner's words, so the check goes through this map: every
-  // module the tariff table has must have a plain name in both languages, and
-  // that plain name must be in the answer.
-  const PLAIN_MODULE_NAMES: Readonly<Record<string, { en: string; uk: string }>> = {
-    Security: { en: 'security', uk: 'безпека' },
-    Performance: { en: 'speed', uk: 'швидкість' },
+  // module the tariff table has must have a plain name in every interface
+  // language, and that plain name must be in the answer.
+  const PLAIN_MODULE_NAMES: Readonly<Record<string, { en: string; uk: string; ru: string }>> = {
+    Security: { en: 'security', uk: 'безпека', ru: 'безопасность' },
+    Performance: { en: 'speed', uk: 'швидкість', ru: 'скорость' },
     Accessibility: {
       en: 'ease of use for people with disabilities',
       uk: 'зручність для людей з інвалідністю',
+      ru: 'удобство для людей с инвалидностью',
     },
-    Reliability: { en: 'reliability', uk: 'стабільність роботи' },
-    'Content Quality': { en: 'text quality', uk: 'якість текстів' },
-    Privacy: { en: 'privacy', uk: 'приватність' },
+    Reliability: { en: 'reliability', uk: 'стабільність роботи', ru: 'стабильность работы' },
+    'Content Quality': { en: 'text quality', uk: 'якість текстів', ru: 'качество текстов' },
+    Privacy: { en: 'privacy', uk: 'приватність', ru: 'приватность' },
     // The module reads the entry page's heading, the path to the main action,
     // form submission, and how clear the offer and the main action are.
     'UX/Conversion': {
       en: 'whether visitors understand what to do next',
       uk: 'чи зрозуміло відвідувачу, що робити далі',
+      ru: 'понятно ли посетителю, что делать дальше',
     },
     // Its rules read Google Analytics / Search Console data, so the plain name
     // has to say the owner connects it.
     Analytics: {
       en: 'visitor statistics (if you connect google)',
       uk: 'статистика відвідувань (якщо підключите google)',
+      ru: 'статистика посещений (если подключите google)',
     },
   };
 
-  it.each<Language>(['en', 'uk'])(
+  it.each<Language>(['en', 'uk', 'ru'])(
     'names every module Basic does not run, in plain words, in %s',
     (language) => {
       const beyondBasic = PLAN_MODULES.Complete.filter(

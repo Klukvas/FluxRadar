@@ -18,6 +18,7 @@ import {
   type LiveProgressMark,
 } from './scan-progress-state';
 import { ScanProgressStatus } from './ScanProgressStatus';
+import { scanCancelCopy } from './scan-cancel-copy';
 import {
   displayDomain,
   formatTimestamp,
@@ -38,6 +39,7 @@ export function ScanScreen(props: {
   onError: (value: string) => void;
 }) {
   const t = copy[props.language].scanProgress;
+  const cancelCopy = scanCancelCopy[props.language];
   const [cancelBusy, setCancelBusy] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState<Scan | null>(null);
   const cancelTrigger = useRef<HTMLButtonElement>(null);
@@ -246,9 +248,7 @@ export function ScanScreen(props: {
         ) : (
           <>
             <details className="scan-secondary-actions">
-              <summary className="button">
-                {props.language === 'uk' ? 'Інші дії' : 'More actions'}
-              </summary>
+              <summary className="button">{cancelCopy.moreActions}</summary>
               <button
                 ref={cancelTrigger}
                 className="button button--default"
@@ -274,24 +274,18 @@ export function ScanScreen(props: {
           >
             <div className="window__content stack">
               <h2 id="cancel-scan-title" className="section-heading">
-                {props.language === 'uk' ? 'Скасувати перевірку?' : 'Cancel this scan?'}
+                {cancelCopy.title}
               </h2>
               <p>
                 {confirmCancel.plan === 'Free'
-                  ? props.language === 'uk'
-                    ? 'Це неоплачена перевірка: списання не було. Перед скасуванням ми ще раз перевіримо її стан.'
-                    : 'This is an unpaid check, so nothing was charged. We will check its state again before cancelling.'
+                  ? cancelCopy.unpaid
                   : cancellationRefundCategory(confirmCancel) === 'pre-queue'
-                    ? props.language === 'uk'
-                      ? 'Цю перевірку ще не поставлено в чергу. Якщо її оплачено, скасування до старту має повне повернення. Перед дією ми ще раз перевіримо стан.'
-                      : 'This scan has not entered the queue. If it was paid for, cancelling before it starts receives a full refund. We will check its state again before acting.'
-                    : props.language === 'uk'
-                      ? 'Цю перевірку вже поставлено в чергу або запущено: автоматичне повернення не передбачене. Перед дією ми ще раз перевіримо її стан.'
-                      : 'This scan has entered the queue or started: no automatic refund is available. We will check its state again before acting.'}
+                    ? cancelCopy.beforeQueue
+                    : cancelCopy.afterQueue}
               </p>
               <div className="button-row">
                 <Button onClick={() => setConfirmCancel(null)} disabled={cancelBusy}>
-                  {props.language === 'uk' ? 'Продовжити перевірку' : 'Keep scan'}
+                  {cancelCopy.keep}
                 </Button>
                 <Button onClick={() => void cancel()} variant="danger" disabled={cancelBusy}>
                   {cancelBusy ? t.cancelling : t.cancel}

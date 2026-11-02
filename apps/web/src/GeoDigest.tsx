@@ -11,6 +11,7 @@ import { safeHttpUrl } from './GeoEvaluation';
 import { geoDigestCopy, type GeoDigestCopy } from './geo-digest-copy';
 import { geoProviderLabel } from './geo-provider-label';
 import type { Language } from './i18n';
+import { INTL_LOCALES } from './i18n';
 import type {
   GeoAnswerDigest,
   GeoFactDigest,
@@ -190,10 +191,12 @@ function positionLine(
 ): string {
   const t = geoDigestCopy[language];
   if (summary.placedAnswers === 0) return t.positionNotNamed(summary.discoveryAnswers);
+  // The digest is chrome, so its numerals are grouped the way the reader's own
+  // language writes them (`format-count.ts`), not the report's.
   const median =
     summary.medianListRank === null
       ? null
-      : summary.medianListRank.toLocaleString(language === 'uk' ? 'uk-UA' : 'en-US');
+      : summary.medianListRank.toLocaleString(INTL_LOCALES[language]);
   return [
     t.positionFirst(summary.firstPlace, summary.placedAnswers),
     ...(summary.inList > 0 ? [t.positionInList(summary.inList, summary.placedAnswers)] : []),

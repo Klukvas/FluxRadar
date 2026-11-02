@@ -5,6 +5,7 @@ import { useEffect, type ReactNode } from 'react';
 import { MenuBar, CreatedByFluxLab } from './components';
 import { CHECKS_INDEX_RULE_BEFORE, type ChecksBullet } from './checks-copy';
 import { copy, type Language } from './i18n';
+import { siteChromeCopy } from './site-chrome-copy';
 
 // Public audit-coverage page (/checks). It shares the document shell of the
 // other public pages, so /faq, /privacy, /terms and this page keep one reading
@@ -58,9 +59,7 @@ export function AuditCoverageScreen(props: {
         <div className="legal-layout">
           <nav className="legal-index" aria-label={t.contents}>
             <span className="legal-index__label">{t.contents}</span>
-            <a href="#methodology">
-              {props.language === 'uk' ? 'Методика й оператор' : 'Method and operator'}
-            </a>
+            <a href="#methodology">{siteChromeCopy[props.language].methodAndOperator}</a>
             {t.sections.map((section) => (
               <ChecksIndexEntry key={section.id} id={section.id} label={section.nav} />
             ))}

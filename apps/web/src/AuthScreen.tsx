@@ -24,6 +24,7 @@ import { authCopy } from './auth-copy';
 import { AlertDialog, Button, Checkbox, Field, Window } from './components';
 import { copy, type Language } from './i18n';
 import { publicPagePath } from './public-page-routing';
+import { siteChromeCopy } from './site-chrome-copy';
 
 export type AuthMode = 'login' | 'register';
 export type EmailAction = { readonly kind: 'verify' | 'reset'; readonly token: string };
@@ -213,7 +214,7 @@ export function AuthScreen(props: {
       title={title}
       className="window--dialog"
       onClose={props.onBack}
-      closeLabel={props.language === 'uk' ? 'Закрити вікно' : 'Close window'}
+      closeLabel={siteChromeCopy[props.language].closeWindow}
     >
       <form className="stack" onSubmit={submit}>
         <div>

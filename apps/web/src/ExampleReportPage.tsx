@@ -38,8 +38,12 @@ import { publicPagePath } from './public-page-routing';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { CreatedByFluxLab, MenuBar, ProgressBar, ScoreDial, StatusChip } from './components';
-import { developerTaskText } from './developer-task';
 import { exampleReportCopy } from './example-report-copy';
+import {
+  exampleProblemTitles,
+  exampleReportContent,
+  type ExampleFinding,
+} from './example-report-content';
 import {
   EXAMPLE_DASHBOARD,
   EXAMPLE_DOMAIN,
@@ -48,17 +52,17 @@ import {
   EXAMPLE_SIDE_SCORE_MODULES,
   EXAMPLE_SUMMARY,
 } from './example-report-fixture';
-import { findingCountsPages, findingExplainer, problemTitle } from './finding-explainers';
+import { findingCountsPages } from './finding-explainers';
 import { findingsCopy } from './findings-copy';
 import { copy, type Language } from './i18n';
 import type { IssueRuleGroup } from './api';
 import { moduleStatusReasons } from './module-status';
 import { FixFirst } from './ReportNextSteps';
-import { ruleTitle } from './rule-titles';
 import { SiteCoveragePanel } from './SiteCoverage';
 import { moduleResultLabel, moduleScoreLabel } from './scan-status';
 import './styles/example-report.css';
 import './styles/findings.css';
+import { siteChromeCopy } from './site-chrome-copy';
 
 /** The id one finding's full entry is anchored at, so "Fix these first" can reach it. */
 function findingAnchor(ruleId: string): string {
@@ -172,9 +176,7 @@ function PageFooter({ language }: { language: Language }) {
         <a href={publicPagePath('home', language)}>{t.footerHome}</a> ·{' '}
         <a href={publicPagePath('checks', language)}>{copy[language].checks.title}</a> ·{' '}
         <a href={publicPagePath('faq', language)}>{copy[language].nav.faq}</a> ·{' '}
-        <a href="/knowledge-base/prochytaty-zvit">
-          {language === 'uk' ? 'Як читати власний звіт' : 'Read your own report (Ukrainian)'}
-        </a>
+        <a href="/knowledge-base/prochytaty-zvit">{siteChromeCopy[language].readYourReport}</a>
       </span>
       <CreatedByFluxLab language={language} />
     </footer>
@@ -190,6 +192,7 @@ function ExampleDocument({ language }: { language: Language }) {
       {/* Named as the example in its own accessible name, so the first thing
           said about this document is that it is not a real site. */}
       <article className="legal-document example-report" aria-label={t.exampleLabel}>
+        <TranslationNote language={language} />
         <DocumentNotice language={language} />
         <ScoreBlock language={language} />
         <CoverageBlock language={language} />
@@ -204,6 +207,26 @@ function ExampleDocument({ language }: { language: Language }) {
         <HelpBlock language={language} />
       </article>
     </div>
+  );
+}
+
+/**
+ * Which language the reader is looking at, where that is not the language they
+ * will be sent.
+ *
+ * Russian only, and first inside the document rather than under it: a reader
+ * weighing up the product has to know that these six problems are a
+ * translation and that their own report arrives in Ukrainian. The two
+ * languages a report is written in have nothing to disclose and render
+ * nothing (`example-report-content.ts`).
+ */
+function TranslationNote({ language }: { language: Language }) {
+  const note = exampleReportContent[language].translationNote;
+  if (note === null) return null;
+  return (
+    <p className="example-callout example-translation" role="note">
+      {note}
+    </p>
   );
 }
 
@@ -418,6 +441,10 @@ function FixFirstBlock({
         // What the number beside each row counts, said once and under the
         // heading, where a reader meets it before the rows.
         unitNote={t.fixFirstCallout}
+        // The names this page prints, which in Russian are a translation of
+        // the catalogue's; a row linking down the page must say the same
+        // thing as the card it lands on.
+        problemTitles={exampleProblemTitles[language]}
         jumps={{
           problemHref: (ruleId) => `#${findingAnchor(ruleId)}`,
           allHref: '#example-findings',
@@ -504,6 +531,7 @@ function FindingCard({
   askedJump: number | null;
 }) {
   const f = findingsCopy[language];
+  const finding = exampleReportContent[language].findings[group.ruleId];
   const fold = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
     if (askedJump !== null && fold.current !== null) fold.current.open = true;
@@ -514,17 +542,26 @@ function FindingCard({
     <li id={findingAnchor(group.ruleId)}>
       <details ref={fold} className="example-finding" open={unfolded}>
         <summary>
-          <h3>{problemTitle(group.ruleId, language)}</h3>
+          <h3>{finding?.title ?? group.ruleId}</h3>
           <StatusChip status={group.severity} label={f.severity[group.severity]} />
         </summary>
-        <FindingBody group={group} language={language} />
+        <FindingBody group={group} language={language} finding={finding} />
       </details>
     </li>
   );
 }
 
 /** How urgent, how many, what it means here, and the two answers in full. */
-function FindingBody({ group, language }: { group: IssueRuleGroup; language: Language }) {
+function FindingBody({
+  group,
+  language,
+  finding,
+}: {
+  group: IssueRuleGroup;
+  language: Language;
+  /** The example's own words for this problem; absent only for a rule it has none for. */
+  finding: ExampleFinding | undefined;
+}) {
   const t = exampleReportCopy[language];
   const f = findingsCopy[language];
   const first = EXAMPLE_ISSUES.find((issue) => issue.ruleId === group.ruleId);
@@ -547,7 +584,7 @@ function FindingBody({ group, language }: { group: IssueRuleGroup; language: Lan
           one: without it "Something may hold visitors back from contacting
           you" told the reader that something may, and never what. */}
       {meaning === undefined ? null : <Callout>{meaning}</Callout>}
-      <FindingExplanation ruleId={group.ruleId} language={language} />
+      <FindingExplanation finding={finding} language={language} />
       {first === undefined ? null : (
         <p className="example-finding__where muted">
           {t.exampleAddressLabel}: <span className="technical">{first.targetUrl}</span>
@@ -565,21 +602,26 @@ function FindingBody({ group, language }: { group: IssueRuleGroup; language: Lan
  * reader who has never seen a finding, and the sentence under "Fix these first"
  * says it once in plain words instead.
  */
-function FindingExplanation({ ruleId, language }: { ruleId: string; language: Language }) {
+function FindingExplanation({
+  finding,
+  language,
+}: {
+  finding: ExampleFinding | undefined;
+  language: Language;
+}) {
   const f = findingsCopy[language];
-  const explainer = findingExplainer(ruleId, language);
-  if (explainer === null) return null;
+  if (finding === undefined) return null;
   return (
     <>
       <dl className="example-finding__body">
         <dt>{f.issues.explainerWhat}</dt>
-        <dd>{explainer.what}</dd>
+        <dd>{finding.what}</dd>
         <dt>{f.issues.explainerFix}</dt>
-        <dd>{explainer.fix}</dd>
+        <dd>{finding.fix}</dd>
       </dl>
       <details className="example-finding__more">
         <summary>{f.issues.explainerWhy}</summary>
-        <p>{explainer.why}</p>
+        <p>{finding.why}</p>
       </details>
     </>
   );
@@ -593,20 +635,7 @@ function FindingExplanation({ ruleId, language }: { ruleId: string; language: La
  */
 function DeveloperMessageBlock({ language }: { language: Language }) {
   const t = exampleReportCopy[language];
-  const first = EXAMPLE_SUMMARY.groups[0];
-  if (first === undefined) return null;
-  const issues = EXAMPLE_ISSUES.filter((issue) => issue.ruleId === first.ruleId);
-  const message = developerTaskText({
-    ruleId: first.ruleId,
-    language,
-    issues,
-    // Every finding of the problem is in the fixture, so the message states
-    // its reach exactly — and the number in it is the number on the card
-    // above, because both are counted from the same list.
-    allLoaded: true,
-    openFindings: first.openIssues,
-  });
-  if (message === null) return null;
+  const message = exampleReportContent[language].developerTask;
   return (
     <section className="legal-section" aria-labelledby="example-task-heading">
       <h2 id="example-task-heading">{t.taskHeading}</h2>
@@ -734,7 +763,7 @@ function TechnicalDetails({ language }: { language: Language }) {
         {EXAMPLE_SUMMARY.groups.map((group) => (
           <li key={group.ruleId}>
             {t.technicalRuleLabel}: <span className="technical">{group.ruleId}</span> —{' '}
-            {ruleTitle(group.ruleId, language)}
+            {exampleReportContent[language].findings[group.ruleId]?.ruleTitle ?? group.ruleId}
           </li>
         ))}
       </ul>

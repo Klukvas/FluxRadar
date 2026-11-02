@@ -16,6 +16,7 @@ import { findingEvidence } from './finding-variants';
 import { findingsCopy } from './findings-copy';
 import { copy, fillCopy, type Language } from './i18n';
 import { moduleCoverageHref, moduleLabel } from './rule-titles';
+import { reportLanguage } from './report-language';
 
 /** The statuses an owner may set. Resolved and Reopened belong to the scanner. */
 export const USER_STATUSES = ['New', 'Acknowledged', 'Ignored', 'False Positive'] as const;
@@ -154,7 +155,9 @@ function EvidenceFields(props: { issue: Issue; language: Language }) {
       <FieldRow label={t.evidence} value={findingEvidence(issue, props.language) ?? t.noExcerpt} />
       <FieldRow
         label={t.recommendation}
-        value={issue.localized?.[props.language]?.recommendation ?? issue.recommendation}
+        value={
+          issue.localized?.[reportLanguage(props.language)]?.recommendation ?? issue.recommendation
+        }
       />
     </>
   );
@@ -243,7 +246,7 @@ function IssueDetail(props: { issue: Issue; language: Language }) {
         value={
           <>
             <StatusChip status={issue.severity} label={f.severity[issue.severity]} />
-            {meaning === undefined ? null : <span className="muted"> — {meaning}</span>}
+            {meaning === undefined ? null : <span className="muted">: {meaning}</span>}
           </>
         }
       />

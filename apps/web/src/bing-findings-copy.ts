@@ -17,6 +17,7 @@
 import type { BingFinding } from './api';
 import { formatCount } from './GoogleDataPanel';
 import type { Language } from './i18n';
+import { ukrainianReportCopy } from './report-language';
 
 /** The codes `bingFindings` produces. Anything else falls back to the API's text. */
 type BingFindingCode =
@@ -228,7 +229,7 @@ const UK: Readonly<Record<BingFindingCode, FindingCopy>> = {
 
 const BING_FINDING_COPY: Readonly<
   Record<Language, Readonly<Record<BingFindingCode, FindingCopy>>>
-> = { en: EN, uk: UK };
+> = ukrainianReportCopy({ en: EN, uk: UK });
 
 /** The finding as one sentence plus one instruction, in the reader's language. */
 export function bingFindingText(

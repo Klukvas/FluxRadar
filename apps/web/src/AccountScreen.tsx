@@ -28,10 +28,11 @@ import { displayDomain } from './scan-status';
 import './styles/account.css';
 import { planName } from './plan-modules';
 import { ReportBrandingPanel } from './ReportBrandingPanel';
+import { INTL_LOCALES } from './i18n';
 
 function formatAmount(amount: number, currency: string, language: Language): string {
   try {
-    return new Intl.NumberFormat(language === 'uk' ? 'uk-UA' : 'en-US', {
+    return new Intl.NumberFormat(INTL_LOCALES[language], {
       style: 'currency',
       currency,
     }).format(amount);

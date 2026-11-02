@@ -1158,10 +1158,13 @@ describe('Issue Center — inline detail row', () => {
     // Each level says what to do about it, not just where it ranks: "Low" and
     // "Medium" are relative words with nothing on the screen to be relative to.
     const legend = screen.getByText(/says how soon to act/i);
-    expect(legend).toHaveTextContent('Critical — deal with it first');
-    expect(legend).toHaveTextContent('High — fix it soon');
-    expect(legend).toHaveTextContent('Medium — worth fixing');
-    expect(legend).toHaveTextContent('Low — can wait');
+    // One colon per pair and none before the first: the lead-in used to end in
+    // a colon of its own, which read as "how soon to act: Critical: ...".
+    expect(legend).toHaveTextContent('Severity says how soon to act. Critical: deal with it first');
+    expect(legend.textContent ?? '').not.toContain('act: Critical');
+    expect(legend).toHaveTextContent('High: fix it soon');
+    expect(legend).toHaveTextContent('Medium: worth fixing');
+    expect(legend).toHaveTextContent('Low: can wait');
     // The implementation-only word "fingerprint" must not leak to the owner.
     expect(screen.queryByText(/fingerprint/i)).not.toBeInTheDocument();
   });

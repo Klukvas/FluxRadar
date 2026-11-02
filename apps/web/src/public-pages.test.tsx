@@ -6,12 +6,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from './App';
 import { copy } from './i18n';
+import { PUBLIC_LOCALES } from './public-page-routing';
 import { pageMetadata, pageStructuredData, publicPageUrl } from './seo';
 
 // The public pages are all served from one `index.html`, so what separates them
 // for a search engine — title, description, canonical, alternates — is decided
-// at runtime. These tests pin that, and the Ukrainian rendering of the two long
-// public documents.
+// at runtime. These tests pin that, and the Ukrainian and Russian rendering of
+// the two long public documents.
 
 function envelope<T>(data: T, status = 200): Response {
   return new Response(JSON.stringify({ success: true, data, error: null }), {
@@ -63,9 +64,17 @@ function structuredData(): unknown[] {
   );
 }
 
-function switchLanguageToUkrainian(): void {
+function switchLanguageTo(label: string): void {
   fireEvent.click(screen.getByRole('combobox', { name: 'Language' }));
-  fireEvent.click(screen.getByRole('option', { name: 'Українська' }));
+  fireEvent.click(screen.getByRole('option', { name: label }));
+}
+
+function switchLanguageToUkrainian(): void {
+  switchLanguageTo('Українська');
+}
+
+function switchLanguageToRussian(): void {
+  switchLanguageTo('Русский');
 }
 
 afterEach(() => {
@@ -77,15 +86,20 @@ afterEach(() => {
 });
 
 describe('public page metadata', () => {
-  it('gives every public page its own English and Ukrainian URL', () => {
+  it('gives every public page its own URL in every locale', () => {
     expect(publicPageUrl('home', 'en')).toBe('https://fluxradar.net/');
     expect(publicPageUrl('home', 'uk')).toBe('https://fluxradar.net/uk');
+    expect(publicPageUrl('home', 'ru')).toBe('https://fluxradar.net/ru');
     expect(publicPageUrl('faq', 'en')).toBe('https://fluxradar.net/faq');
     expect(publicPageUrl('faq', 'uk')).toBe('https://fluxradar.net/uk/faq');
+    expect(publicPageUrl('faq', 'ru')).toBe('https://fluxradar.net/ru/faq');
+    // No two locales may share a URL, or one would overwrite the other's file.
+    const urls = PUBLIC_LOCALES.map((language) => publicPageUrl('checks', language));
+    expect(new Set(urls).size).toBe(PUBLIC_LOCALES.length);
   });
 
-  it('gives each public page a distinct title and description in both languages', () => {
-    for (const language of ['en', 'uk'] as const) {
+  it('gives each public page a distinct title and description in every locale', () => {
+    for (const language of PUBLIC_LOCALES) {
       const titles = (
         ['home', 'faq', 'checks', 'bot', 'exampleReport', 'privacy', 'terms'] as const
       ).map((page) => pageMetadata(page, language).title);
@@ -102,7 +116,7 @@ describe('public page metadata', () => {
     expect(pageMetadata('bot', 'en').indexable).toBe(true);
   });
 
-  it('lists every public page in the sitemap, in both languages', () => {
+  it('lists every public page in the sitemap, in every locale', () => {
     // A page that exists but is not listed is a page nobody finds. The list is
     // a file rather than generated code, so nothing else would catch a page
     // added to the app and forgotten here.
@@ -117,7 +131,7 @@ describe('public page metadata', () => {
       'terms',
       'cookies',
     ] as const) {
-      for (const language of ['en', 'uk'] as const) {
+      for (const language of PUBLIC_LOCALES) {
         expect(sitemap).toContain(`<loc>${publicPageUrl(page, language)}</loc>`);
       }
     }
@@ -130,12 +144,20 @@ describe('public page metadata', () => {
     expect(workspace.alternates).toEqual({});
   });
 
-  it('declares both languages and an x-default for every public page', () => {
+  it('declares every locale and an x-default for every public page', () => {
     expect(pageMetadata('checks', 'uk').alternates).toEqual({
       en: 'https://fluxradar.net/checks',
       uk: 'https://fluxradar.net/uk/checks',
+      ru: 'https://fluxradar.net/ru/checks',
       'x-default': 'https://fluxradar.net/checks',
     });
+    // Every locale's document declares the same set, so whichever one a
+    // crawler reaches first leads it to the other two.
+    for (const language of PUBLIC_LOCALES) {
+      expect(pageMetadata('checks', language).alternates).toEqual(
+        pageMetadata('checks', 'uk').alternates,
+      );
+    }
   });
 
   it('publishes FAQ structured data that matches the questions on the page', () => {
@@ -155,8 +177,9 @@ describe('public page metadata', () => {
   it('describes the home page as two one-time reports in both languages', () => {
     expect(copy.en.seo.home.description).toMatch(/Two one-time reports, no subscription\.$/);
     expect(copy.uk.seo.home.description).toMatch(/Два разові звіти, без підписки\.$/);
-    for (const language of ['en', 'uk'] as const) {
-      expect(copy[language].seo.home.description).not.toMatch(/three |три |трьох /i);
+    expect(copy.ru.seo.home.description).toMatch(/Два разовых отчёта, без подписки\.$/);
+    for (const language of PUBLIC_LOCALES) {
+      expect(copy[language].seo.home.description).not.toMatch(/three |три |трьох |трёх /i);
     }
   });
 
@@ -193,6 +216,7 @@ describe('public page metadata in the rendered app', () => {
     expect(alternates()).toEqual({
       en: 'https://fluxradar.net/faq',
       uk: 'https://fluxradar.net/uk/faq',
+      ru: 'https://fluxradar.net/ru/faq',
       'x-default': 'https://fluxradar.net/faq',
     });
     expect(structuredData()).toHaveLength(1);
@@ -282,6 +306,37 @@ describe('audit coverage page in Ukrainian', () => {
     expect(
       screen.getByRole('heading', { name: 'Чого FluxRadar не сертифікує' }),
     ).toBeInTheDocument();
+  });
+});
+
+describe('audit coverage page in Russian', () => {
+  it('opens in Russian from /ru/checks with its own canonical and locale', async () => {
+    window.history.replaceState(null, '', '/ru/checks');
+    stubApi(signedOut);
+    render(<App />);
+    await screen.findByRole('heading', { name: copy.ru.checks.title });
+
+    expect(document.documentElement.lang).toBe('ru');
+    expect(canonical()).toBe('https://fluxradar.net/ru/checks');
+    expect(document.title).toBe(copy.ru.seo.checks.title);
+    expect(metaContent('meta[property="og:locale"]')).toBe('ru_RU');
+    for (const section of copy.ru.checks.sections) {
+      expect(screen.getByRole('heading', { name: section.title })).toBeInTheDocument();
+    }
+    expect(screen.getByRole('link', { name: copy.ru.checks.back })).toHaveAttribute('href', '/ru');
+    expect(screen.queryByRole('heading', { name: 'Audit coverage' })).not.toBeInTheDocument();
+  });
+
+  it('follows the language switch on the home page into Russian', async () => {
+    stubApi(signedOut);
+    render(<App />);
+    await screen.findByRole('heading', { name: copy.en.home.hero.title });
+
+    switchLanguageToRussian();
+
+    expect(document.title).toBe(copy.ru.seo.home.title);
+    expect(canonical()).toBe('https://fluxradar.net/ru');
+    expect(metaContent('meta[property="og:locale"]')).toBe('ru_RU');
   });
 });
 

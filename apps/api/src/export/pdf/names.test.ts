@@ -30,8 +30,20 @@ const REGISTRY = readFileSync(
 /** `'SEO-TECH-001': {\n en: '…',\n uk: '…',\n },` — how the browser writes a title. */
 const BROWSER_RULE = /^ {2}'([A-Z0-9-]+)': \{\n {4}en: '(.*)',\n {4}uk: '(.*)',\n {2}\},$/gm;
 
-/** `Security: { en: 'Security', uk: 'Безпека' },` — quoted when the name has a space. */
-const BROWSER_MODULE = /^ {2}('?)([^:']+)\1: \{ en: '(.*)', uk: '(.*)' \},$/gm;
+/**
+ * `Security: { en: 'Security', uk: 'Безпека', ru: 'Безопасность' },` — quoted
+ * when the name has a space.
+ *
+ * A section's name is interface chrome, so it gained a Russian form the rules'
+ * titles did not; the printed document still reads Ukrainian or English, and
+ * `names.ts` has no Russian column to compare. So `ru` is matched and dropped
+ * rather than read, and the two names the document does print are captured as
+ * single-quoted values rather than greedily to the end of the line — greedy is
+ * what made the Ukrainian name swallow the Russian one and read as
+ * `Безпека', ru: 'Безопасность`.
+ */
+const BROWSER_MODULE =
+  /^ {2}('?)([^:']+)\1: \{ en: '([^']*)', uk: '([^']*)'(?:, ru: '[^']*')? \},$/gm;
 
 /**
  * Rules whose findings become report problems, plus the two informational GEO

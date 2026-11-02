@@ -8,6 +8,22 @@ export function SupportLink(): JSX.Element {
 }
 
 export function OperatorDetails({ language }: { readonly language: Language }): JSX.Element {
+  if (language === 'ru') {
+    return (
+      <address className="legal-operator">
+        <strong>ФЛП Павленко Андрей Владимирович</strong>
+        <span>работает под коммерческим наименованием FluxLab</span>
+        <span>РНУКПН: 3650600237</span>
+        <span>Номер записи в ЕГР: 2010350000000049793</span>
+        <span>Не зарегистрирован плательщиком НДС</span>
+        <span>
+          Украина, Киевская область, г. Бровары, ул. Владимира Великого, д. 8, кв. 64, 07400
+        </span>
+        <a href="tel:+380933602073">+380 93 360 20 73</a>
+        <SupportLink />
+      </address>
+    );
+  }
   if (language === 'uk') {
     return (
       <address className="legal-operator">
@@ -38,10 +54,18 @@ export function OperatorDetails({ language }: { readonly language: Language }): 
   );
 }
 
+/** How each language says that a document is in force on a date. */
+const IN_FORCE: Readonly<Record<Language, (date: EffectiveDate) => string>> = {
+  en: (date) => `Effective ${date.en}`,
+  uk: (date) => `Чинна з ${date.uk}`,
+  ru: (date) => `Действует с ${date.ru}`,
+};
+
 /** When a document's current wording took effect, written out in each language. */
 export interface EffectiveDate {
   readonly uk: string;
   readonly en: string;
+  readonly ru: string;
 }
 
 /**
@@ -49,7 +73,11 @@ export interface EffectiveDate {
  * changes later passes its own date, so the others keep the one that is still
  * true for them.
  */
-const FIRST_EFFECTIVE: EffectiveDate = { uk: '10 вересня 2026 року', en: '10 September 2026' };
+const FIRST_EFFECTIVE: EffectiveDate = {
+  uk: '10 вересня 2026 року',
+  en: '10 September 2026',
+  ru: '10 сентября 2026 года',
+};
 
 export function EffectiveNotice(props: {
   readonly language: Language;
@@ -59,7 +87,7 @@ export function EffectiveNotice(props: {
   const date = props.effectiveOn ?? FIRST_EFFECTIVE;
   return (
     <div className="legal-document__notice">
-      <strong>{props.language === 'uk' ? `Чинна з ${date.uk}` : `Effective ${date.en}`}</strong>
+      <strong>{IN_FORCE[props.language](date)}</strong>
       <span>{props.documentName}</span>
     </div>
   );

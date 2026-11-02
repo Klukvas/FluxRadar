@@ -541,30 +541,34 @@ function CountsTable(props: {
   return (
     <>
       <h5>{props.heading}</h5>
-      <table className="comparison-table">
-        <thead>
-          <tr>
-            <th scope="col">{props.firstColumn}</th>
-            <th scope="col">{t.issuesNew}</th>
-            <th scope="col">{t.issuesResolved}</th>
-            <th scope="col">{t.issuesReopened}</th>
-            <th scope="col">{t.issuesStillOpen}</th>
-            <th scope="col">{t.issuesSettled}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {props.rows.map((row) => (
-            <tr key={row.label}>
-              <th scope="row">{row.label}</th>
-              <td>{row.new}</td>
-              <td>{row.resolved}</td>
-              <td>{row.reopened}</td>
-              <td>{row.stillOpen}</td>
-              <td>{row.settled}</td>
+      {/* Six columns of counts do not fit a phone, so the table scrolls in its
+          own frame (`comparison.css`) rather than widening the report. */}
+      <div className="comparison-scroll">
+        <table className="comparison-table">
+          <thead>
+            <tr>
+              <th scope="col">{props.firstColumn}</th>
+              <th scope="col">{t.issuesNew}</th>
+              <th scope="col">{t.issuesResolved}</th>
+              <th scope="col">{t.issuesReopened}</th>
+              <th scope="col">{t.issuesStillOpen}</th>
+              <th scope="col">{t.issuesSettled}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {props.rows.map((row) => (
+              <tr key={row.label}>
+                <th scope="row">{row.label}</th>
+                <td>{row.new}</td>
+                <td>{row.resolved}</td>
+                <td>{row.reopened}</td>
+                <td>{row.stillOpen}</td>
+                <td>{row.settled}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </>
   );
 }
@@ -581,22 +585,26 @@ function SimpleCountsTable(props: {
   return (
     <>
       <h5>{props.heading}</h5>
-      <table className="comparison-table">
-        <thead>
-          <tr>
-            <th scope="col">{props.firstColumn}</th>
-            <th scope="col">{t.columnFindings}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {props.rows.map((row) => (
-            <tr key={row.label}>
-              <th scope="row">{row.label}</th>
-              <td>{row.count}</td>
+      {/* Two columns fit, but the first one holds a section or a page name of
+          any length, so it is framed the same way as its six-column sibling. */}
+      <div className="comparison-scroll">
+        <table className="comparison-table">
+          <thead>
+            <tr>
+              <th scope="col">{props.firstColumn}</th>
+              <th scope="col">{t.columnFindings}</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {props.rows.map((row) => (
+              <tr key={row.label}>
+                <th scope="row">{row.label}</th>
+                <td>{row.count}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </>
   );
 }

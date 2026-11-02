@@ -15,7 +15,18 @@
 (function () {
   'use strict';
 
+  // The languages the blog's own articles and chrome are written in.
   var LANGUAGES = ['en', 'uk'];
+  // The locales the product's public pages exist in. A reader whose interface
+  // is Russian reads this page in Ukrainian, because nothing here is
+  // translated into Russian; the links that leave for the product keep their
+  // own locale.
+  var PUBLIC_LOCALES = ['en', 'uk', 'ru'];
+  // Which of the blog's own languages a public locale reads in when the blog
+  // has none of its own. Ukrainian rather than English for a Russian reader:
+  // their site, their report and this article set are Ukrainian, and
+  // apps/web/src/report-language.ts states the same rule for the report.
+  var PUBLIC_LOCALE_FALLBACK = { ru: 'uk' };
   // The same key the app writes, so a language chosen here survives the jump
   // from /blog back to the product and the other way round.
   var STORAGE_KEY = 'fluxradar.language';
@@ -177,6 +188,31 @@
     return LANGUAGES.indexOf(value) !== -1;
   }
 
+  function isPublicLocale(value) {
+    return PUBLIC_LOCALES.indexOf(value) !== -1;
+  }
+
+  /** The blog language a requested locale reads in, or null when it has none. */
+  function blogLanguage(value) {
+    if (isLanguage(value)) return value;
+    var fallback = PUBLIC_LOCALE_FALLBACK[value];
+    return fallback === undefined ? null : fallback;
+  }
+
+  /**
+   * The locale the links that leave this page carry.
+   *
+   * It is the reader's own, taken from `?lang=` or the stored preference even
+   * when the blog has no articles in it; the article filter below falls back
+   * to English for the same value, because there is nothing to filter to.
+   */
+  function publicLocale() {
+    var requested = new URLSearchParams(window.location.search).get('lang');
+    if (isPublicLocale(requested)) return requested;
+    var stored = readStoredLanguage();
+    return isPublicLocale(stored) ? stored : currentLanguage;
+  }
+
   function readStoredLanguage() {
     try {
       if (!preferencesAllowed()) {
@@ -203,7 +239,7 @@
 
   function readParamLanguage() {
     var value = new URLSearchParams(window.location.search).get('lang');
-    return isLanguage(value) ? value : null;
+    return blogLanguage(value);
   }
 
   // Match the app's versioned consent (src/browser-consent.ts). Language links
@@ -281,8 +317,8 @@
     if (!isIndex) return isLanguage(root.lang) ? root.lang : 'en';
     var requested = readParamLanguage();
     if (requested !== null) return requested;
-    var stored = readStoredLanguage();
-    return isLanguage(stored) ? stored : 'en';
+    var stored = blogLanguage(readStoredLanguage());
+    return stored === null ? 'en' : stored;
   }
 
   function translateChrome(language) {
@@ -318,8 +354,12 @@
   function applyLanguage(language, options) {
     currentLanguage = language;
     translateChrome(language);
-    window.fluxradarPublicLinks?.(language);
-    syncWorkspaceTabs(language);
+    // The destinations follow the reader, the chrome follows the blog: a
+    // Russian reader gets a Ukrainian article list and Russian app links.
+    // Picking a filter is picking a language, so that choice wins outright.
+    var destination = options && options.pushUrl ? language : publicLocale();
+    window.fluxradarPublicLinks?.(destination);
+    syncWorkspaceTabs(destination);
     if (!isIndex) {
       renderCookieControls(language);
       return;
@@ -330,6 +370,8 @@
     updateEmptyState(language);
     syncLanguageControls(language);
     if (options && options.pushUrl) {
+      // Choosing a filter is choosing a language, so the address stops
+      // carrying the locale the reader arrived with.
       var url = language === 'en' ? '/blog' : '/blog?lang=' + language;
       window.history.replaceState(null, '', url);
     }

@@ -204,8 +204,11 @@ describe('the screen’s lead', () => {
 
     expect(screen.getByText(/^Почніть із найтерміновіших проблем угорі списку\./)).toBeVisible();
     const legend = screen.getByText(/показує, коли братися/);
+    // The lead-in ends in a full stop, so each colon in the line belongs to a
+    // level: it used to end in a colon too, and the sentence read «братися:
+    // Критична:».
     expect(legend).toHaveTextContent(
-      'Критичність показує, коли братися: Критична — беріться першою · Висока — виправте найближчим часом',
+      'Критичність показує, коли братися за проблему. Критична: беріться першою · Висока: виправте найближчим часом',
     );
     // The counts stay.
     expect(screen.getByText('Відкритих знахідок: 4, проблем: 4.')).toBeInTheDocument();

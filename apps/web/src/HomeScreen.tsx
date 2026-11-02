@@ -10,6 +10,7 @@ import { HomeHero } from './HomeHero';
 import { copy, type Language } from './i18n';
 import { PricingCards, PricingExplainer, type ChosenPlan } from './Pricing';
 import './styles/home-plain-language.css';
+import { siteChromeCopy } from './site-chrome-copy';
 
 /**
  * The public landing page: the hero, the example report, the pricing block
@@ -250,11 +251,9 @@ export function HomeScreen(props: {
             </a>
             <a href={publicPagePath('cookies', props.language)}>{t.legal.cookies.title}</a>
             <a href={publicPagePath('checks', props.language) + '#methodology'}>
-              {props.language === 'uk' ? 'Як ми перевіряємо' : 'How we audit'}
+              {siteChromeCopy[props.language].howWeAudit}
             </a>
-            <a href="/knowledge-base">
-              {props.language === 'uk' ? 'База знань' : 'Knowledge base (Ukrainian)'}
-            </a>
+            <a href="/knowledge-base">{siteChromeCopy[props.language].knowledgeBase}</a>
             <a href="/blog">{t.home.footer.fieldNotes}</a>
           </span>
           <CreatedByFluxLab language={props.language} />

@@ -13,7 +13,9 @@
 import { describe, expect, it } from 'vitest';
 
 import { accountCopy } from './account-copy';
+import { evidenceChromeCopy } from './finding-evidence-copy';
 import { findingsCopy } from './findings-copy';
+import { findingsDocumentCopy } from './findings-document-copy';
 import { geoDigestCopy } from './geo-digest-copy';
 import { newScanCopy } from './new-scan-copy';
 import { offlineBannerCopy } from './OfflineBanner';
@@ -23,6 +25,8 @@ import { reportFailureCopy } from './report-failure-copy';
 const CATALOGUES = {
   newScanCopy,
   findingsCopy,
+  findingsDocumentCopy,
+  evidenceChromeCopy,
   accountCopy,
   offlineBannerCopy,
   reportFailureCopy,
@@ -44,8 +48,6 @@ const SAME_IN_BOTH_LANGUAGES: readonly RegExp[] = [
   /^findingsCopy\.status\.[A-Za-z ]+$/,
   // "HTTP 404" is the answer the site gave, not a sentence about it.
   /^reportFailureCopy\.httpStatus$/,
-  // Brand and standard names: FAQ, GA4, Search Console, PageSpeed, Creem.
-  /^findingsCopy\.print\.(?:csv|json)$/,
   // "Email" is the word Ukrainian uses for it too, here and on the account
   // screen's own heading above it.
   /^accountCopy\.email\.heading$/,
@@ -156,9 +158,10 @@ describe('the new-scan and progress screens hold no inline translations', () => 
     for (const file of ['NewScanScreen.tsx', 'ScanProgress.tsx']) {
       const source = readFileSync(join(resolve(process.cwd()), 'src', file), 'utf8');
       const inline = source.match(/language === 'uk'/g) ?? [];
-      // ScanProgress still holds a handful in its cancel dialog; the count is
-      // pinned so it can only go down. NewScanScreen holds none.
-      expect(inline.length).toBeLessThanOrEqual(file === 'NewScanScreen.tsx' ? 0 : 9);
+      // Both hold none now: the cancel dialog's last nine moved to
+      // `scan-cancel-copy.ts` when a third language made the nesting
+      // unreadable. Pinned at zero, so one cannot come back.
+      expect(inline.length).toBe(0);
     }
   });
 });

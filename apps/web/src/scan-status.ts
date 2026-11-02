@@ -6,7 +6,7 @@
 // the progress window, in the reports list and on the report itself — and so a
 // new locale is a translation, not another switch statement.
 
-import { copy, type Language } from './i18n';
+import { INTL_LOCALES, copy, type Language } from './i18n';
 import { isNotApplicable } from './module-status';
 import type { ScanModule } from './api';
 
@@ -154,7 +154,7 @@ export function formatTimestamp(value: string | null, language: Language): strin
   if (value === null) return null;
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return null;
-  return parsed.toLocaleString(language === 'uk' ? 'uk-UA' : 'en-GB');
+  return parsed.toLocaleString(language === 'en' ? 'en-GB' : INTL_LOCALES[language]);
 }
 
 /** The hostname of a scanned origin; the raw value if it is not a URL. */

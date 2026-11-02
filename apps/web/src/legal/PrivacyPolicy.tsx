@@ -1,6 +1,7 @@
 import type { JSX } from 'react';
 
 import type { Language } from '../i18n';
+import { RussianPrivacy } from './PrivacyPolicy.ru';
 import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } from './SharedLegal';
 
 /**
@@ -54,10 +55,16 @@ import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } fro
  * Anthropic, Google and Perplexity becoming opt-in recipients, the AI Action
  * Plan as an AI purpose, and consent-based Google Analytics 4.
  */
-const PRIVACY_EFFECTIVE: EffectiveDate = { uk: '28 жовтня 2026 року', en: '28 October 2026' };
+const PRIVACY_EFFECTIVE: EffectiveDate = {
+  uk: '28 жовтня 2026 року',
+  en: '28 October 2026',
+  ru: '28 октября 2026 года',
+};
 
 export function PrivacyPolicy({ language }: { readonly language: Language }): JSX.Element {
-  return language === 'uk' ? <UkrainianPrivacy /> : <EnglishPrivacy />;
+  if (language === 'uk') return <UkrainianPrivacy />;
+  if (language === 'ru') return <RussianPrivacy effectiveOn={PRIVACY_EFFECTIVE} />;
+  return <EnglishPrivacy />;
 }
 
 function UkrainianPrivacy(): JSX.Element {
