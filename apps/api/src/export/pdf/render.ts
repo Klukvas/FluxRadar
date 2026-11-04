@@ -27,6 +27,7 @@ import { coverPage } from './cover.ts';
 import { ReportDocument } from './document.ts';
 import { fillIndexPages, findingsIndex } from './findings-index.ts';
 import { findingWriter, severityColour } from './findings-section.ts';
+import { geoVisibilitySection } from './geo-visibility-section.ts';
 import { glossarySection } from './glossary.ts';
 import { performanceFindingText, storedPerformanceFindings } from './performance-findings.ts';
 import { actionPlanSection, loadPlan } from './plan-section.ts';
@@ -461,6 +462,9 @@ export async function renderReportPdf(
     const planPage = actionPlanSection(doc, plan, copy);
     if (firstStep !== null) writeFirstStep(doc, copy, firstStep, planPage);
   }
+  // After the plan and before the developer chapters: like the plan, it is
+  // written for the business owner, not for whoever fixes the findings.
+  geoVisibilitySection(doc, header.modules, copy);
   const indexSlots = findingsIndex(doc, header, copy, options.language);
   performanceSection(doc, header.modules, copy, options.language);
   searchDataSection(
