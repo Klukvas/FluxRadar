@@ -389,6 +389,98 @@ export function bingFinding(overrides: Readonly<Record<string, unknown>> = {}) {
   };
 }
 
+function purposeCounts(answered: number) {
+  return {
+    asked: answered,
+    answered,
+    brandMeasured: 0,
+    domainMeasured: 0,
+    brandMentioned: 0,
+    domainMentioned: 0,
+  };
+}
+
+/**
+ * One engine's stored visibility row, as geo-module-row.ts writes it. The
+ * default is an engine with a score, two measured signals and two cited sites.
+ */
+export function geoProviderVisibility(overrides: Readonly<Record<string, unknown>> = {}) {
+  return {
+    provider: 'openai',
+    label: 'ChatGPT · OpenAI',
+    questionsAsked: 6,
+    questionsAnswered: 5,
+    questionsUnavailable: 1,
+    brandMeasuredCount: 5,
+    brandMentionedCount: 3,
+    brandMentionedShare: 0.6,
+    domainMeasuredCount: 5,
+    domainCitedCount: 2,
+    domainCitedShare: 0.4,
+    visibilityScore: 52,
+    scoreUnavailableReason: null,
+    scoreBasis: 'brand-and-domain',
+    byPurpose: {
+      'closed-book': purposeCounts(2),
+      awareness: purposeCounts(0),
+      discovery: purposeCounts(3),
+    },
+    citedInstead: [
+      { hostname: 'coffee-guide.example', answerCount: 2 },
+      { hostname: 'city-cafes.example', answerCount: 1 },
+    ],
+    ...overrides,
+  };
+}
+
+/** An engine that answered but measured too little for a score. */
+export function geoProviderWithoutScore(overrides: Readonly<Record<string, unknown>> = {}) {
+  return geoProviderVisibility({
+    provider: 'google',
+    label: 'Gemini · Google',
+    brandMeasuredCount: 1,
+    brandMentionedCount: 1,
+    brandMentionedShare: 1,
+    domainMeasuredCount: 0,
+    domainCitedCount: 0,
+    domainCitedShare: null,
+    visibilityScore: null,
+    scoreUnavailableReason: 'not-enough-measured',
+    scoreBasis: null,
+    citedInstead: [],
+    ...overrides,
+  });
+}
+
+/**
+ * The GEO module's stored metadata carrying a visibility summary and the
+ * answered requests whose mention sentences the report quotes.
+ */
+export function geoModuleMetadata(
+  providers: readonly unknown[] = [geoProviderVisibility(), geoProviderWithoutScore()],
+  requests: readonly unknown[] = [],
+) {
+  return {
+    scoring: 'InformationalOnly',
+    providerVisibility: {
+      visibilitySummary: { minMeasuredForScore: 2, weightBrand: 0.6, weightDomain: 0.4, providers },
+      requests,
+    },
+  };
+}
+
+/** One answered request on the GEO ledger, with the sentence the brand came up in. */
+export function geoAnsweredRequest(provider: string, mentionContext?: string) {
+  return {
+    purpose: 'discovery',
+    provider,
+    status: 'response',
+    question: 'Where can I get good coffee nearby?',
+    aiRequestKey: `${provider}-1`,
+    ...(mentionContext === undefined ? {} : { mentionContext }),
+  };
+}
+
 /**
  * A ready action plan in the projection shape the seam documents. Its keys are
  * asserted on directly: the absence of a prompt field is the guarantee.
