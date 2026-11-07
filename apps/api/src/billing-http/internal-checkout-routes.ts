@@ -8,7 +8,7 @@
 
 import { Router } from 'express';
 import type { PrismaClient } from '@prisma/client';
-import { TARIFFS, scanScopeSchema } from '@fluxradar/contracts';
+import { TARIFFS, scanScopeSchema, aiLanguageSchema } from '@fluxradar/contracts';
 import type { AiProviderName } from '@fluxradar/ai';
 import { z } from 'zod';
 
@@ -33,6 +33,7 @@ const internalCheckoutInputSchema = z
     plan: z.enum(PAID_PLANS),
     scope: scanScopeSchema,
     aiConsent: aiConsentSchema.optional(),
+    aiLanguage: aiLanguageSchema.optional(),
     expectedProfileConfigVersion: z.number().int().min(1).optional(),
   })
   .superRefine((input, ctx) => {
@@ -98,6 +99,7 @@ export function internalCheckoutRouter(deps: InternalCheckoutRouterDeps): Router
       scope: input.scope,
       egress,
       aiConsent: input.aiConsent,
+      aiLanguage: input.aiLanguage,
       expectedProfileConfigVersion: input.expectedProfileConfigVersion,
       now: deps.now(),
     });

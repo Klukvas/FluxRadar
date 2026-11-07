@@ -164,6 +164,8 @@ describe('the launch summary', () => {
   function renderSummary(plan: 'Free' | 'Complete', egressLocation: EgressLocation | null) {
     render(
       <LaunchSummary
+        freeAiConsent={false}
+        freeAiLanguage="en"
         language="uk"
         plan={plan}
         labelledBy="technical-rows"

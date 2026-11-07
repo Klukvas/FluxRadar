@@ -188,7 +188,11 @@ describe('a Free report whose stored homepage score is 100', () => {
       expect(note.textContent).toBe(rule);
       expect(dial.textContent).not.toMatch(/full audit|Повний аудит|scored out of|з оцінкою з/);
       // The SEO card prints the same number the same way.
-      expect(screen.getAllByText('40 / 40').length).toBeGreaterThan(0);
+      expect(
+        screen.getByText(
+          /^(Homepage score|Оцінка головної сторінки|Оценка главной страницы): 40 \/ 40 (points|балів|баллов)$/,
+        ),
+      ).toBeInTheDocument();
       expect(hundredsAsValues(pageText(), language)).toEqual([]);
       expect(scoresOffTheFreeScale()).toEqual([]);
 

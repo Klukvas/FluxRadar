@@ -10,6 +10,7 @@
 // static copy needs before any scan exists are mirrored here and held to the
 // contract by `free-score-copy.test.ts`, which reads the contract source.
 
+import { ruleChecksOf } from './module-metadata';
 import type { ScanModule } from './api';
 import { ukCountForm, type Language } from './i18n';
 import { ruCountForm } from './i18n.ru.grammar';
@@ -46,7 +47,10 @@ export function showsRulePenalty(plan: string | undefined): boolean {
  * scan actually did — or the current count when the row does not list them.
  */
 export function freeCheckCountOf(modules: readonly ScanModule[]): number {
-  const checks = modules.find((module) => module.module === 'SEO')?.metadata?.checks;
+  const metadata = modules.find((module) => module.module === 'SEO')?.metadata;
+  const recorded = ruleChecksOf(metadata);
+  if (recorded.length > 0) return recorded.length;
+  const checks = metadata?.checks;
   return Array.isArray(checks) && checks.length > 0 ? checks.length : FREE_CHECK_COUNT;
 }
 

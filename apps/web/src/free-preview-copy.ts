@@ -87,7 +87,8 @@ export const freePreviewCopy: Readonly<Record<Language, FreePreviewCopy>> = {
       lead: 'One real answer from one AI assistant. It is shown for information and does not change your homepage score.',
       answerLead: (brand) =>
         `One answer from one AI assistant, asked without web search what it knows about ${brand ?? 'your business'}. For information only — it does not change your homepage score.`,
-      askedIn: (asked) => `It was asked in ${asked === 'uk' ? 'Ukrainian' : 'English'}.`,
+      askedIn: (asked) =>
+        `It was asked in ${asked === 'uk' ? 'Ukrainian' : asked === 'ru' ? 'Russian' : 'English'}.`,
       headline: {
         mismatch: 'The AI says something about you that does not match your site.',
         confirmed: 'What the AI says about you matches your site.',
@@ -153,7 +154,8 @@ export const freePreviewCopy: Readonly<Record<Language, FreePreviewCopy>> = {
       lead: 'Одна справжня відповідь одного ШІ-помічника. Вона показана для інформації й не змінює оцінку головної сторінки.',
       answerLead: (brand) =>
         `Одна відповідь одного ШІ-помічника, якого без пошуку в інтернеті запитали, що він знає про ${brand === null ? 'ваш бізнес' : `«${brand}»`}. Лише для інформації — на оцінку головної сторінки це не впливає.`,
-      askedIn: (asked) => `Запитали ${asked === 'uk' ? 'українською' : 'англійською'}.`,
+      askedIn: (asked) =>
+        `Запитали ${asked === 'uk' ? 'українською' : asked === 'ru' ? 'російською' : 'англійською'}.`,
       headline: {
         mismatch: 'ШІ каже про вас щось, що не збігається з вашим сайтом.',
         confirmed: 'Те, що ШІ каже про вас, збігається з вашим сайтом.',
@@ -198,8 +200,7 @@ export const freePreviewCopy: Readonly<Record<Language, FreePreviewCopy>> = {
       decoyTitles: ['ChatGPT · OpenAI', 'Питання клієнта', 'Безпека', 'Швидкодія', 'Доступність'],
     },
   },
-  // Russian interface: the same honesty rules as the other two; the AI answer
-  // itself is asked only in Ukrainian or English (D-237).
+  // Russian chrome and saved AI texts use their own recorded language.
   ru: {
     scopePreview: 'Превью в этом отчёте, полный раздел в платной проверке',
     consent: {
@@ -215,7 +216,8 @@ export const freePreviewCopy: Readonly<Record<Language, FreePreviewCopy>> = {
       lead: 'Один настоящий ответ одного ИИ-помощника. Он показан для информации и не меняет оценку главной страницы.',
       answerLead: (brand) =>
         `Один ответ одного ИИ-помощника, которого без поиска в интернете спросили, что он знает о ${brand === null ? 'вашем бизнесе' : `«${brand}»`}. Только для информации: на оценку главной страницы это не влияет.`,
-      askedIn: (asked) => `Спрашивали ${asked === 'uk' ? 'по-украински' : 'по-английски'}.`,
+      askedIn: (asked) =>
+        `Спрашивали ${asked === 'uk' ? 'по-украински' : asked === 'ru' ? 'по-русски' : 'по-английски'}.`,
       headline: {
         mismatch: 'ИИ говорит о вас что-то, что не совпадает с вашим сайтом.',
         confirmed: 'То, что ИИ говорит о вас, совпадает с вашим сайтом.',

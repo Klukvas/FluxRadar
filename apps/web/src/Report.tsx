@@ -41,7 +41,11 @@ import {
   moduleScoreLabel,
 } from './scan-status';
 import { FreeAiPreview } from './FreeAiPreview';
+import { CompleteCheckCatalog } from './CompleteCheckCatalog';
 import { FreeScore } from './FreeScore';
+import { freeReportCopy } from './free-report-copy';
+import { FreeModuleSummary } from './FreeModuleSummary';
+import { hasDeclaredFreeSeoChecks } from './FreeSeoChecks';
 import { freeCheckCountOf } from './free-score-copy';
 import {
   checksSummary,
@@ -277,6 +281,7 @@ export function ResultsScreen(props: {
         {unscoredPlan ? <p className="muted">{t.unscoredLead}</p> : null}
         <ReportNextStepsWithSummary
           scan={scan}
+          freeChecks={freeCheckCountOf(dashboard.modules)}
           summary={issueSummary}
           language={props.language}
           targetLanguages={props.targetLanguages}
@@ -320,7 +325,9 @@ export function ResultsScreen(props: {
         ) : (
           <div className="module-grid">
             {dashboard.modules.map((module) => {
-              const expandable = hasModuleChecks(module, geoObservations);
+              const expandable =
+                hasModuleChecks(module, geoObservations) ||
+                (scan.plan === 'Free' && hasDeclaredFreeSeoChecks(module));
               const open =
                 expandable && openChecks?.scanId === scan.id && openChecks.module === module.module;
               const toggle = (): void =>
@@ -342,27 +349,41 @@ export function ResultsScreen(props: {
                         label={moduleResultLabel(module, props.language)}
                       />
                     </div>
-                    <div
-                      className={
-                        module.score === null
-                          ? 'module-card__score module-card__score--null'
-                          : 'module-card__score'
-                      }
-                    >
-                      {moduleScoreLabel(module, props.language)}
-                    </div>
-                    <ModuleMetadata
-                      module={module}
-                      scored={!unscoredPlan}
-                      language={props.language}
-                    />
+                    {scan.plan === 'Free' ? (
+                      <FreeModuleSummary
+                        module={module}
+                        language={props.language}
+                        observations={geoObservations}
+                      />
+                    ) : (
+                      <>
+                        <div
+                          className={
+                            module.score === null
+                              ? 'module-card__score module-card__score--null'
+                              : 'module-card__score'
+                          }
+                        >
+                          {moduleScoreLabel(module, props.language)}
+                        </div>
+                        <ModuleMetadata
+                          module={module}
+                          scored={!unscoredPlan}
+                          language={props.language}
+                        />
+                      </>
+                    )}
                     {module.usableOutput && module.coverage !== null ? (
                       // Named, and drawn as a measurement rather than as progress: an
                       // unlabelled zebra bar at 100% beside a Completed chip was the
                       // one thing on this card that still looked like a running scan.
                       <ProgressBar
                         variant="result"
-                        caption={t.helpCoverageTerm}
+                        caption={
+                          scan.plan === 'Free'
+                            ? freeReportCopy[props.language].freeCoverage
+                            : t.helpCoverageTerm
+                        }
                         value={module.coverage * 100}
                         label={fillCopy(t.moduleCoverageLabel, { module: module.module })}
                       />
@@ -392,6 +413,12 @@ export function ResultsScreen(props: {
                       visibilitySummary={geoVisibilitySummary}
                       language={props.language}
                       onOpenProblem={props.onOpenProblem}
+                      freeReport={scan.plan === 'Free'}
+                      onUpgrade={
+                        props.onUpgrade === undefined
+                          ? undefined
+                          : (plan) => props.onUpgrade?.(scan, plan)
+                      }
                     />
                   ) : null}
                 </Fragment>
@@ -406,6 +433,15 @@ export function ResultsScreen(props: {
             evidence={geoEvidence}
             language={props.language}
             onUpgrade={(plan) => props.onUpgrade?.(scan, plan)}
+          />
+        ) : null}
+        {scan.plan === 'Free' && siteFailure === null && !checkedNothing ? (
+          <CompleteCheckCatalog
+            modules={dashboard.modules}
+            language={props.language}
+            onUpgrade={
+              props.onUpgrade === undefined ? undefined : (plan) => props.onUpgrade?.(scan, plan)
+            }
           />
         ) : null}
         <PlanScope modules={dashboard.modules} plan={scan.plan} language={props.language} />

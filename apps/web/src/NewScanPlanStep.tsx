@@ -3,6 +3,7 @@ import { useId } from 'react';
 import type { CheckoutConfig } from './api';
 import { Checkbox } from './components';
 import { FreeAiConsentField } from './FreeAiConsentField';
+import { freeAiInterfaceHint } from './free-ai-language-copy';
 import { FreeAiLanguageField } from './FreeAiLanguageField';
 import { copy, type Language } from './i18n';
 import { newScanCopy } from './new-scan-copy';
@@ -51,7 +52,7 @@ export function PlanStep(props: {
     checkoutPending,
     choosePlan,
     freeAiConsent,
-    freeAiLanguage,
+    paidAiLanguage,
     offeredOptInAiProviders,
     optInAiProviders,
     paidAvailable,
@@ -113,6 +114,9 @@ export function PlanStep(props: {
             ))
           : null}
       </div>
+      {plan !== 'Free' ? (
+        <FreeAiLanguageField language={props.language} aiLanguage={paidAiLanguage} />
+      ) : null}
       {paidAvailable ? null : checkoutPending ? (
         <p className="muted">{t.newScan.paidChecking}</p>
       ) : (
@@ -222,7 +226,7 @@ export function PlanStep(props: {
         />
       ) : null}
       {plan === 'Free' && freeAiConsent ? (
-        <FreeAiLanguageField language={props.language} aiLanguage={freeAiLanguage} />
+        <p className="field__hint">{freeAiInterfaceHint[props.language]}</p>
       ) : null}
     </NewScanStep>
   );

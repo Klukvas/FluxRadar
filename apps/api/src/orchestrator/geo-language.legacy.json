@@ -1,0 +1,65 @@
+{
+  "base": "f3986480",
+  "records": {
+    "free-en": {
+      "systemDigest": "03516bbc5bba33056f80cec7723dfabfc1eb2c7e67253f9027f000ea7054c97e",
+      "requestDigest": "d1b68b05a97ce7932c8e609e8097c74bbe09ae09154cf205fb7fdb2a4b8ae9e2",
+      "promptDigest": "9b1208575275c8e1a3e6e4a04f32a664b8942bb8efc61c5bb122f06cd585da82",
+      "key": "ai:legacy-language-proof:anthropic:9b1208575275c8e1:1"
+    },
+    "free-en-judge": {
+      "systemDigest": "93f8fb2d2b91ed275e571ed03946ca4842470e2de5d127289305ee84bd2f5639",
+      "requestDigest": "693c96b5604c87b2c0da2cc3fee861e1c119d8fdf222fc78ba5a4fb0ae90860d",
+      "promptDigest": "ded1fab4018dd50caf07d933375e828d7c8b0084ab928e966c1107faf2f01a2f",
+      "key": "ai:legacy-language-proof:anthropic:599b6eb2752e33c2:2001"
+    },
+    "free-uk": {
+      "systemDigest": "cf1d7b15b52efdcbc855cf191cf184301fa27524cc98b1d2ec55c1d8dff00bd0",
+      "requestDigest": "f3cd1048e39442ee1a6f2bf99eb4ecea5dfadbd13e6f6d02a5c39dcacf56203c",
+      "promptDigest": "a135ca558acc15e5acc45c4ac45f3472896b496249c697f73ce4a32da1bc91a4",
+      "key": "ai:legacy-language-proof:anthropic:a135ca558acc15e5:1"
+    },
+    "free-uk-judge": {
+      "systemDigest": "ae598582a77168e32935c8245f41c613e1b34d92e60f3e8c2791bda5bc2c533d",
+      "requestDigest": "240903689bd07c961894039287f0e8671d585ade9bbd1c32948e4afaa2334300",
+      "promptDigest": "40b702c32fae5b39dbf071bba3b33e70a72a1c5743b8ba11ddad9b0793e24775",
+      "key": "ai:legacy-language-proof:anthropic:6beefb480d2da73e:2001"
+    },
+    "paid-generator": {
+      "systemDigest": "0c081831da708d61c41fa76477ea9c02d588d6d8d4ea7fc88cdf84cbb8ff3afe",
+      "requestDigest": "e8a0a6a7e20d3a1b34c47e25dba29120e811d7f040a820bef521f83557c530c3",
+      "promptDigest": "500c2e1419c7bcb6543effbdd02bfa02c0817221da4ab983057b5648d1d08d59",
+      "key": "ai:legacy-language-proof:anthropic:500c2e1419c7bcb6:1"
+    },
+    "paid-1": {
+      "systemDigest": "03516bbc5bba33056f80cec7723dfabfc1eb2c7e67253f9027f000ea7054c97e",
+      "requestDigest": "d1b68b05a97ce7932c8e609e8097c74bbe09ae09154cf205fb7fdb2a4b8ae9e2",
+      "promptDigest": "9b1208575275c8e1a3e6e4a04f32a664b8942bb8efc61c5bb122f06cd585da82",
+      "key": "ai:legacy-language-proof:anthropic:9b1208575275c8e1:1"
+    },
+    "paid-2": {
+      "systemDigest": "03516bbc5bba33056f80cec7723dfabfc1eb2c7e67253f9027f000ea7054c97e",
+      "requestDigest": "7cb9e6d4da4252ef93fe9f6c7a2a8602525b754e8f37795a45d969373405f792",
+      "promptDigest": "1362464e9156f1eced549f6ad3a5c4e77d61f27610bd3a10e43ede7e30a5c5bc",
+      "key": "ai:legacy-language-proof:anthropic:1362464e9156f1ec:2"
+    },
+    "paid-3": {
+      "systemDigest": "13439ca43d0ed21593c1cda6efaace1af74352b1ea453b16746b1415f4d59c19",
+      "requestDigest": "0f246d061aad177680ca3c5f79dead1e22f0a78b1fc2107076cad5d9221bd893",
+      "promptDigest": "963593e2855a461f752a679ca63d3220c51601c7407bdb55ee2e066806f589fa",
+      "key": "ai:legacy-language-proof:anthropic:963593e2855a461f:3"
+    },
+    "paid-4": {
+      "systemDigest": "13439ca43d0ed21593c1cda6efaace1af74352b1ea453b16746b1415f4d59c19",
+      "requestDigest": "331961dd47041c5311edc0f27a604cde1afc21111f80115fd91ae7ed736e8565",
+      "promptDigest": "cb5065f39bd1d328fc1616fbe49b8882ee72546073d2733c13edd3a58e4ab221",
+      "key": "ai:legacy-language-proof:anthropic:cb5065f39bd1d328:4"
+    },
+    "paid-judge": {
+      "systemDigest": "93f8fb2d2b91ed275e571ed03946ca4842470e2de5d127289305ee84bd2f5639",
+      "requestDigest": "693c96b5604c87b2c0da2cc3fee861e1c119d8fdf222fc78ba5a4fb0ae90860d",
+      "promptDigest": "ded1fab4018dd50caf07d933375e828d7c8b0084ab928e966c1107faf2f01a2f",
+      "key": "ai:legacy-language-proof:anthropic:599b6eb2752e33c2:2001"
+    }
+  }
+}

@@ -18,7 +18,7 @@ import { MockAiProvider } from './mock-provider.js';
 import { AiQuotaTracker } from './quota.js';
 
 // The judge in the answer's language (W1, D-237): a Ukrainian system line and a larger
-// output budget for `uk`; English and paid requests byte-identical to before.
+// output budget for Cyrillic; absent historical language preserves original bytes.
 
 const SCAN_ID = 'scan-eval-uk';
 const ANSWER_UK =
@@ -99,11 +99,12 @@ const UKRAINIAN_CLAIMS = {
 };
 
 describe('buildGeoEvaluationRequest language', () => {
-  it('is byte-identical for en and for no language (paid)', () => {
+  it('preserves the historical prompt when no language was recorded', () => {
     const base = { ...input(), judgeTone: true };
     const withoutLanguage = buildGeoEvaluationRequest(base);
     const english = buildGeoEvaluationRequest({ ...base, language: 'en' });
-    expect(JSON.stringify(english)).toBe(JSON.stringify(withoutLanguage));
+    expect(english.systemInstructions).toContain('Write each `claim` in English.');
+    expect(english.promptVersion).toBe(withoutLanguage.promptVersion);
     expect(withoutLanguage.systemInstructions).toBe(GEO_EVALUATION_SYSTEM_INSTRUCTIONS);
     expect(withoutLanguage.caps).toBe(GEO_EVALUATION_CAPS);
     expect(JSON.stringify(withoutLanguage)).not.toContain('Ukrainian');

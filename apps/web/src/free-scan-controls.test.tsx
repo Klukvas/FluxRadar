@@ -169,6 +169,7 @@ describe('free plan controls', () => {
     );
     const call = fetchMock.mock.calls.find(([input]) => pathOf(input).endsWith('/free-check'));
     expect(bodyOf(call?.[1] as RequestInit)).toEqual({
+      aiLanguage: 'en',
       scope: {
         includeSubdomains: false,
         maxPages: 1,
@@ -179,7 +180,7 @@ describe('free plan controls', () => {
         robotsOverrideConfirmed: false,
         userAgent: 'desktop',
       },
-      // No AI consent, so no question and no language (D-237).
+      // The interface language is captured even when no AI request is consented.
     });
   });
 
@@ -199,7 +200,7 @@ describe('free plan controls', () => {
       ),
     );
     const call = fetchMock.mock.calls.find(([input]) => pathOf(input).endsWith('/free-check'));
-    expect(bodyOf(call?.[1] as RequestInit)).toMatchObject({ language: 'uk' });
+    expect(bodyOf(call?.[1] as RequestInit)).toMatchObject({ aiLanguage: 'uk' });
   });
 });
 
@@ -416,6 +417,7 @@ describe('paid plan controls', () => {
     );
     const call = fetchMock.mock.calls.find(([input]) => pathOf(input).endsWith('/free-check'));
     expect(bodyOf(call?.[1] as RequestInit)).toEqual({
+      aiLanguage: 'en',
       scope: {
         includeSubdomains: false,
         maxPages: 1,
@@ -426,7 +428,7 @@ describe('paid plan controls', () => {
         robotsOverrideConfirmed: false,
         userAgent: 'desktop',
       },
-      // No AI consent, so no question and no language (D-237).
+      // The interface language is captured even when no AI request is consented.
     });
   });
 });

@@ -29,7 +29,11 @@ describe('internal free checkout access', () => {
     await db.cleanup();
   });
 
-  async function internalCheckout(email: string, internalFreeEmails?: ReadonlySet<string>) {
+  async function internalCheckout(
+    email: string,
+    internalFreeEmails?: ReadonlySet<string>,
+    aiLanguage?: unknown,
+  ) {
     const app = createApp({
       prisma: db.prisma,
       autoProcess: false,
@@ -54,9 +58,35 @@ describe('internal free checkout access', () => {
       .send({
         siteProfileId: profile.body.data.id,
         plan: 'Complete',
+        ...(aiLanguage === undefined ? {} : { aiLanguage }),
         scope: { includeSubdomains: false, maxPages: 15 },
       });
   }
+
+  it.each(['en', 'uk', 'ru'] as const)(
+    'captures internal checkout GEO language %s',
+    async (aiLanguage) => {
+      const response = await internalCheckout(
+        INTERNAL_EMAIL,
+        new Set([INTERNAL_EMAIL]),
+        aiLanguage,
+      );
+      expect(response.status).toBe(201);
+      const scan = await db.prisma.scan.findUniqueOrThrow({
+        where: { id: response.body.data.scanId as string },
+      });
+      expect(JSON.parse(scan.executionConfigJson ?? '{}')).toMatchObject({ aiLanguage });
+    },
+  );
+  it.each(['RU', 'uk-UA', null, 5])(
+    'rejects invalid AI language %o without creating a scan',
+    async (value) => {
+      expect(
+        (await internalCheckout(INTERNAL_EMAIL, new Set([INTERNAL_EMAIL]), value)).status,
+      ).toBe(400);
+      expect(await db.prisma.scan.count()).toBe(0);
+    },
+  );
 
   async function paidRecords() {
     return {

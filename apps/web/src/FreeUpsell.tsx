@@ -25,13 +25,15 @@ export function FreeUpsell(props: {
    * rather than a "0" that flips to the real one.
    */
   openProblems: number | null;
+  /** The check count recorded by this report, when available. */
+  checks?: number;
   onUpgrade: (plan: PaidPlan) => void;
 }) {
   const f = findingsCopy[props.language].upsell;
   return (
     <section className="report-block upsell" aria-labelledby="upsell-heading">
       <h3 id="upsell-heading">{f.heading}</h3>
-      <p>{f.lead(displayDomain(props.scan.domain), props.openProblems)}</p>
+      <p>{f.lead(displayDomain(props.scan.domain), props.openProblems, props.checks)}</p>
       <p className="upsell__intro">{f.listIntro}</p>
       <ul>
         {f.points.map((point) => (

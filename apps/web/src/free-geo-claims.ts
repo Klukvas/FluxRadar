@@ -48,7 +48,7 @@ export function freeGeoHeadline(evaluation: GeoEvaluation | null): FreeGeoHeadli
  */
 export function aiAnswerLanguage(module: ScanModule | undefined): AiLanguage | null {
   const language = module?.metadata?.language;
-  return language === 'uk' || language === 'en' ? language : null;
+  return language === 'uk' || language === 'en' || language === 'ru' ? language : null;
 }
 
 /**

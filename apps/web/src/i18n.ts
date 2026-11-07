@@ -812,7 +812,7 @@ const BILINGUAL = {
     },
     newScan: {
       windowTitle: 'New scan',
-      prefillNote: 'Settings carried over from your last check of this site.',
+      prefillNote: 'Loaded this site’s scan settings.',
       freeScopeTitle: 'What the free check does',
       freeScopeNote:
         'The free check reads your homepage and nothing else: the page title, the heading structure, the meta description, whether search engines are allowed to index it, the link preview for social networks (Open Graph/Twitter) and image alt text.',
@@ -1172,7 +1172,7 @@ const BILINGUAL = {
       // 0–100 number could honestly measure. AI SEO / GEO is the one: its
       // checks are informational, so a score there would be invented rather
       // than measured. The observations themselves are on the section's card.
-      informationalLabel: 'Observations only',
+      informationalLabel: 'No separate score',
       coverageUnavailable: 'coverage unavailable',
       siteCoverageTitle: 'How much of the site was read',
       siteCoverageCaption: 'Addresses read',
@@ -2886,7 +2886,7 @@ const BILINGUAL = {
     },
     newScan: {
       windowTitle: 'Нова перевірка',
-      prefillNote: 'Налаштування перенесено з вашої попередньої перевірки цього сайту.',
+      prefillNote: 'Завантажено налаштування перевірки для цього сайту.',
       freeScopeTitle: 'Що робить безкоштовна перевірка',
       freeScopeNote:
         'Безкоштовна перевірка читає лише головну сторінку: заголовок сторінки, структуру заголовків, meta description, чи дозволено пошуковим системам індексувати сторінку, превʼю посилання для соцмереж (Open Graph/Twitter) і alt-текст зображень.',
@@ -3195,7 +3195,7 @@ const BILINGUAL = {
       helpFindingsBody:
         'Конкретні проблеми, які ми виявили, кожна з доказом. Відкрийте список знахідок нижче, щоб переглянути їх і побачити рекомендовані виправлення.',
       noScore: 'Без оцінки',
-      informationalLabel: 'Лише спостереження',
+      informationalLabel: 'Без окремого бала',
       coverageUnavailable: 'покриття недоступне',
       siteCoverageTitle: 'Яку частину сайту прочитано',
       siteCoverageCaption: 'Прочитано адрес',

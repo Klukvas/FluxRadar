@@ -713,6 +713,7 @@ export async function runScanAttempt(
     await setModule(prisma, scanId, 'AI SEO / GEO', { runtimeStatus: 'Running' });
     const siteHostname = new URL(ctx.domain).hostname;
     const provider = deps.createAiProvider(scan, profile);
+    const aiLanguage = storedExecutionConfig(scan.executionConfigJson)?.aiLanguage;
     const runPaidGeo = async (): Promise<{
       readonly geo: GeoModuleResult;
       readonly generation: GeoQuestionGenerationResult;
@@ -723,6 +724,7 @@ export async function runScanAttempt(
         brand: profile.name,
         siteHostname,
         context: profile,
+        language: aiLanguage,
         consent,
         provider,
         quota: aiQuota,
@@ -753,8 +755,10 @@ export async function runScanAttempt(
             siteHostname,
             generation.questions,
             geoProvidersFor(consent),
+            aiLanguage,
           ),
           evidence: geoEvidence,
+          ...(aiLanguage === undefined ? {} : { language: aiLanguage }),
         },
         { provider, quota: generation.quota, ...(signal !== undefined ? { signal } : {}) },
       );
@@ -769,7 +773,9 @@ export async function runScanAttempt(
             brand: profile.name,
             siteOrigin: ctx.domain,
             siteHostname,
-            language: storedExecutionConfig(scan.executionConfigJson)?.language ?? 'en',
+            language:
+              aiLanguage ?? storedExecutionConfig(scan.executionConfigJson)?.language ?? 'en',
+            explicitLanguage: aiLanguage !== undefined,
             facts: freePreviewFacts({
               consent: loadConsent(scan),
               profileDomain: profile.domain,

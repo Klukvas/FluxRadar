@@ -166,8 +166,9 @@ export interface NewScanForm {
   /** Free only: whether the owner opted in to the one-question AI preview. */
   readonly freeAiConsent: boolean;
   readonly setFreeAiConsent: (selected: boolean) => void;
-  /** Free only: the language the AI question is asked in (site's first, D-237). */
+  /** Free follows the current interface; paid GEO has a separate draft override. */
   readonly freeAiLanguage: FreeAiLanguage;
+  readonly paidAiLanguage: FreeAiLanguage;
   /** What the submit button says right now, including while it is working. */
   readonly launchLabel: string;
   readonly paidAvailable: boolean;
@@ -303,10 +304,15 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   // Off until the owner ticks it: a Free check sends nothing to an AI service
   // on its own (D-236).
   const [freeAiConsent, setFreeAiConsent] = useState(false);
-  const freeAiLanguage = useFreeAiLanguage(
+  const paidAiLanguage = useFreeAiLanguage(
     props.profiles.find((profile) => profile.id === target) ?? null,
     props.language,
   );
+  const freeAiLanguage: FreeAiLanguage = {
+    ...paidAiLanguage,
+    language: props.language,
+    source: 'interface',
+  };
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   // A profile switch loads a fresh persisted configuration. Its fields must not
   // inherit a discard warning from the profile the owner just left.
@@ -370,7 +376,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   const checkoutKeyRef = useRef<string | null>(null);
   useEffect(() => {
     checkoutKeyRef.current = null;
-  }, [target, plan, scope, optInAiProviders]);
+  }, [target, plan, scope, optInAiProviders, paidAiLanguage.language]);
   const [savingConfiguration, setSavingConfiguration] = useState(false);
   const [savedConfigFingerprint, setSavedConfigFingerprint] = useState<string | null>(() =>
     props.selectedProfile?.scanConfig == null
@@ -660,6 +666,11 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     // robots.txt override, an unreachable site or no egress must not start a
     // scan or open a checkout.
     if (!canLaunch) return;
+    // Bind the key to the draft the owner submitted before any profile write.
+    // Editing language during that write clears the ref for the next draft;
+    // this continuation must never put its old key back into the new draft.
+    const checkoutKey = checkoutKeyRef.current ?? mintIdempotencyKey();
+    checkoutKeyRef.current = checkoutKey;
     setBusy(true);
     try {
       const profileId = await resolveTargetProfileId();
@@ -673,8 +684,6 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
       // payload is identical on retry because an unchanged configuration save
       // does not bump the profile's configuration version, so the server's
       // stored hash still matches.
-      const checkoutKey = checkoutKeyRef.current ?? mintIdempotencyKey();
-      checkoutKeyRef.current = checkoutKey;
       const scan = await requestScan({
         accountId: props.accountId,
         profileId,
@@ -696,7 +705,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
         // inaccuracy as the notice promising a transfer that does not happen.
         optInAiProviders: selectedOptInAiProviders,
         freeAiConsent: plan === 'Free' && freeAiConsent,
-        language: freeAiLanguage.language,
+        aiLanguage: plan === 'Free' ? props.language : paidAiLanguage.language,
         internalFreeAccess: props.internalFreeAccess,
         idempotencyKey: checkoutKey,
         onCheckoutStarted: props.onCheckoutStarted,
@@ -815,6 +824,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     freeAiConsent,
     setFreeAiConsent,
     freeAiLanguage,
+    paidAiLanguage,
     launchLabel,
     paidAvailable,
     paidScopeControls,

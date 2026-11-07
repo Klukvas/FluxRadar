@@ -23,6 +23,8 @@ afterEach(() => {
 function launchSummaryFor(plan: 'Free' | 'Basic' | 'Complete') {
   render(
     <LaunchSummary
+      freeAiConsent={false}
+      freeAiLanguage="en"
       language="en"
       plan={plan}
       labelledBy="technical-rows"
@@ -43,8 +45,8 @@ describe('what the launch summary promises about AI', () => {
     expect(launchSummaryFor('Basic')).toContain(copy.en.newScan.launchSummaryEnabled);
   });
 
-  it('says AI is off on Free, which sends nothing to a provider', () => {
-    expect(launchSummaryFor('Free')).toContain(copy.en.newScan.launchSummaryDisabled);
+  it('distinguishes the excluded full GEO audit from the optional Free answer', () => {
+    expect(launchSummaryFor('Free')).toContain('Full GEO audit not included');
   });
 });
 

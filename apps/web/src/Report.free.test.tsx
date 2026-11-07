@@ -196,7 +196,7 @@ describe('a report on a plan that is not scored', () => {
       scan,
     );
 
-    expect(await screen.findByText(FREE_CHECK_TITLES.join(' · '))).toBeTruthy();
+    expect(await screen.findByText('Checks in this report: 4')).toBeTruthy();
     expect(screen.queryByText('JSON-LD · Open Graph · Twitter Cards')).toBeNull();
   });
 

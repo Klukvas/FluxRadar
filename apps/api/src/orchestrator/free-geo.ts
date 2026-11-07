@@ -57,9 +57,17 @@ export function freeGeoRequests(
   brand: string,
   siteDomain: string,
   language: GeoAnswerLanguage = 'en',
+  explicitLanguage = false,
 ): readonly AiRequest[] {
   return [
-    freeGeoQuestionRequest({ scanId, brand, siteDomain, provider: FREE_GEO_PROVIDER, language }),
+    freeGeoQuestionRequest({
+      scanId,
+      brand,
+      siteDomain,
+      provider: FREE_GEO_PROVIDER,
+      language,
+      explicitLanguage,
+    }),
   ];
 }
 
@@ -216,10 +224,11 @@ export interface FreeGeoPreviewInput {
   readonly siteHostname: string;
   readonly facts: FreeGeoFacts;
   /**
-   * The question's language, fixed for the scan at launch: the owner's choice,
-   * else the site's language, else the UI language (D-237).
+   * The question's frozen launch language: current UI for new Free scans,
+   * legacy snapshot language for historical scans.
    */
   readonly language: GeoAnswerLanguage;
+  readonly explicitLanguage?: boolean;
   /** Built only when the preview is asked and its notice covers evidence. */
   readonly buildEvidence: () => GeoEvidenceSnapshot;
   readonly provider: AiProvider;
@@ -252,8 +261,16 @@ export async function runFreeGeoPreview(input: FreeGeoPreviewInput): Promise<Fre
       siteOrigin: input.siteOrigin,
       siteDomain: input.siteHostname,
       consent: decision.consent,
-      requests: freeGeoRequests(input.scanId, input.brand, input.siteHostname, input.language),
-      language: input.language,
+      requests: freeGeoRequests(
+        input.scanId,
+        input.brand,
+        input.siteHostname,
+        input.language,
+        input.explicitLanguage,
+      ),
+      ...(input.language === 'en' && input.explicitLanguage !== true
+        ? {}
+        : { language: input.language }),
       evidence: noticeCoversGeoEvidence(decision.consent.noticeVersion)
         ? input.buildEvidence()
         : null,
@@ -264,5 +281,5 @@ export async function runFreeGeoPreview(input: FreeGeoPreviewInput): Promise<Fre
       ...(input.signal !== undefined ? { signal: input.signal } : {}),
     },
   );
-  return { kind: 'asked', geo, generation };
+  return { kind: 'asked', geo: { ...geo, language: input.language }, generation };
 }

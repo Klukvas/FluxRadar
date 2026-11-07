@@ -156,13 +156,13 @@ export const russianFindingsCopy: FindingsCopy = {
   },
   upsell: {
     heading: 'Главную проверили. Остальной сайт ещё нет',
-    lead: (domain, problems) => {
+    lead: (domain, problems, checks = FREE_CHECK_COUNT) => {
       const rest = 'Другие страницы сайта ещё не проверены.';
       if (problems === null)
-        return `Проверка посмотрела ${FREE_CHECK_COUNT} ${ruCountForm(FREE_CHECK_COUNT, 'пункт', 'пункта', 'пунктов')} на главной странице ${domain}. ${rest}`;
+        return `Проверка посмотрела ${checks} ${ruCountForm(checks, 'пункт', 'пункта', 'пунктов')} на главной странице ${domain}. ${rest}`;
       if (problems === 0)
-        return `На главной странице ${domain} в пунктах, которые смотрит эта проверка (их ${FREE_CHECK_COUNT}), проблем нет. ${rest}`;
-      return `Проверка нашла на главной странице ${domain} ${problems} ${ruProblems(problems)} в пунктах, которые смотрит (их ${FREE_CHECK_COUNT}). ${rest}`;
+        return `На главной странице ${domain} в пунктах, которые смотрит эта проверка (их ${checks}), проблем нет. ${rest}`;
+      return `Проверка нашла на главной странице ${domain} ${problems} ${ruProblems(problems)} в пунктах, которые смотрит (их ${checks}). ${rest}`;
     },
     listIntro: 'Полная проверка охватит на всех страницах:',
     points: [

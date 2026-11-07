@@ -26,3 +26,10 @@
   white-space: normal;
   overflow-wrap: anywhere;
 }
+
+.free-score__rounding {
+  margin: 0;
+  color: var(--plat-600);
+  font: 11px/1.45 var(--mono-font);
+  text-align: center;
+}

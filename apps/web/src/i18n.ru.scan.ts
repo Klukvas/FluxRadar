@@ -16,7 +16,7 @@ import { PLAN_PRICE, type PricedPlan } from './tariff-prices';
 export const russianScanCopy = {
   newScan: {
     windowTitle: 'Новая проверка',
-    prefillNote: 'Настройки перенесены из вашей предыдущей проверки этого сайта.',
+    prefillNote: 'Загружены настройки проверки для этого сайта.',
     freeScopeTitle: 'Что делает проверка Free',
     freeScopeNote:
       'Проверка Free читает только главную страницу: заголовок страницы, структуру заголовков, meta description, разрешено ли поисковым системам индексировать страницу, превью ссылки для соцсетей (Open Graph/Twitter) и alt-текст изображений.',

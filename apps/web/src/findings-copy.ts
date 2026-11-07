@@ -169,7 +169,7 @@ export type FindingsCopy = {
   readonly upsell: {
     readonly heading: string;
     /** `problems` is null while the issue summary is loading: no number is said then. */
-    readonly lead: (domain: string, problems: number | null) => string;
+    readonly lead: (domain: string, problems: number | null, checks?: number) => string;
     readonly listIntro: string;
     readonly points: readonly string[];
     readonly price: string;
@@ -357,13 +357,13 @@ export const findingsCopy: Readonly<Record<Language, FindingsCopy>> = {
     },
     upsell: {
       heading: 'Your homepage is checked. The rest of the site is not',
-      lead: (domain, problems) => {
+      lead: (domain, problems, checks = FREE_CHECK_COUNT) => {
         const rest = 'The other pages of the site have not been checked yet.';
         if (problems === null)
-          return `The free check looked at ${FREE_CHECK_COUNT} things on the homepage of ${domain}. ${rest}`;
+          return `The free check looked at ${checks} things on the homepage of ${domain}. ${rest}`;
         if (problems === 0)
-          return `On the homepage of ${domain}, the free check found no problems in the ${FREE_CHECK_COUNT} things it looks at. ${rest}`;
-        return `The free check found ${problems} ${problems === 1 ? 'problem' : 'problems'} on the homepage of ${domain}, in the ${FREE_CHECK_COUNT} things it looks at. ${rest}`;
+          return `On the homepage of ${domain}, the free check found no problems in the ${checks} things it looks at. ${rest}`;
+        return `The free check found ${problems} ${problems === 1 ? 'problem' : 'problems'} on the homepage of ${domain}, in the ${checks} things it looks at. ${rest}`;
       },
       listIntro: 'The complete verification checks every page for:',
       points: [
@@ -530,13 +530,13 @@ export const findingsCopy: Readonly<Record<Language, FindingsCopy>> = {
     },
     upsell: {
       heading: 'Головну перевірено. Решту сайту — ще ні',
-      lead: (domain, problems) => {
+      lead: (domain, problems, checks = FREE_CHECK_COUNT) => {
         const rest = 'Інші сторінки сайту ще не перевірено.';
         if (problems === null)
-          return `Безкоштовна перевірка подивилася ${FREE_CHECK_COUNT} ${ukCountForm(FREE_CHECK_COUNT, 'річ', 'речі', 'речей')} на головній сторінці ${domain}. ${rest}`;
+          return `Безкоштовна перевірка подивилася ${checks} ${ukCountForm(checks, 'річ', 'речі', 'речей')} на головній сторінці ${domain}. ${rest}`;
         if (problems === 0)
-          return `На головній сторінці ${domain} у ${FREE_CHECK_COUNT} речах, які дивиться безкоштовна перевірка, проблем немає. ${rest}`;
-        return `Безкоштовна перевірка знайшла на головній сторінці ${domain} ${problems} ${ukProblemsAccusative(problems)} у ${FREE_CHECK_COUNT} речах, які вона дивиться. ${rest}`;
+          return `На головній сторінці ${domain} у ${checks} речах, які дивиться безкоштовна перевірка, проблем немає. ${rest}`;
+        return `Безкоштовна перевірка знайшла на головній сторінці ${domain} ${problems} ${ukProblemsAccusative(problems)} у ${checks} речах, які вона дивиться. ${rest}`;
       },
       listIntro: 'Повна перевірка охопить на всіх сторінках:',
       points: [

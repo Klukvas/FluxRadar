@@ -1,5 +1,5 @@
 import { RULESET_VERSION } from '@fluxradar/contracts';
-import type { ScanScopeInput } from '@fluxradar/contracts';
+import type { AiLanguage, ScanScopeInput } from '@fluxradar/contracts';
 import type { PrismaClient, Scan } from '@prisma/client';
 
 import { JOB_TYPES } from './constants.ts';
@@ -15,6 +15,7 @@ export interface InternalCheckoutParams {
   readonly accountId: string;
   readonly siteProfileId: string;
   readonly plan: PaidPlan;
+  readonly aiLanguage?: AiLanguage | undefined;
   readonly scope: ScanScopeInput;
   /** The egress location checked at launch; it, not `scope`, names where the scan goes. */
   readonly egress: LaunchEgress;
@@ -53,7 +54,9 @@ export async function createInternalFreeScan(params: InternalCheckoutParams): Pr
         status: 'Pending',
         scopeJson: JSON.stringify(scope),
         profileConfigVersion: profile.scanConfigVersion,
-        executionConfigJson: JSON.stringify(captureExecutionConfig(profile, params.plan, scope)),
+        executionConfigJson: JSON.stringify(
+          captureExecutionConfig(profile, params.plan, scope, params.aiLanguage),
+        ),
         rulesetVersion: RULESET_VERSION,
         createdAt: params.now,
       },

@@ -4,7 +4,7 @@ import type { ScanModule } from './api';
 import { aiAnswerLanguage } from './free-geo-claims';
 
 // The GEO row's `metadata.language` is API data read through an untyped record:
-// only the two exact codes the API writes are trusted, anything else is "not
+// only the three exact codes the API writes are trusted, anything else is "not
 // recorded", and the report then adds no clause and no `lang` (D-237).
 
 const GEO: ScanModule = {
@@ -28,11 +28,12 @@ describe('aiAnswerLanguage', () => {
   it.each([
     ['uk', 'uk'],
     ['en', 'en'],
+    ['ru', 'ru'],
   ] as const)('reads %s', (stored, expected) => {
     expect(aiAnswerLanguage(withLanguage(stored))).toBe(expected);
   });
 
-  it.each([['ru'], ['UK'], ['uk-UA'], [''], [1], [true], [{}], [[]], [null], [undefined]])(
+  it.each([['UK'], ['uk-UA'], [''], [1], [true], [{}], [[]], [null], [undefined]])(
     'treats %o as not recorded',
     (stored) => {
       expect(aiAnswerLanguage(withLanguage(stored))).toBeNull();

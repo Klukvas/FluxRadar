@@ -304,7 +304,7 @@ describe('run-attempt.ts language wiring', () => {
 
   it('hands the stored AI language to the Free preview', () => {
     expect(source).toMatch(
-      /language:\s*storedExecutionConfig\(\s*scan\.executionConfigJson\s*\)\?\.language\s*\?\?\s*'en'/,
+      /language:\s*aiLanguage\s*\?\?\s*storedExecutionConfig\(\s*scan\.executionConfigJson\s*\)\?\.language\s*\?\?\s*'en'/,
     );
   });
 });

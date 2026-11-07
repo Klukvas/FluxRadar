@@ -12,6 +12,7 @@ function freeRequest(freeAiConsent: boolean | undefined): ScanRequest {
     accountId: 'account-1',
     profileId: 'profile-1',
     plan: 'Free',
+    aiLanguage: 'en',
     scope: {} as ScanScopePayload,
     expectedProfileConfigVersion: 3,
     optInAiProviders: ['google'],

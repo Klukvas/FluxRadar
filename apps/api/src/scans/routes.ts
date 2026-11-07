@@ -6,12 +6,13 @@ import type { PrismaClient, Scan, ScanModule } from '@prisma/client';
 import { computeStoredScanOverallScore } from '@fluxradar/scoring';
 import {
   RULESET_VERSION,
+  aiLanguageSchema,
   reportLanguageSchema,
   scanRequestInputSchema,
   scanScopeSchema,
 } from '@fluxradar/contracts';
 import { isModuleName, isPlan, parsePlan, readStoredPlan } from '@fluxradar/contracts';
-import type { ReportLanguage, ScanScopeInput } from '@fluxradar/contracts';
+import type { AiLanguage, ReportLanguage, ScanScopeInput } from '@fluxradar/contracts';
 import { z } from 'zod';
 
 import { accountIdFrom, requireAuth } from '../auth/middleware.ts';
@@ -47,7 +48,6 @@ import { toModuleDto, toScanDto } from './scan-dto.ts';
 import { listScanHistory } from './scan-history.ts';
 import { geoEvidenceFrom, geoObservationsFrom, geoVisibilitySummaryFrom } from './geo-report.ts';
 import { captureExecutionConfig, lockOwnProfile } from '../profiles/execution-config.ts';
-import { resolveSiteLanguage } from './site-language.ts';
 import type { EgressLocationMonitor } from '../integrations/crawl-egress-monitor.ts';
 import {
   egressLaunchConfig,
@@ -73,12 +73,9 @@ export const freeCheckBodySchema = z
     expectedProfileConfigVersion: z.number().int().min(1).optional(),
     /** The owner's opt-in to the one-question GEO preview (D-236). */
     aiConsent: freeAiConsentSchema.optional(),
-    /**
-     * The language the GEO preview asks and is evaluated in: the owner's
-     * choice, else the site's, else the UI's (D-237). Absent: the stored
-     * profile's site language, else English.
-     */
+    /** Compatibility with older clients; new clients send aiLanguage. */
     language: reportLanguageSchema.optional(),
+    aiLanguage: aiLanguageSchema.optional(),
   })
   .optional();
 const scanListQuerySchema = pageQuerySchema.extend({
@@ -123,6 +120,7 @@ export function scansRouter(deps: ScansRouterDeps): Router {
       expectedProfileConfigVersion: body?.expectedProfileConfigVersion,
       aiConsent: body?.aiConsent,
       language: body?.language,
+      aiLanguage: body?.aiLanguage,
       egress: await resolveLaunchEgressLocation(deps.egress, undefined),
     });
     deps.enqueueScan(created.id);
@@ -378,8 +376,9 @@ export interface CreateFreeScanParams {
    * nothing and reports ConsentMissing; the homepage check and score still run.
    */
   readonly aiConsent?: FreeAiConsentInput | undefined;
-  /** The GEO preview's language; absent means the site's language, else English. */
+  /** Legacy EN/UK client field; aiLanguage takes priority. */
   readonly language?: ReportLanguage | undefined;
+  readonly aiLanguage?: AiLanguage | undefined;
   /** The default egress location, checked at launch (`resolveLaunchEgressLocation`). */
   readonly egress: LaunchEgress;
 }
@@ -448,15 +447,14 @@ export async function createFreeScan(
         status: 'Pending',
         scopeJson: JSON.stringify(scope),
         profileConfigVersion: profile.scanConfigVersion,
-        // The AI question's language: the client's (the owner's choice, else
-        // the site's, else the UI's), else the site's from the stored profile,
-        // else English (D-237). Accept-Language is never read.
+        // Capture the submitted interface language. Older clients without it use
+        // their legacy language or deterministic English, never the live profile.
         executionConfigJson: JSON.stringify(
           captureExecutionConfig(
             profile,
             'Free',
             scope,
-            params.language ?? resolveSiteLanguage(profile) ?? 'en',
+            params.aiLanguage ?? params.language ?? 'en',
           ),
         ),
         rulesetVersion: RULESET_VERSION,

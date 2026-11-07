@@ -752,6 +752,8 @@ export function ScoreDial(props: {
   language: Language;
   verdict?: string;
   coverage?: number;
+  /** A plan-specific completion label, distinct from whole-site coverage. */
+  coverageText?: string;
   /** What the number is a score of; "Score" when absent (Free: the homepage, D-236). */
   label?: string;
   /**
@@ -814,9 +816,10 @@ export function ScoreDial(props: {
         {props.score === null ? t.insufficientData : (props.label ?? t.helpScoreTerm)}
       </div>
       {verdictLabel ? <StatusChip status={chipStatus} label={verdictLabel} /> : null}
-      {props.coverage !== undefined ? (
+      {props.coverageText !== undefined || props.coverage !== undefined ? (
         <div className="score-dial__coverage">
-          {fillCopy(t.coverageValue, { percent: (props.coverage * 100).toFixed(0) })}
+          {props.coverageText ??
+            fillCopy(t.coverageValue, { percent: ((props.coverage ?? 0) * 100).toFixed(0) })}
         </div>
       ) : null}
       {props.note === undefined ? null : <p className="score-dial__note">{props.note}</p>}

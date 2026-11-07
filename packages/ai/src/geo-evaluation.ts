@@ -339,8 +339,8 @@ export interface GeoEvaluationRequestInput {
    */
   readonly judgeTone: boolean;
   /**
-   * The answer's language (W1, D-237): `uk` asks for Ukrainian claim texts in the
-   * system prompt only. Absent or `en` leaves the request byte-identical.
+   * The frozen GEO answer language controls claim text in the system prompt.
+   * Absent on historical scans, preserving their original English judge prompt.
    */
   readonly language?: GeoAnswerLanguage;
   /**

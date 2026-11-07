@@ -9,6 +9,7 @@
 // этой же фабрикой.
 
 import type {
+  GeoAnswerLanguage,
   AiConsent,
   AiProvider,
   AiProviderName,
@@ -30,8 +31,14 @@ import {
   UnconfiguredProvider,
 } from '@fluxradar/ai';
 
+import {
+  GEO_LANGUAGE_NAMES,
+  geoAnswerInstructions,
+  localizedClosedBookQuestions,
+} from './geo-language.ts';
 import type { IntegrationConfig } from '../integrations/config.ts';
 import { readIntegrationConfig } from '../integrations/config.ts';
+import { localizedGeoFixtures } from './geo-fixtures-language.ts';
 import { ukrainianGeoFixtures } from './geo-fixtures-uk.ts';
 
 /**
@@ -183,12 +190,18 @@ function neutralContext(
   };
 }
 
-function buildQueryGenerationRequest(scanId: string, context: NeutralGeoContext): AiRequest {
+function buildQueryGenerationRequest(
+  scanId: string,
+  context: NeutralGeoContext,
+  language?: GeoAnswerLanguage,
+): AiRequest {
   const facts = [
     `Offerings and category: ${context.topic}`,
     ...(context.region === null ? [] : [`Target region: ${context.region}`]),
     ...(context.audience === null ? [] : [`Target audience: ${context.audience}`]),
-    ...(context.languages === null ? [] : [`Target languages: ${context.languages}`]),
+    ...(language !== undefined || context.languages === null
+      ? []
+      : [`Target languages: ${context.languages}`]),
   ];
   return {
     scanId,
@@ -200,13 +213,18 @@ function buildQueryGenerationRequest(scanId: string, context: NeutralGeoContext)
       'when looking for providers matching this context. Return only JSON in the form ' +
       '{"questions":["...","..."]}, with 2 to 4 concise questions. Never include a brand, ' +
       'company name, domain, URL, email address, or claim that a particular provider is best. ' +
-      'Use the target languages and cover every listed language when the 2-to-4-question limit ' +
-      `allows it.\n${facts.join('\n')}`,
+      (language === undefined
+        ? 'Use the target languages and cover every listed language when the 2-to-4-question limit allows it.'
+        : `Write every question in ${GEO_LANGUAGE_NAMES[language]}.`) +
+      `\n${facts.join('\n')}`,
     brandFacts: [],
     pageTitles: [],
     systemInstructions:
       'Generate realistic, neutral discovery questions from the supplied structured context. ' +
-      'Do not answer the questions. Output valid JSON only.',
+      'Do not answer the questions. Output valid JSON only.' +
+      (language === undefined
+        ? ''
+        : ` Write every question in ${GEO_LANGUAGE_NAMES[language]} only, regardless of the context language.`),
     // Sonnet 5 enables adaptive thinking by default, which is unnecessary for
     // this bounded extraction task and shares the response token budget. The
     // JSON schema prevents otherwise useful generations from being discarded
@@ -230,6 +248,7 @@ export interface GeoQuestionGenerationResult {
 }
 
 export interface GenerateGeoDiscoveryQuestionsInput {
+  readonly language?: GeoAnswerLanguage | undefined;
   readonly scanId: string;
   readonly brand: string;
   readonly siteHostname: string;
@@ -340,12 +359,15 @@ export async function generateGeoDiscoveryQuestions(
     };
   }
 
-  const result = await runAiRequest(buildQueryGenerationRequest(input.scanId, context), {
-    provider: input.provider,
-    quota: input.quota,
-    consent: input.consent,
-    ...(input.signal !== undefined ? { signal: input.signal } : {}),
-  });
+  const result = await runAiRequest(
+    buildQueryGenerationRequest(input.scanId, context, input.language),
+    {
+      provider: input.provider,
+      quota: input.quota,
+      consent: input.consent,
+      ...(input.signal !== undefined ? { signal: input.signal } : {}),
+    },
+  );
   if (result.outcome.kind === 'unavailable') {
     return {
       status: 'Unavailable',
@@ -398,7 +420,13 @@ const NO_GUESSING_SUFFIX =
  * genuinely absent from the question — which is the only case where naming the
  * site is something the model has to know.
  */
-export function closedBookQuestions(brand: string, siteDomain: string): readonly string[] {
+export function closedBookQuestions(
+  brand: string,
+  siteDomain: string,
+  language?: GeoAnswerLanguage,
+): readonly [string, ...string[]] {
+  if (language === 'uk' || language === 'ru')
+    return localizedClosedBookQuestions(brand, siteDomain, language);
   if (brandIsHostname(brand, siteDomain)) {
     return [
       `What do you know about the business associated with ${siteDomain}?${NO_GUESSING_SUFFIX}`,
@@ -434,8 +462,9 @@ export function buildGeoRequests(
   siteDomain: string,
   discoveryQuestions: readonly string[] = [],
   providers: readonly AiProviderName[] = GEO_VISIBILITY_PROVIDERS,
+  language?: GeoAnswerLanguage,
 ): readonly AiRequest[] {
-  const direct = closedBookQuestions(brand, siteDomain);
+  const direct = closedBookQuestions(brand, siteDomain, language);
   const questions = [...direct, ...discoveryQuestions];
   const shared = {
     scanId,
@@ -456,9 +485,10 @@ export function buildGeoRequests(
         provider,
         sequence: index + 1,
         question,
-        systemInstructions: isDirect
-          ? GEO_CLOSED_BOOK_SYSTEM_INSTRUCTIONS
-          : GEO_SYSTEM_INSTRUCTIONS,
+        systemInstructions: geoAnswerInstructions(
+          isDirect ? GEO_CLOSED_BOOK_SYSTEM_INSTRUCTIONS : GEO_SYSTEM_INSTRUCTIONS,
+          language,
+        ),
         // A discovery question asks what an assistant says about this market
         // today, which only a searching assistant can answer. A direct question
         // asks what the model already knows, so it gets no search and no tools —
@@ -529,6 +559,7 @@ export function defaultGeoFixtures(brand: string, siteHostname: string): readonl
   return [
     // First: a Ukrainian judge request quotes no English answer phrase, but it
     // does quote the Ukrainian question back (geo-fixtures-uk.ts).
+    ...localizedGeoFixtures(brand),
     ...ukrainianGeoFixtures(brand, siteHostname),
     {
       questionIncludes: 'I have no reliable information about the business',

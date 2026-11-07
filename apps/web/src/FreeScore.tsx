@@ -3,6 +3,7 @@
 // out of 100 — kept together so the note is read with the number (D-237). Paid
 // reports use `ScoreDial` directly and see none of this.
 
+import { freeReportCopy } from './free-report-copy';
 import type { Dashboard, ScanModule } from './api';
 import { Button, ScoreDial } from './components';
 import {
@@ -25,6 +26,16 @@ export function FreeScore(props: {
 }) {
   const { overall, onUpgrade } = props;
   const dial = freeDialProps(overall, props.modules, props.language);
+  const seo = props.modules.find((module) => module.module === 'SEO');
+  const completion =
+    seo?.completedApplicableChecks !== null &&
+    seo?.completedApplicableChecks !== undefined &&
+    seo.applicableChecks !== null
+      ? freeReportCopy[props.language].completion(
+          seo.completedApplicableChecks,
+          seo.applicableChecks,
+        )
+      : undefined;
   const freeScale = isFreeScale(overall.scoreMax);
   return (
     <div className="free-score">
@@ -32,9 +43,20 @@ export function FreeScore(props: {
         score={overall.score}
         language={props.language}
         verdict={overall.verdict}
-        coverage={overall.weightedCoverage}
+        coverageText={completion}
         {...dial}
+        scale={
+          dial.scale === undefined
+            ? undefined
+            : {
+                ...dial.scale,
+                suffix: `${dial.scale.suffix} ${freeReportCopy[props.language].pointUnit}`,
+              }
+        }
       />
+      {freeScale && overall.score !== null ? (
+        <p className="free-score__rounding">{freeReportCopy[props.language].rounding}</p>
+      ) : null}
       {freeScale && onUpgrade !== undefined ? (
         <div className="free-score__cta">
           {/* Primary: the dial's note is now one short line, so this button

@@ -1,4 +1,6 @@
 import type { EgressLocation } from './api';
+import { FreeAiSummary, freeAiSummaryCopy } from './FreeAiSummary';
+import type { AiLanguage } from './site-language';
 import { FieldRow } from './components';
 import { egressLocationLabel } from './egress-location';
 import { copy, type Language } from './i18n';
@@ -23,7 +25,8 @@ import type { ScanScopeForm } from './scan-scope';
 type NewScanCopy = (typeof copy)[Language]['newScan'];
 
 /** What the AI row says for one plan: which AI work it buys, if any. */
-function aiValue(plan: Plan, t: NewScanCopy): string {
+function aiValue(plan: Plan, t: NewScanCopy, language: Language): string {
+  if (plan === 'Free') return freeAiSummaryCopy[language].fullGeoExcluded;
   const modules = PLAN_MODULES[plan];
   return modules.includes('AI SEO / GEO') ? t.launchSummaryEnabled : t.launchSummaryDisabled;
 }
@@ -31,6 +34,8 @@ function aiValue(plan: Plan, t: NewScanCopy): string {
 export function LaunchSummary(props: {
   language: Language;
   plan: Plan;
+  freeAiConsent: boolean;
+  freeAiLanguage: AiLanguage;
   /** Names the rows for the heading the caller renders above them. */
   labelledBy: string;
   scope: ScanScopeForm;
@@ -89,7 +94,14 @@ export function LaunchSummary(props: {
         />
       )}
       {/* Whether this plan runs AI visibility (AI SEO / GEO) at all. */}
-      <FieldRow label={t.launchSummaryAi} value={aiValue(props.plan, t)} />
+      <FieldRow label={t.launchSummaryAi} value={aiValue(props.plan, t, props.language)} />
+      {free ? (
+        <FreeAiSummary
+          language={props.language}
+          consent={props.freeAiConsent}
+          answerLanguage={props.freeAiLanguage}
+        />
+      ) : null}
       {PLAN_MODULES[props.plan].includes('Performance') ? (
         <FieldRow label={t.launchSummaryPerformance} value={t.launchSummaryPerformanceValue} />
       ) : null}
