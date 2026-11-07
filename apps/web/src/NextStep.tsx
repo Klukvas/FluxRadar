@@ -11,14 +11,16 @@ import { useState } from 'react';
 import { canRetrySection, isReportReady, type Scan, type SiteProfile } from './api';
 import { Button, Panel } from './components';
 import { desktopCopy, type NextStepKind } from './desktop-copy';
-import { FREE_UPSELL_PLAN } from './FreeUpsell';
 import { trackUpgradeClicked } from './funnel-analytics';
 import type { Language } from './i18n';
-import type { Plan } from './plan-modules';
+import type { PaidPlan, Plan } from './plan-modules';
 import { displayDomain, isTerminalScanStatus } from './scan-status';
 
 /** Any plan the scan form can open on, Free included. */
 export type NewScanPlan = Plan;
+
+/** The plan the dashboard's "Free check done" step sells, matching its Basic copy. */
+const FREE_DONE_UPGRADE_PLAN: PaidPlan = 'Basic';
 
 /**
  * The status reasons the API gives a scan whose crawl never read the site.
@@ -109,10 +111,12 @@ export function NextStepActions(props: NextStepActionsProps) {
       props.onNewScan(profile, 'Free');
       return;
     }
-    // The same plan the Free report's own upsell sells (FreeUpsell.tsx).
+    // The dashboard's own step, priced and worded for Basic (desktop-copy.ts).
+    // It is not on the Free report, so the report's switch to Complete (D-236)
+    // does not move it.
     if (kind === 'freeDone' && profile) {
-      trackUpgradeClicked(FREE_UPSELL_PLAN, 'dashboard');
-      props.onNewScan(profile, FREE_UPSELL_PLAN);
+      trackUpgradeClicked(FREE_DONE_UPGRADE_PLAN, 'dashboard');
+      props.onNewScan(profile, FREE_DONE_UPGRADE_PLAN);
       return;
     }
     if (kind === 'partial' && latest !== null) {

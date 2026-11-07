@@ -415,6 +415,7 @@ export function IssuesScreen(props: {
                 issues={issues}
                 language={props.language}
                 soleRuleId={filters.ruleId === '' ? null : filters.ruleId}
+                {...(props.scan === null ? {} : { plan: props.scan.plan })}
                 selectedIssue={selectedIssue}
                 onSelect={setSelectedIssue}
                 onStatus={(issue, status) => void update(issue, status)}

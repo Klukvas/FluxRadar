@@ -1,0 +1,28 @@
+/* A Free report's score (D-237): "39 / 40" with a one-line quick-check note
+   inside the dial, and the primary button to the whole-site audit directly
+   under it. */
+.score-dial__max {
+  color: var(--plat-600);
+  font: 13px var(--mono-font);
+}
+.score-dial__note {
+  max-width: 260px;
+  margin: var(--sp-1) 0 0;
+  color: var(--plat-600);
+  font: 11px/1.45 var(--mono-font);
+  text-align: center;
+}
+/* Stacked, never overlapping: the dial, then the button, in normal flow. Its
+   width follows the dial's own floor and gives it up on a phone. */
+.free-score {
+  display: grid;
+  gap: var(--sp-2);
+  min-width: min(180px, 100%);
+  max-width: min(300px, 100%);
+}
+.free-score__cta .button {
+  width: 100%;
+  min-height: 44px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}

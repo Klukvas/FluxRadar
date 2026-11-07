@@ -1,0 +1,332 @@
+/* The Free report's AI block (FreeAiPreview.tsx, D-236).
+
+   The locked stage is a grid of decoy cards under a solid overlay. The blur is
+   decoration only: the cards are static skeletons that never carry scan data,
+   so nothing here is "hidden" content. Colours come from tokens.css. */
+
+/* The one answer, verdict first (FreeGeoAnswer.tsx, D-237): a lead, a
+   headline, a count row, one line per statement, then two closed disclosures
+   (details; the model's own words). Spacing does the grouping — no extra rules
+   or boxes around the verdict. */
+.free-geo-answer {
+  display: grid;
+  gap: var(--sp-3);
+  min-width: 0;
+  margin-top: var(--sp-3);
+}
+
+.free-geo-answer__lead,
+.free-geo-answer__headline,
+.free-geo-answer__note {
+  margin: 0;
+}
+
+.free-geo-answer__lead {
+  max-width: 72ch;
+  font-size: 12px;
+}
+
+/* The one sentence the reader should take away: the largest text in the block. */
+.free-geo-answer__headline {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--plat-900);
+}
+
+/* The evaluation note's own top rule separates it from the paid answer; here
+   it follows the headline directly. */
+.free-geo-answer__note {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.free-geo-answer__lead,
+.free-geo-answer__headline,
+.free-geo-claims__text,
+.free-geo-detail,
+.free-geo-answer__text,
+.free-geo-answer__citations a {
+  overflow-wrap: anywhere;
+}
+
+.free-geo-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.free-geo-counts > li {
+  font-size: 12px;
+}
+
+.free-geo-counts__n {
+  font-variant-numeric: tabular-nums;
+}
+
+/* One statement per row: chip column, then the sentence. */
+.free-geo-claims {
+  display: grid;
+  gap: var(--sp-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.free-geo-claims__item {
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.free-geo-claims__item > .geo-claim__verdict {
+  justify-self: start;
+  white-space: nowrap;
+}
+
+/* A phone has no room for a chip column: the chip leads its sentence inline. */
+@media (max-width: 479px) {
+  .free-geo-claims {
+    gap: var(--sp-3);
+  }
+
+  .free-geo-claims__item {
+    display: block;
+  }
+
+  .free-geo-claims__item > .geo-claim__verdict {
+    margin-right: var(--sp-2);
+  }
+}
+
+.free-geo-claims__toggle {
+  justify-self: start;
+  padding: var(--sp-1) 0;
+  border: 0;
+  background: none;
+  color: var(--button-fg);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* Inside "Show details": one statement per item, quote and evidence under it. */
+.free-geo-details {
+  display: grid;
+  gap: var(--sp-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.free-geo-detail {
+  display: grid;
+  gap: var(--sp-1);
+  min-width: 0;
+}
+
+.free-geo-detail + .free-geo-detail {
+  padding-top: var(--sp-3);
+  border-top: 1px solid var(--plat-200);
+}
+
+.free-geo-detail__claim,
+.free-geo-detail__line,
+.free-geo-detail__scope {
+  margin: 0;
+}
+
+.free-geo-detail__claim {
+  font-weight: 600;
+}
+
+.free-geo-detail__line,
+.free-geo-detail__scope {
+  font-size: 12px;
+  color: var(--plat-600);
+}
+
+/* Where the compared text came from, on its own line under the quote. */
+.free-geo-detail__origin {
+  display: block;
+  font-style: italic;
+}
+
+.free-geo-detail__scope {
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--plat-300);
+}
+
+.free-geo-answer__details {
+  min-width: 0;
+  border: 1px solid var(--plat-400);
+  background: var(--plat-50);
+}
+
+.free-geo-answer__summary {
+  cursor: pointer;
+  padding: var(--sp-2) var(--sp-3);
+  font-weight: 700;
+}
+
+/* A finger needs a 44px row; a mouse keeps the compact one. */
+@media (pointer: coarse) {
+  .free-geo-answer__summary,
+  .free-geo-claims__toggle {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  /* `display: flex` drops the native marker in most engines; hide what Safari
+     keeps and draw one open/closed cue for all. */
+  .free-geo-answer__summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .free-geo-answer__summary::before {
+    content: '▸';
+    margin-right: var(--sp-2);
+  }
+
+  .free-geo-answer__details[open] > .free-geo-answer__summary::before {
+    content: '▾';
+  }
+}
+
+.free-geo-answer__body {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3) var(--sp-3);
+  border-top: 1px solid var(--plat-300);
+}
+
+.free-geo-answer__text {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.free-geo-answer__citations {
+  display: grid;
+  gap: 4px;
+}
+
+.free-geo-answer__citations ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+}
+
+.free-ai-preview__not-run {
+  margin-top: var(--sp-3);
+}
+
+.free-ai-preview__locked {
+  margin-top: var(--sp-4);
+}
+
+.free-ai-preview__locked-heading {
+  margin: 0 0 var(--sp-2);
+}
+
+.free-ai-preview__stage {
+  position: relative;
+  /* Clips the blurred edge of the decoys so it never widens the page. */
+  overflow: hidden;
+  margin-top: var(--sp-3);
+  border: 1px solid var(--plat-400);
+  background: var(--plat-50);
+}
+
+.free-ai-preview__decoys {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr));
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  filter: blur(3px);
+  opacity: 0.6;
+  pointer-events: none;
+  user-select: none;
+}
+
+.free-ai-preview__decoy {
+  display: grid;
+  gap: var(--sp-2);
+  min-width: 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--plat-400);
+  background: #fff;
+}
+
+.free-ai-preview__decoy-title {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.free-ai-preview__bar {
+  display: block;
+  height: 10px;
+  background: var(--plat-300);
+}
+
+.free-ai-preview__bar--short {
+  width: 60%;
+}
+
+.free-ai-preview__overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  /* One track no wider than the stage, so a long button label wraps instead
+     of being clipped at 375px. */
+  grid-template-columns: minmax(0, 1fr);
+  align-content: center;
+  justify-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+  text-align: center;
+  /* Platinum at ~80% opacity, from the --plat-50 token's own value. */
+  background: rgb(239 239 239 / 82%);
+}
+
+.free-ai-preview__unlock-lead {
+  margin: 0;
+  max-width: 36ch;
+  font-weight: 600;
+  color: var(--plat-900);
+}
+
+/* On a phone the five decoys stack into a tall column; two rows are enough to
+   say "there is more", and the overlay needs room for its sentence and button. */
+@media (max-width: 699px) {
+  .free-ai-preview__decoy:nth-child(n + 3) {
+    display: none;
+  }
+}
+
+/* Nothing here moves; the rule is explicit so a later transition cannot creep
+   in unguarded. */
+@media (prefers-reduced-motion: reduce) {
+  .free-ai-preview__decoys,
+  .free-ai-preview__overlay,
+  .free-geo-answer__details,
+  .free-geo-claims__toggle {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* The printed Free report carries no AI block (D-236/D-237): a browser print
+   of the report page drops it too. */
+@media print {
+  .free-ai-preview {
+    display: none;
+  }
+}

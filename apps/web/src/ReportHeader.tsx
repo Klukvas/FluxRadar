@@ -10,6 +10,7 @@
 import type { IssueSummary, Scan, ScanModule } from './api';
 import { egressLocationLabel } from './egress-location';
 import { formatDate } from './format-date';
+import { freeScoreHelp } from './free-score-copy';
 import { copy, fillCopy, type Language } from './i18n';
 import { planName } from './plan-modules';
 import { openProblemGroups } from './ReportNextSteps';
@@ -139,6 +140,13 @@ export function ReportHelp(props: {
   unscoredPlan: boolean;
   plan: Scan['plan'];
   language: Language;
+  /** The overall score as the API sent it, with its denominator (D-237). */
+  overall: {
+    readonly score: number | null;
+    readonly scoreMax?: number;
+  };
+  /** How many checks the Free run made, from its own SEO row. */
+  freeChecks: number;
 }) {
   const t = copy[props.language].report;
   return (
@@ -150,7 +158,9 @@ export function ReportHelp(props: {
           <dd>
             {props.unscoredPlan
               ? fillCopy(t.unscoredScoreBody, { plan: planName(props.plan, props.language) })
-              : t.helpScoreBody}
+              : props.plan === 'Free'
+                ? freeScoreHelp(props.overall, props.freeChecks, props.language)
+                : t.helpScoreBody}
           </dd>
         </div>
         <div>

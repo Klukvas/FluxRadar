@@ -473,8 +473,9 @@ describe('upgrade_clicked from its three buttons', () => {
     if (!(upsell instanceof HTMLButtonElement)) throw new Error('no upsell button');
     fireEvent.click(upsell);
 
-    expect(onUpgrade).toHaveBeenCalledWith('Basic');
-    expect(eventsNamed('upgrade_clicked')).toEqual([{ plan: 'Basic', source: 'free_report' }]);
+    // D-236 owner decision: the Free report's upsell sells Complete (was Basic).
+    expect(onUpgrade).toHaveBeenCalledWith('Complete');
+    expect(eventsNamed('upgrade_clicked')).toEqual([{ plan: 'Complete', source: 'free_report' }]);
   });
 
   it('reports the locked Action Plan button', async () => {

@@ -118,12 +118,22 @@ function noClaimsNote(purpose: GeoObservationPurpose, language: Language): strin
   return purpose === 'discovery' ? t.geoEvaluationNotMentioned : t.geoEvaluationNoClaims;
 }
 
-/** Why there is no verdict — the site's evidence, or the evaluator itself. */
-function unavailableNote(evaluation: GeoEvaluation, language: Language): string {
+/**
+ * Why there is no verdict — the site's evidence, or the evaluator itself.
+ *
+ * `evaluatorFailedNote` replaces only the evaluator-failure sentence, whose
+ * default says the answer is shown above; a layout that puts the answer
+ * elsewhere passes its own wording.
+ */
+function unavailableNote(
+  evaluation: GeoEvaluation,
+  language: Language,
+  evaluatorFailedNote: string | undefined,
+): string {
   const t = copy[language].report;
   if (evaluation.reason === 'InsufficientEvidence') return t.geoEvaluationInsufficient;
   if (evaluation.reason === 'EvidenceTruncated') return t.geoEvaluationTruncated;
-  return t.geoEvaluationUnavailable;
+  return evaluatorFailedNote ?? t.geoEvaluationUnavailable;
 }
 
 /**
@@ -135,7 +145,7 @@ function unavailableNote(evaluation: GeoEvaluation, language: Language): string 
  * JSON-LD are two further grades of the same thing, and the reader is told
  * which one a verdict rests on.
  */
-function sourceOriginLabel(kind: string, language: Language): string {
+export function sourceOriginLabel(kind: string, language: Language): string {
   const t = copy[language].report;
   if (kind === 'profile') return t.geoSourceProfile;
   if (kind === 'structured-data') return t.geoSourceStructuredData;
@@ -208,6 +218,8 @@ export function GeoEvaluationBlock(props: {
   evidence: GeoEvidence | null;
   purpose: GeoObservationPurpose;
   language: Language;
+  /** Overrides the "evaluation could not run" note; paid cards leave it unset. */
+  evaluatorFailedNote?: string;
 }) {
   const t = copy[props.language].report;
   const { evaluation } = props;
@@ -220,7 +232,9 @@ export function GeoEvaluationBlock(props: {
   }
   if (evaluation.status === 'Unavailable') {
     return (
-      <p className="muted geo-evaluation__note">{unavailableNote(evaluation, props.language)}</p>
+      <p className="muted geo-evaluation__note">
+        {unavailableNote(evaluation, props.language, props.evaluatorFailedNote)}
+      </p>
     );
   }
   const overall = shownVerdict(evaluation);
@@ -258,6 +272,29 @@ export function GeoEvaluationBlock(props: {
       )}
     </div>
   );
+}
+
+/**
+ * The sentence GeoEvaluationBlock prints when it has no claims to list — no
+ * evaluation, an unavailable one, or a completed one with nothing checkable —
+ * or null when there are claims. Same words, same rules, for a layout that
+ * draws its own block around them.
+ */
+export function geoEvaluationNote(
+  evaluation: GeoEvaluation | null,
+  purpose: GeoObservationPurpose,
+  language: Language,
+  evaluatorFailedNote?: string,
+): string | null {
+  const t = copy[language].report;
+  if (evaluation === null) return t.geoEvaluationNotRun;
+  if (evaluation.status === 'Unavailable') {
+    return unavailableNote(evaluation, language, evaluatorFailedNote);
+  }
+  if (evaluation.claims.length > 0) return null;
+  return evaluation.answerDescribesSubject === false
+    ? noClaimsNote(purpose, language)
+    : t.geoEvaluationNothingCheckable;
 }
 
 /** How many answers actually got a verdict — completed ones only, never assumed. */

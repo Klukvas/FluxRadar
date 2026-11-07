@@ -1,10 +1,10 @@
 // The last block of a Free report: what the free check found on the homepage,
-// and the Basic report that reads the rest of the site.
+// and the complete verification that reads the rest of the site.
 //
-// It used to sell Complete with a generic feature list. The owners this block
-// is for weigh one question — why am I not found in search and in AI answers —
-// and that is what Basic answers, so the block sells Basic and opens with the
-// real result of the check they just ran.
+// It sold Basic for a while. The owner decided (D-236) that every upgrade on a
+// Free report leads to one place — the complete verification — so this block
+// and the locked-preview button (FreeAiPreview.tsx) sell the same plan. It
+// still opens with the real result of the check the owner just ran.
 
 import type { Scan } from './api';
 import { Button } from './components';
@@ -14,7 +14,7 @@ import type { PaidPlan } from './plan-modules';
 import { displayDomain } from './scan-status';
 
 /** The plan this block sells, preselected on the scan form its button opens. */
-export const FREE_UPSELL_PLAN: PaidPlan = 'Basic';
+export const FREE_UPSELL_PLAN: PaidPlan = 'Complete';
 
 export function FreeUpsell(props: {
   scan: Scan;

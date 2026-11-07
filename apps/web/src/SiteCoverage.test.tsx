@@ -176,3 +176,39 @@ describe('the site-coverage panel', () => {
     ).toBeInTheDocument();
   });
 });
+
+// D-236: a Free report reads the homepage alone, so its full-coverage line must
+// not claim the whole site; every other plan keeps its sentence exactly.
+describe('full coverage on a Free report', () => {
+  const homepageRead = {
+    pagesRead: 1,
+    pagesFetched: 1,
+    urlsDiscovered: 1,
+    urlsOverLimit: 0,
+    limitedBy: null,
+    maxPages: 1,
+  } as const;
+
+  it.each([
+    [
+      'en',
+      'The free check reads only the homepage, so the sections below describe the homepage, not the rest of the site.',
+    ],
+    [
+      'uk',
+      'Безкоштовна перевірка читає лише головну сторінку, тож розділи нижче описують головну, а не решту сайту.',
+    ],
+  ] as const)('says the homepage was read, not the whole site (%s)', (language, sentence) => {
+    render(<SiteCoveragePanel summary={summary(homepageRead)} language={language} homepageOnly />);
+    expect(screen.getByText(sentence, { selector: 'p' })).toBeInTheDocument();
+    expect(screen.queryByText(/cover the whole site|охоплюють увесь сайт/)).toBeNull();
+  });
+
+  it.each([
+    ['en', 'That is every address the crawl found, so the sections below cover the whole site.'],
+    ['uk', 'Це всі адреси, які знайшов обхід, тож розділи нижче охоплюють увесь сайт.'],
+  ] as const)('keeps the paid sentence byte-for-byte (%s)', (language, sentence) => {
+    render(<SiteCoveragePanel summary={summary(homepageRead)} language={language} />);
+    expect(screen.getByText(sentence, { selector: 'p' })).toBeInTheDocument();
+  });
+});

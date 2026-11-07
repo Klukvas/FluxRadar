@@ -19,6 +19,8 @@ import { copy, fillCopy, type Language } from './i18n';
 export function SiteCoveragePanel(props: {
   readonly summary: CrawlSummary | null | undefined;
   readonly language: Language;
+  /** A Free report: the check reads the homepage alone (D-236). */
+  readonly homepageOnly?: boolean;
 }) {
   const t = copy[props.language].report;
   const summary = props.summary;
@@ -28,12 +30,20 @@ export function SiteCoveragePanel(props: {
 
   return (
     <Panel title={t.siteCoverageTitle}>
-      <SiteCoverageBody summary={summary} language={props.language} />
+      <SiteCoverageBody
+        summary={summary}
+        language={props.language}
+        homepageOnly={props.homepageOnly === true}
+      />
     </Panel>
   );
 }
 
-function SiteCoverageBody(props: { summary: CrawlSummary; language: Language }) {
+function SiteCoverageBody(props: {
+  summary: CrawlSummary;
+  language: Language;
+  homepageOnly: boolean;
+}) {
   const t = copy[props.language].report;
   const { summary } = props;
 
@@ -70,7 +80,9 @@ function SiteCoverageBody(props: { summary: CrawlSummary; language: Language }) 
         label={t.siteCoverageCaption}
       />
       {complete ? (
-        <p className="muted">{t.siteCoverageComplete}</p>
+        <p className="muted">
+          {props.homepageOnly ? t.siteCoverageCompleteFree : t.siteCoverageComplete}
+        </p>
       ) : (
         <p className="muted" role="status">
           {limitExplanation(summary, props.language)}

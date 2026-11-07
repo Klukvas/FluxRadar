@@ -1,4 +1,5 @@
-import type { Language } from './i18n';
+import { FREE_CHECK_COUNT } from './free-score-copy';
+import { ukCountForm, type Language } from './i18n';
 import { BASIC_PRICE } from './tariff-prices';
 
 export type NextStepKind =
@@ -63,7 +64,7 @@ export const desktopCopy: Record<Language, DesktopCopy> = {
         noProfiles: () =>
           'Enter its homepage address. Saving a site costs nothing and starts nothing.',
         noScans: (domain) =>
-          `Four checks on the homepage of ${domain}: title, description, headings and indexability. Free, about a minute.`,
+          `${FREE_CHECK_COUNT} checks on the homepage of ${domain} — title, description, headings, indexability, social link preview and image alt text — with a homepage score. Tick the box on the next screen to also get one AI answer about your business. Free, about a minute.`,
         running: (domain) =>
           `FluxRadar is reading ${domain}. You can leave this page; the report waits for you.`,
         partial: (domain) =>
@@ -116,7 +117,7 @@ export const desktopCopy: Record<Language, DesktopCopy> = {
         noProfiles: () =>
           'Введіть адресу головної сторінки. Збереження сайту нічого не коштує і нічого не запускає.',
         noScans: (domain) =>
-          `Чотири перевірки головної сторінки ${domain}: title, опис, заголовки та індексація. Безкоштовно, близько хвилини.`,
+          `${FREE_CHECK_COUNT} ${ukCountForm(FREE_CHECK_COUNT, 'перевірка', 'перевірки', 'перевірок')} головної сторінки ${domain} — title, опис, заголовки, індексація, превʼю посилання для соцмереж і alt-текст зображень — з оцінкою головної сторінки. Позначте галочку на наступному екрані, щоб отримати ще й одну відповідь ШІ про ваш бізнес. Безкоштовно, близько хвилини.`,
         running: (domain) =>
           `FluxRadar читає ${domain}. Можна піти з цієї сторінки — звіт на вас почекає.`,
         partial: (domain) =>

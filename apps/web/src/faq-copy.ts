@@ -377,7 +377,7 @@ export const faqCopyEn: FaqCopy = {
         {
           question: 'Is there anything free?',
           answer: [
-            'Yes, a homepage check: title, meta description, headings and indexability of a single page. It is available once per account and once per website, and it exists to show you the shape of a report — it is not a product of its own.',
+            'Yes, a homepage check of a single page: title, headings, meta description, indexability, the link preview for social networks (Open Graph/Twitter) and image alt text. It is a quick check with a homepage score out of 40. Not everything is checked; the full audit checks the whole site and scores it out of 100. It is available once per account and once per website, and it exists to show you the shape of a report — it is not a product of its own.',
           ],
         },
       ],
@@ -703,7 +703,7 @@ export const faqCopyUk: FaqCopy = {
         {
           question: 'Чи є щось безкоштовне?',
           answer: [
-            'Так, перевірка головної сторінки: заголовок, meta description, заголовки та індексація однієї сторінки. Вона доступна один раз на акаунт і один раз на сайт і потрібна, щоб показати вигляд звіту, — це не окремий продукт.',
+            'Так, перевірка однієї головної сторінки: title сторінки, структура заголовків, meta description, індексація, превʼю посилання для соцмереж (Open Graph/Twitter) і alt-текст зображень. Це швидка перевірка з оцінкою головної сторінки з 40. Перевірено не все; повний аудит перевіряє весь сайт і оцінює його за шкалою зі 100. Вона доступна один раз на акаунт і один раз на сайт і потрібна, щоб показати вигляд звіту, — це не окремий продукт.',
           ],
         },
       ],

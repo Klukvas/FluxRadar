@@ -22,6 +22,16 @@ import { copy, fillCopy, type Language } from './i18n';
 type ReasonKey = keyof (typeof copy)['en']['report']['moduleReason'];
 
 /**
+ * Reasons that mean something else on the Free GEO preview (D-236): the owner's
+ * own choice rather than a missing purchase notice, and a provider outage on a
+ * one-time check that has no "run it again" to offer.
+ */
+const FREE_PREVIEW_REASON_KEYS: Readonly<Record<string, ReasonKey>> = {
+  ConsentMissing: 'aiFreeConsentNotGiven',
+  ProviderUnavailable: 'aiFreePreviewProviderUnavailable',
+};
+
+/**
  * Whose problem a reason is, and whether the owner has to do anything.
  *
  * The chip said "Checked with limits" beside a score of 100 and the reason
@@ -81,6 +91,9 @@ const REASON_KEYS: Readonly<Record<string, ReasonKey>> = {
   PerformanceProviderUnavailable: 'performanceProviderUnavailable',
   // AI SEO / GEO. These are the pre-response refusals: the request never left.
   ConsentMissing: 'aiConsentMissing',
+  // The Free GEO preview's own skips (D-236; apps/api/src/orchestrator/free-geo.ts).
+  FreePreviewAllowlistedOrigin: 'aiFreePreviewAllowlisted',
+  FreePreviewAlreadyRequested: 'aiFreePreviewAlreadyRequested',
   RedactionBlocked: 'aiRedactionBlocked',
   QuotaExceeded: 'aiQuotaExceeded',
   ProviderUnavailable: 'aiProviderUnavailable',
@@ -142,6 +155,11 @@ const REASON_BLAME: Readonly<Record<ReasonKey, ReasonBlame | null>> = {
   // AI SEO / GEO. A notice this scan does not carry, a redaction step that did
   // not finish and a provider answering outside its contract are all ours.
   aiConsentMissing: 'ours',
+  // The owner left the Free AI preview unticked; the sentence says so itself.
+  aiFreeConsentNotGiven: null,
+  aiFreePreviewAllowlisted: null,
+  aiFreePreviewAlreadyRequested: null,
+  aiFreePreviewProviderUnavailable: null,
   aiRedactionBlocked: 'ours',
   aiQuotaExceeded: 'byPlan',
   aiProviderUnavailable: 'oursRetry',
@@ -261,6 +279,13 @@ export function moduleResponsibilities(module: ScanModule, language: Language): 
 function reasonSentences(module: ScanModule, language: Language): readonly ReasonSentence[] {
   const whole = module.statusReason?.trim() ?? '';
   if (whole === '') return [];
+  // On the Free GEO preview a missing consent is the owner's own choice, not a
+  // purchase whose notice went missing (D-236; `freePreview` is written by
+  // apps/api/src/orchestrator/geo-module-row.ts).
+  if (module.metadata?.freePreview === true) {
+    const key = FREE_PREVIEW_REASON_KEYS[whole];
+    if (key !== undefined) return [{ key, text: copy[language].report.moduleReason[key] }];
+  }
 
   // Taken off first and said last: it is the final clause, and the one before
   // it ends in free text that would otherwise absorb it.

@@ -14,6 +14,7 @@ import {
 import { FindingExplainer } from './FindingExplainer';
 import { findingEvidence } from './finding-variants';
 import { findingsCopy } from './findings-copy';
+import { showsRulePenalty } from './free-score-copy';
 import { copy, fillCopy, type Language } from './i18n';
 import { moduleCoverageHref, moduleLabel } from './rule-titles';
 
@@ -38,6 +39,11 @@ export function IssueTable(props: {
    * "Show 50 more" brought a second rule in.
    */
   soleRuleId: string | null;
+  /**
+   * The scan's plan. A Free report shows its score out of 40 (D-237), so a
+   * finding there does not print the stored 0–100 penalty it would not add up to.
+   */
+  plan?: string;
   selectedIssue: Issue | null;
   onSelect: (issue: Issue | null) => void;
   onStatus: (issue: Issue, status: string) => void;
@@ -129,7 +135,11 @@ export function IssueTable(props: {
               {isExpanded ? (
                 <tr id={detailId} className="issue-detail-row">
                   <td colSpan={columns} className="issue-detail-cell">
-                    <IssueDetail issue={issue} language={props.language} />
+                    <IssueDetail
+                      issue={issue}
+                      language={props.language}
+                      showsPenalty={showsRulePenalty(props.plan)}
+                    />
                   </td>
                 </tr>
               ) : null}
@@ -171,7 +181,12 @@ function EvidenceFields(props: { issue: Issue; language: Language }) {
  * names. They are two rows now, each in words, and the score says which way it
  * moves. A penalty is stored negative, so its size is what is printed.
  */
-function TechnicalDetails(props: { issue: Issue; language: Language; withEvidence: boolean }) {
+function TechnicalDetails(props: {
+  issue: Issue;
+  language: Language;
+  withEvidence: boolean;
+  showsPenalty: boolean;
+}) {
   const t = copy[props.language].issues;
   const f = findingsCopy[props.language];
   const { issue } = props;
@@ -188,14 +203,16 @@ function TechnicalDetails(props: { issue: Issue; language: Language; withEvidenc
             issue.applicableTargets,
           )}
         />
-        <FieldRow
-          label={t.scoreEffect}
-          value={
-            issue.scoreDelta === 0
-              ? t.scoreEffectNone
-              : fillCopy(t.scoreEffectValue, { delta: Math.abs(issue.scoreDelta).toFixed(2) })
-          }
-        />
+        {props.showsPenalty ? (
+          <FieldRow
+            label={t.scoreEffect}
+            value={
+              issue.scoreDelta === 0
+                ? t.scoreEffectNone
+                : fillCopy(t.scoreEffectValue, { delta: Math.abs(issue.scoreDelta).toFixed(2) })
+            }
+          />
+        ) : null}
         <FieldRow label={t.confidence} value={`${(issue.confidence * 100).toFixed(0)}%`} />
         {/* The rule's title in the developer's own words, moved off the row
             above where it restated the problem's plain name. Labelled by what
@@ -224,7 +241,7 @@ function TechnicalDetails(props: { issue: Issue; language: Language; withEvidenc
  * evidence and recommendation, so those stay in view; only the scoring and
  * provenance fold away.
  */
-function IssueDetail(props: { issue: Issue; language: Language }) {
+function IssueDetail(props: { issue: Issue; language: Language; showsPenalty: boolean }) {
   const { issue } = props;
   const t = copy[props.language].issues;
   const f = findingsCopy[props.language];
@@ -253,7 +270,12 @@ function IssueDetail(props: { issue: Issue; language: Language }) {
       />
       <FieldRow label={t.columnTarget} value={issue.targetUrl} technical />
       {explained ? null : <EvidenceFields issue={issue} language={props.language} />}
-      <TechnicalDetails issue={issue} language={props.language} withEvidence={explained} />
+      <TechnicalDetails
+        issue={issue}
+        language={props.language}
+        withEvidence={explained}
+        showsPenalty={props.showsPenalty}
+      />
       <p className="issue-detail__learn">
         <a href={moduleCoverageHref(issue.module)}>{f.issues.learnMore} →</a>
       </p>

@@ -24,7 +24,6 @@ import {
   StatusChip,
   Window,
 } from './components';
-import { checkCopyTitle } from './check-titles';
 import { findingsCopy } from './findings-copy';
 import { geoVisibilitySummaryOf } from './geo-visibility';
 import { copy, fillCopy, type Language } from './i18n';
@@ -32,14 +31,17 @@ import { asRecord, geoAnswerDigestOf, numberValue } from './module-metadata';
 import { geoAwareProblemOpener, GEO_SUMMARY_MODULE } from './geo-summary-rules';
 import { hasModuleChecks, ModuleChecksPanel, moduleChecksId } from './ModuleChecks';
 import { moduleResponsibilities, moduleStatusReasons } from './module-status';
+import { planIncludesExport, type PaidPlan } from './plan-modules';
 import {
-  isLegacyPlan,
-  modulesBeyondPlan,
-  planIncludesExport,
-  planName,
-  type PaidPlan,
-} from './plan-modules';
-import { chipStatusFor, displayDomain, moduleResultLabel, moduleScoreLabel } from './scan-status';
+  chipStatusFor,
+  displayDomain,
+  isLegacyUnscoredReport,
+  moduleResultLabel,
+  moduleScoreLabel,
+} from './scan-status';
+import { FreeAiPreview } from './FreeAiPreview';
+import { FreeScore } from './FreeScore';
+import { freeCheckCountOf } from './free-score-copy';
 import {
   checksSummary,
   FreeCheckStatus,
@@ -52,6 +54,7 @@ import { ReportNextStepsWithSummary, useIssueSummary } from './ReportNextSteps';
 import { useReportViewed } from './funnel-analytics';
 import { nothingWasChecked, reportFailureCopy, siteReadFailureOf } from './report-failure-copy';
 import { moduleLabel } from './rule-titles';
+import { checkTitles, PlanScope } from './PlanScope';
 import { ScanComparisonPanel } from './ScanComparison';
 import { SiteCoveragePanel } from './SiteCoverage';
 import { statusKind } from './status-kind';
@@ -85,8 +88,9 @@ export function ResultsScreen(props: {
   /** Opens the Issue Center on one problem's findings. */
   onOpenProblem?: (ruleId: string) => void;
   /**
-   * Opens the scan form for the same site on `plan`: Basic from a Free report's
-   * upsell, Complete from an archived report's locked Action Plan.
+   * Opens the scan form for the same site on `plan`: Complete from a Free
+   * report's upsell and its locked preview, and from an archived report's
+   * locked Action Plan.
    */
   onUpgrade?: (scan: Scan, plan: PaidPlan) => void;
   /** Opens the printable client report. */
@@ -190,7 +194,12 @@ export function ResultsScreen(props: {
   // The `score === null` half is belt-and-braces: a plan with weights always
   // reports them, so a number arriving without any is a contract the UI does not
   // understand — and hiding a real score behind this branch would be its own lie.
-  const unscoredPlan = overall.moduleWeights.length === 0 && overall.score === null;
+  // A Free report written before Free was scored (D-236) says so on its row:
+  // its overall now carries the SEO weight but no number, and must keep the
+  // Free panel rather than an "Insufficient data" dial.
+  const unscoredPlan =
+    (overall.moduleWeights.length === 0 && overall.score === null) ||
+    isLegacyUnscoredReport(dashboard.modules);
   // A failed/cancelled run can still contain useful module results from before
   // the platform failure. Those results stay visible below, but their weighted
   // aggregate is not a completed site score and must not wear a green verdict.
@@ -222,9 +231,10 @@ export function ResultsScreen(props: {
             <h2 className="section-heading">{t.signalHeading}</h2>
             <ReportHeaderMeta scan={scan} language={props.language} />
           </div>
-          {/* The Free panel first: a Free check of a site that could not be
-              read ends as Failed, and its owner must not get the paid
-              report's "Unavailable" dial for a plan that has no score. */}
+          {/* The unscored panel first. Since D-236 it serves only Free
+              reports written before Free was scored (NotScoredOnFreePlan): a
+              number they never computed must not appear as an "Unavailable"
+              dial. A current Free report takes the homepage-score dial. */}
           {unscoredPlan ? (
             <FreeCheckStatus checks={checks} summary={issueSummary} language={props.language} />
           ) : scoreUnavailable ? (
@@ -234,6 +244,17 @@ export function ResultsScreen(props: {
               <StatusChip status={scan.status} label={t.verdictUnavailable} />
               <div className="score-dial__coverage">{checksLine}</div>
             </div>
+          ) : scan.plan === 'Free' ? (
+            // The Free score reads the homepage only, never the whole site, and
+            // is shown out of 40, with the quick-check note beside it (D-237).
+            <FreeScore
+              overall={overall}
+              modules={dashboard.modules}
+              language={props.language}
+              {...(props.onUpgrade === undefined
+                ? {}
+                : { onUpgrade: (plan: PaidPlan) => props.onUpgrade?.(scan, plan) })}
+            />
           ) : (
             <ScoreDial
               score={overall.score}
@@ -257,11 +278,21 @@ export function ResultsScreen(props: {
           nothingChecked={checkedNothing}
           hasGeoFactFindings={hasGeoFactFindings}
         />
-        <ReportHelp unscoredPlan={unscoredPlan} plan={scan.plan} language={props.language} />
+        <ReportHelp
+          unscoredPlan={unscoredPlan}
+          plan={scan.plan}
+          language={props.language}
+          overall={overall}
+          freeChecks={freeCheckCountOf(dashboard.modules)}
+        />
         {/* Before the section cards, because every coverage figure on them is
             module coverage and means something narrower than a reader assumes. */}
         {siteFailure === null ? (
-          <SiteCoveragePanel summary={scan.crawlSummary} language={props.language} />
+          <SiteCoveragePanel
+            summary={scan.crawlSummary}
+            language={props.language}
+            homepageOnly={scan.plan === 'Free'}
+          />
         ) : null}
         {/* Directly after the coverage panel, and before the section cards: a
             reader who has just been told how much of the site was read is in
@@ -356,6 +387,15 @@ export function ResultsScreen(props: {
             })}
           </div>
         )}
+        {scan.plan === 'Free' && siteFailure === null ? (
+          <FreeAiPreview
+            modules={dashboard.modules}
+            observations={geoObservations}
+            evidence={geoEvidence}
+            language={props.language}
+            onUpgrade={(plan) => props.onUpgrade?.(scan, plan)}
+          />
+        ) : null}
         <PlanScope modules={dashboard.modules} plan={scan.plan} language={props.language} />
         {/* A report that checked nothing has nothing to open, print or export:
             an Issue Center with no findings, a PDF of "Nothing was checked" and
@@ -456,90 +496,6 @@ function toggleFromCard(event: MouseEvent<HTMLDivElement>, toggle: () => void): 
 }
 
 /**
- * What this plan looked at, and what it did not.
- *
- * The cards above show the sections that ran; a section the plan does not carry
- * sends no module row at all, so its absence is invisible. That is how a Free
- * report came to read as a clean bill of health for security and accessibility,
- * which were never opened. The right-hand list names them and the plan that adds
- * each one, taken from the tariff matrix rather than from a sales page.
- *
- * A native `<details>` because the answer is a footnote, not the report: shut by
- * default, keyboard-operable and announced as a disclosure without a line of
- * script or a single ARIA attribute of our own.
- */
-function PlanScope(props: {
-  modules: readonly ScanModule[];
-  plan: Scan['plan'];
-  language: Language;
-}) {
-  const t = copy[props.language].report;
-  const locked = modulesBeyondPlan(props.plan);
-  return (
-    <details className="plan-scope">
-      <summary className="plan-scope__summary">
-        {fillCopy(t.scopeSummary, { plan: planName(props.plan, props.language) })}
-      </summary>
-      <p className="muted plan-scope__lead">{t.scopeLead}</p>
-      <div className="plan-scope__columns">
-        <section aria-label={t.scopeIncludedTerm}>
-          <h4 className="plan-scope__term">{t.scopeIncludedTerm}</h4>
-          <ul className="plan-scope__list">
-            {props.modules.map((module) => (
-              <li key={module.module}>
-                <strong>{module.module}</strong>
-                <span className="plan-scope__detail">{scopeDetail(module, props.language)}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-        <section aria-label={t.scopeLockedTerm}>
-          <h4 className="plan-scope__term">{t.scopeLockedTerm}</h4>
-          {locked.length === 0 ? (
-            <p className="muted plan-scope__detail">
-              {isLegacyPlan(props.plan) ? t.scopeLockedArchived : t.scopeLockedNone}
-            </p>
-          ) : (
-            <ul className="plan-scope__list">
-              {locked.map((entry) => (
-                <li key={entry.module}>
-                  <strong>{entry.module}</strong>
-                  <span className="plan-scope__detail">
-                    {fillCopy(t.scopeUnlock, { plan: planName(entry.plan, props.language) })}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      </div>
-    </details>
-  );
-}
-
-/**
- * One line about what a section that ran actually did.
- *
- * Everything in it comes off the module row: how it ended, how many of its
- * applicable checks closed, and — where the row recorded them, as the Free check
- * does — the names of the checks themselves. Nothing is filled in from the plan.
- */
-function scopeDetail(module: ScanModule, language: Language): string {
-  const t = copy[language].report;
-  const parts = [moduleResultLabel(module, language)];
-  if (module.completedApplicableChecks !== null && module.applicableChecks !== null) {
-    parts.push(
-      fillCopy(t.scopeChecks, {
-        completed: module.completedApplicableChecks,
-        applicable: module.applicableChecks,
-      }),
-    );
-  }
-  parts.push(...checkTitles(module.metadata, language));
-  return parts.join(' · ');
-}
-
-/**
  * The standards one section works to, under its name.
  *
  * Standard names — WCAG 2.2 AA, OWASP ASVS, JSON-LD — are the same string in
@@ -567,9 +523,9 @@ function ModuleMetadata({
     return <small className="module-card__meta">{t.metaPrivacy}</small>;
   }
   if (module.module === 'SEO') {
-    // The Free check runs four homepage rules and none of the structured-data or
-    // social-preview ones, so the paid module's line would name checks that
-    // never ran. What the module row itself recorded wins; failing that, a scan
+    // The Free check runs its own homepage rules, not the paid module's
+    // site-wide structured-data and social-preview counts, so the paid line
+    // would name checks that never ran. What the module row itself recorded wins; failing that, a scan
     // known not to be the full module says nothing rather than something false.
     const checks = checkTitles(module.metadata, language);
     if (checks.length > 0) {
@@ -645,28 +601,6 @@ function ModuleReasons({ module, language }: { module: ScanModule; language: Lan
       ))}
     </div>
   );
-}
-
-/**
- * Names of the checks a module row says it ran, in the report language; empty
- * when it recorded none. The stored title is the fallback for a rule the report
- * has no copy for.
- */
-function checkTitles(
-  metadata: Readonly<Record<string, unknown>> | undefined,
-  language: Language,
-): readonly string[] {
-  const checks = metadata?.checks;
-  if (!Array.isArray(checks)) {
-    return [];
-  }
-  return checks.flatMap((entry: unknown) => {
-    const record = asRecord(entry);
-    const title = record?.title;
-    if (typeof title !== 'string' || title === '') return [];
-    const ruleId = record?.ruleId;
-    return [(typeof ruleId === 'string' ? checkCopyTitle(ruleId, language) : undefined) ?? title];
-  });
 }
 
 /**

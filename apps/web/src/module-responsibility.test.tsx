@@ -32,6 +32,8 @@ interface ReasonCase {
   readonly reason: string;
   /** Whose problem it is, or null where the reason answers for itself. */
   readonly blame: Blame | null;
+  /** Row metadata the reason is read against, where the same token means two things. */
+  readonly metadata?: Readonly<Record<string, unknown>>;
 }
 
 /**
@@ -81,6 +83,21 @@ const REASONS: readonly ReasonCase[] = [
   },
   // AI SEO / GEO: the refusals that stopped a request before it left.
   { key: 'aiConsentMissing', reason: 'ConsentMissing', blame: 'ours' },
+  // The same token on the Free GEO preview is the owner's own choice (D-236).
+  {
+    key: 'aiFreeConsentNotGiven',
+    reason: 'ConsentMissing',
+    blame: null,
+    metadata: { freePreview: true },
+  },
+  {
+    key: 'aiFreePreviewProviderUnavailable',
+    reason: 'ProviderUnavailable',
+    blame: null,
+    metadata: { freePreview: true },
+  },
+  { key: 'aiFreePreviewAllowlisted', reason: 'FreePreviewAllowlistedOrigin', blame: null },
+  { key: 'aiFreePreviewAlreadyRequested', reason: 'FreePreviewAlreadyRequested', blame: null },
   { key: 'aiRedactionBlocked', reason: 'RedactionBlocked', blame: 'ours' },
   { key: 'aiQuotaExceeded', reason: 'QuotaExceeded', blame: 'byPlan' },
   { key: 'aiProviderUnavailable', reason: 'ProviderUnavailable', blame: 'oursRetry' },
@@ -132,7 +149,11 @@ const REASONS: readonly ReasonCase[] = [
   { key: 'unknown', reason: 'SomethingNoBuildHasEverWritten', blame: null },
 ];
 
-function moduleRow(statusReason: string | null, module = 'SEO'): ScanModule {
+function moduleRow(
+  statusReason: string | null,
+  module = 'SEO',
+  metadata: Readonly<Record<string, unknown>> = {},
+): ScanModule {
   return {
     module,
     status: 'Partial',
@@ -142,7 +163,7 @@ function moduleRow(statusReason: string | null, module = 'SEO'): ScanModule {
     applicableChecks: 4,
     completedApplicableChecks: 2,
     usableOutput: true,
-    metadata: {},
+    metadata,
   };
 }
 
@@ -174,7 +195,7 @@ describe('whose problem each module reason is', () => {
   for (const entry of REASONS) {
     it.each(LANGUAGES)(`answers ${entry.key} with ${entry.blame ?? 'nothing'} (%s)`, (language) => {
       const t = copy[language].report;
-      const row = moduleRow(entry.reason);
+      const row = moduleRow(entry.reason, 'SEO', entry.metadata);
 
       // The reason resolved to the key the row names — not to the fallback
       // that quotes an unrecognised reason, which would answer nothing.

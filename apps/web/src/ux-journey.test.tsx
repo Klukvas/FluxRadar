@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from './App';
 import { saveCookieConsent } from './browser-consent';
-import { BASIC_PRICE } from './tariff-prices';
+import { COMPLETE_PRICE } from './tariff-prices';
 import { checkedPlan } from './new-scan-test-support';
 
 const account = { accountId: 'account-1', email: 'owner@example.com' };
@@ -384,7 +384,11 @@ describe('a Free report', () => {
           available: true,
           mode: 'test',
           unavailableReason: null,
-          plans: [{ plan: 'Basic', priceUsd: 39, currency: 'USD' }],
+          plans: [
+            { plan: 'Basic', priceUsd: 39, currency: 'USD' },
+            // The Free report's upsell opens Complete (D-236).
+            { plan: 'Complete', priceUsd: 87, currency: 'USD' },
+          ],
         });
       if (path === `/scans/${freeScan.id}/issues`)
         return envelope([], 200, { total: 0, page: 1, limit: 50 });
@@ -433,22 +437,25 @@ describe('a Free report', () => {
     expect(screen.getByRole('button', { name: 'Back to all problems' })).toBeInTheDocument();
   });
 
-  it('offers a Basic scan of the same site, opening the form on Basic', async () => {
+  // D-236 owner decision: the Free report's upsell opens Complete (was Basic).
+  it('offers a Complete scan of the same site, opening the form on Complete', async () => {
     renderReport();
     window.history.replaceState(null, '', `/scans/${freeScan.id}`);
     render(<App />);
 
     fireEvent.click(
-      await screen.findByRole('button', { name: `Check the whole site for ${BASIC_PRICE}` }),
+      await screen.findByRole('button', {
+        name: `Run the complete verification for ${COMPLETE_PRICE}`,
+      }),
     );
 
     await waitFor(() => expect(window.location.pathname).toBe('/scan'));
     const target = (await screen.findByRole('combobox', { name: /^Site/ })) as HTMLSelectElement;
     expect(target.value).toBe(profile.id);
-    // The plan cards are radios named `scan-plan`; the Basic card is the one
+    // The plan cards are radios named `scan-plan`; the Complete card is the one
     // chosen, and no other card is.
-    await waitFor(() => expect(screen.getByRole('radio', { name: /^Basic/ })).toBeChecked());
-    expect(checkedPlan()).toBe('Basic');
+    await waitFor(() => expect(screen.getByRole('radio', { name: /^Complete/ })).toBeChecked());
+    expect(checkedPlan()).toBe('Complete');
   });
 
   it('opens a printable client report of the scan', async () => {

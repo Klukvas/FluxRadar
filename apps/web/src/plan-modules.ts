@@ -45,6 +45,22 @@ export const PLAN_MODULES: Readonly<Record<Plan, readonly string[]>> = {
 };
 
 /**
+ * `TARIFFS[plan].previewModules`: sections a plan runs only as a one-sample
+ * preview (D-236 — Free's single AI answer). The report shows them as a
+ * preview of a paid section, never as a section the plan includes in full.
+ */
+export const PLAN_PREVIEW_MODULES: Readonly<Record<Plan, readonly string[]>> = {
+  Free: ['AI SEO / GEO'],
+  Basic: [],
+  Complete: [],
+};
+
+/** Whether this plan runs `module` only as a preview; false for a retired plan. */
+export function isPreviewModule(plan: Plan | LegacyPlan, module: string): boolean {
+  return PLAN_PREVIEW_MODULES[plan as Plan]?.includes(module) ?? false;
+}
+
+/**
  * The sections whose 0–100 score is shown on its own and left out of the
  * overall score (§15).
  *
