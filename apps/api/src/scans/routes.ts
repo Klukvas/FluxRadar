@@ -42,6 +42,7 @@ import {
 import { freeScanScope } from './free-scan-scope.ts';
 import { assertReportSnapshotReady } from './report-readiness.ts';
 import { overallScoreView } from './free-score-view.ts';
+import { sortModules } from './module-order.ts';
 import { toModuleDto, toScanDto } from './scan-dto.ts';
 import { listScanHistory } from './scan-history.ts';
 import { geoEvidenceFrom, geoObservationsFrom, geoVisibilitySummaryFrom } from './geo-report.ts';
@@ -265,7 +266,7 @@ export function scansRouter(deps: ScansRouterDeps): Router {
     sendOk(res, {
       scan: toScanDto(scan, scan.modules),
       overall,
-      modules: scan.modules.map((module) => toModuleDto(module, scan.plan)),
+      modules: sortModules(scan.modules).map((module) => toModuleDto(module, scan.plan)),
       geoObservations: geoObservationsFrom(geoModule?.metadataJson, geoResponses, geoEvidence),
       geoEvidence,
       geoVisibilitySummary: geoVisibilitySummaryFrom(geoModule?.metadataJson),

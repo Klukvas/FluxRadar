@@ -22,6 +22,7 @@ import {
 } from '@fluxradar/export';
 
 import { conflict } from '../http/errors.ts';
+import { sortModules } from '../scans/module-order.ts';
 
 export type ExportScan = Scan & {
   readonly modules: ScanModule[];
@@ -73,7 +74,8 @@ export function buildExportRecords(scan: ExportScan) {
       score: overall.score,
       observedAt: completedAt,
     }),
-    ...scan.modules.map((module) =>
+    // Canonical order, never the database's row order (scans/module-order.ts).
+    ...sortModules(scan.modules).map((module) =>
       buildModuleRecord(context, {
         module: module.module as ModuleName,
         moduleStatus: module.runtimeStatus as ModuleExportStatus,
