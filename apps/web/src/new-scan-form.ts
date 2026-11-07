@@ -81,9 +81,12 @@ export interface NewScanFormProps {
   onError: (value: string) => void;
   /**
    * The plan the owner already chose — on the pricing cards before signing up,
-   * with a report's upgrade button (Basic from a Free report, Complete from a
-   * locked Action Plan), or on the dashboard card (Basic after a Free scan).
-   * Applied once, and only when that plan can actually be bought here.
+   * with a report's upgrade button (Complete from a Free report's upsell or
+   * locked preview, and from a locked Action Plan), or on the dashboard card
+   * (Basic after a Free scan).
+   * Applied once, and only when that plan can actually be bought here. Once
+   * applied, the request stands — including when the site's saved settings load
+   * or reload afterwards — until the owner picks a plan themselves.
    */
   initialPlan?: Plan | null;
   /**
@@ -414,6 +417,8 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
    * that choosing a plan is three state changes.
    */
   const choosePlan = (chosen: Plan): void => {
+    // The owner's own choice replaces the plan the form was opened for.
+    requestedPlanRef.current = null;
     setHasUnsavedChanges(true);
     setPlan(chosen);
     setScope((current) => clampScopeToPlan(current, chosen));
@@ -453,6 +458,13 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   // seconds earlier. Another site, or a version written elsewhere, still loads.
   const lastLoadedTargetRef = useRef<string | null>(null);
   const writtenVersionRef = useRef<number | null>(null);
+  // The plan this form was opened for (an upgrade button, a pricing card, the
+  // dashboard's free check), once applied below. The saved settings can load —
+  // or load again, when the profile list is re-read — after it was applied, and
+  // restoring the saved plan then silently replaced the request: a Free report's
+  // "Unlock with the complete verification" opened the form on Free. The
+  // request stands until the owner picks a plan themselves.
+  const requestedPlanRef = useRef<Plan | null>(null);
 
   /** Opens the form on the reusable settings stored with the selected profile. */
   useEffect(() => {
@@ -472,12 +484,18 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     if (selected?.scanConfig != null) {
       setConfigLoading(false);
       const restored = restoredProfileForm(selected, paidAvailable);
-      setPlan(restored.plan);
-      setScope(restored.scope);
+      const requested = requestedPlanRef.current;
+      setPlan(requested ?? restored.plan);
+      setScope(requested === null ? restored.scope : clampScopeToPlan(restored.scope, requested));
       setCarriedOver(true);
       setSavedConfigFingerprint(restored.fingerprint);
       setSavedConfigVersion(restored.version);
-      setHasUnsavedChanges(restored.hasUnsavedChanges);
+      // A requested plan that differs from the saved one is a change to the
+      // saved settings, exactly as when it was first applied (below).
+      setHasUnsavedChanges(
+        restored.hasUnsavedChanges ||
+          (requested !== null && requested !== selected.scanConfig.plan),
+      );
       return;
     }
     let cancelled = false;
@@ -511,6 +529,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     if (initialPlanApplied.current || initialPlan == null) return;
     if (initialPlan !== 'Free' && !paidAvailable) return;
     initialPlanApplied.current = true;
+    requestedPlanRef.current = initialPlan;
     // A plan chosen on a pricing card is a change to the saved configuration,
     // and the launch saves it as a new version before the checkout opens. The
     // panel has to say so first: a visitor who pressed "Choose Complete" on a
