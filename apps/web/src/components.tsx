@@ -159,6 +159,7 @@ export type MenuBarProps =
 const MENU_LABELS: Record<Language, { site: string; app: string; open: string; close: string }> = {
   en: { site: 'Site menu', app: 'Application menu', open: 'Open menu', close: 'Close menu' },
   uk: { site: 'Меню сайту', app: 'Меню застосунку', open: 'Відкрити меню', close: 'Закрити меню' },
+  ru: { site: 'Меню сайта', app: 'Меню приложения', open: 'Открыть меню', close: 'Закрыть меню' },
 };
 
 export function MenuBar(props: MenuBarProps) {
@@ -891,6 +892,7 @@ export function Terminal(props: { lines: readonly string[]; active?: boolean }) 
 const ALERT_COPY: Record<Language, { title: string; close: string; details: string }> = {
   en: { title: 'FluxRadar alert', close: 'OK', details: 'Technical details' },
   uk: { title: 'Повідомлення FluxRadar', close: 'Гаразд', details: 'Технічні подробиці' },
+  ru: { title: 'Сообщение FluxRadar', close: 'Хорошо', details: 'Технические подробности' },
 };
 
 export function AlertDialog(props: {

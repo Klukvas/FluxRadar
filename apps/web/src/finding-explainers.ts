@@ -33,6 +33,7 @@ import type { ExplainedRule, FindingExplainer } from './explainers/types';
 import { UX_EXPLAINERS } from './explainers/ux';
 import type { Language } from './i18n';
 import { ruleTitle } from './rule-titles';
+import { reportLanguage } from './report-language';
 
 export type { FindingExplainer } from './explainers/types';
 
@@ -53,7 +54,7 @@ export const EXPLAINED_RULE_IDS: readonly string[] = Object.keys(EXPLAINERS);
 
 /** The plain-language explanation of a rule, or null for a rule that has none. */
 export function findingExplainer(ruleId: string, language: Language): FindingExplainer | null {
-  return EXPLAINERS[ruleId]?.[language] ?? null;
+  return EXPLAINERS[ruleId]?.[reportLanguage(language)] ?? null;
 }
 
 /**

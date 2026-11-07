@@ -4,6 +4,7 @@
 // past the size anyone can review, and this block is read as one screen.
 
 import type { Language } from './i18n';
+import { takesRuSingular } from './i18n.ru.grammar';
 
 export type ActionPlanCopy = {
   readonly heading: string;
@@ -33,6 +34,20 @@ export type ActionPlanCopy = {
   readonly generatedAt: (when: string, model: string) => string;
   readonly regenerate: (left: number) => string;
   readonly otherLanguage: (language: string) => string;
+  /**
+   * Said beside the PDF button when the reader has picked a plan language the
+   * PDF cannot carry, and a plan in the report's own language does exist. The
+   * PDF is a report document, so it is built in the report's language
+   * (`report-language.ts`); the plan inside it is the one written in that
+   * language, not the one the picker is showing.
+   */
+  readonly pdfPlanLanguage: string;
+  /**
+   * Said instead, when no plan exists in the report's language at all. The
+   * server embeds the document-language plan and never falls back, so promising
+   * a plan here would promise a chapter the file will not contain.
+   */
+  readonly pdfPlanMissing: string;
 };
 
 const EN: ActionPlanCopy = {
@@ -72,6 +87,8 @@ const EN: ActionPlanCopy = {
   generatedAt: (when, model) => `Written ${when} by ${model}.`,
   regenerate: (left) => `Rewrite the plan (${left} left)`,
   otherLanguage: (language) => `A plan already exists in ${language}. Open it`,
+  pdfPlanLanguage: 'The PDF includes the English plan.',
+  pdfPlanMissing: 'The PDF has no plan: write one in English first.',
 };
 
 const UK: ActionPlanCopy = {
@@ -108,6 +125,53 @@ const UK: ActionPlanCopy = {
   generatedAt: (when, model) => `Написано ${when}, модель ${model}.`,
   regenerate: (left) => `Переписати план (залишилось ${left})`,
   otherLanguage: (language) => `План уже існує мовою ${language}. Відкрити`,
+  pdfPlanLanguage: 'У PDF входить план українською.',
+  pdfPlanMissing: 'У PDF немає плану: спершу складіть його українською.',
 };
 
-export const actionPlanCopy: Readonly<Record<Language, ActionPlanCopy>> = { en: EN, uk: UK };
+const RU: ActionPlanCopy = {
+  heading: 'ИИ-план действий',
+  aiLabel: 'Сгенерировано ИИ',
+  lockedTitle: 'ИИ-план действий',
+  lockedBody: 'ИИ-план действий есть в новой проверке Basic или Complete этого сайта.',
+  lockedAction: 'Запустить проверку Complete',
+  nothingToPlan:
+    'Ни одна открытая находка этого отчёта не может попасть в план: находки раздела «Аналитика» берутся из ваших данных Google и никогда в него не входят.',
+  windowClosed:
+    'Трёхдневное окно для запроса плана действий закрылось. Уже написанные планы остаются доступными.',
+  idleLead:
+    'Claude читает находки этого отчёта и пишет упорядоченный план правок с коротким обзором, который можно переслать клиенту.',
+  languageLabel: 'Язык плана',
+  generate: 'Написать план действий',
+  consent:
+    'Нажатие кнопки отправляет в Anthropic названия правил этого отчёта, их серьёзность, количество открытых находок, примеры адресов страниц и рекомендации. Отрывки доказательств, снимки экрана и что-либо из раздела «Аналитика» не отправляются никогда.',
+  running: 'Claude пишет план. Обычно это занимает одну-две минуты.',
+  failed: 'На этот раз план написать не удалось.',
+  retry: 'Попробовать ещё раз',
+  noAttemptsLeft: 'Эта проверка исчерпала все попытки написания плана.',
+  overviewHeading: 'Обзор',
+  actionsHeading: 'Действия',
+  effort: { small: 'Небольшие усилия', medium: 'Средние усилия', large: 'Большие усилия' },
+  effortLabel: 'Усилия',
+  settled: 'Снято',
+  settledNote:
+    'На правилах этого действия не осталось открытых находок. В пределах одной проверки это значит, что им поставили статус «Игнорируется» или «Ложная», а не что сайт изменился.',
+  openIssues: (open, total) => `${open} открыто из ${total}`,
+  reach: (share, rules) =>
+    `Этот план охватывает ${Math.round(share * 100)}% открытых находок по ${rules} ${
+      takesRuSingular(rules) ? 'правилу' : 'правилам'
+    }.`,
+  caveat: (module) =>
+    `Раздел «${module}» проверен только частично, поэтому план может быть неполным.`,
+  generatedAt: (when, model) => `Написано ${when}, модель ${model}.`,
+  regenerate: (left) => `Переписать план (осталось ${left})`,
+  otherLanguage: (language) => `План уже существует на языке ${language}. Открыть`,
+  pdfPlanLanguage: 'В PDF входит план на украинском.',
+  pdfPlanMissing: 'В PDF нет плана: сначала составьте его на украинском.',
+};
+
+export const actionPlanCopy: Readonly<Record<Language, ActionPlanCopy>> = {
+  en: EN,
+  uk: UK,
+  ru: RU,
+};

@@ -156,6 +156,7 @@ export const PLAN_DISPLAY_NAME: Readonly<Record<Plan, string>> = {
 export const LEGACY_PLAN_NAME: Readonly<Record<Language, Readonly<Record<LegacyPlan, string>>>> = {
   en: { WebsiteAudit: 'Website Audit (archived)', Legacy: 'Archived plan' },
   uk: { WebsiteAudit: 'Website Audit (архів)', Legacy: 'Архівний тариф' },
+  ru: { WebsiteAudit: 'Website Audit (архив)', Legacy: 'Архивный тариф' },
 };
 
 /** The display name of a plan literal; unknown strings are shown as they are. */

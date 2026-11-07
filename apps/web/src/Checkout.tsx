@@ -13,6 +13,7 @@ import { reportPurchaseWhenConfigReady } from './checkout-analytics';
 import { trackScanStarted } from './funnel-analytics';
 import type { PendingCheckout } from './checkout-storage';
 import { copy, type Language } from './i18n';
+import { siteChromeCopy } from './site-chrome-copy';
 
 // Paid checkout in the browser.
 //
@@ -39,6 +40,11 @@ const recoveryCopy = {
     body: 'Підтвердження платежу призупинено. Ваше оформлення досі активне.',
     resume: 'Продовжити підтвердження платежу',
     stop: 'Не відстежувати це оформлення',
+  },
+  ru: {
+    body: 'Подтверждение платежа приостановлено. Ваше оформление заказа всё ещё активно.',
+    resume: 'Продолжить подтверждение платежа',
+    stop: 'Не отслеживать это оформление заказа',
   },
 } as const;
 
@@ -239,7 +245,7 @@ export function CheckoutPending(props: CheckoutPendingProps) {
       title={t.windowTitle}
       className="window--dialog"
       onClose={props.onCancel}
-      closeLabel={props.language === 'uk' ? 'Закрити вікно' : 'Close window'}
+      closeLabel={siteChromeCopy[props.language].closeWindow}
     >
       <div className="stack">
         <Panel title={t.panelTitle}>

@@ -21,9 +21,20 @@ const STATE_COOKIE = 'fluxradar_google_login';
 const STATE_LIFETIME_MS = 10 * 60 * 1000;
 const digest = (value: string): string => createHash('sha256').update(value).digest('hex');
 const random = (): string => randomBytes(32).toString('base64url');
+/**
+ * The interface languages this field may name.
+ *
+ * It is not a report language: nothing is written in it. The value is handed
+ * straight back on the redirect as `?lang=`, so the workspace the visitor
+ * lands on opens in the language they signed in from — which is why a new
+ * interface language belongs here, and why a report language enum does not.
+ */
+const SIGN_IN_LANGUAGES = ['uk', 'en', 'ru'] as const;
+type SignInLanguage = (typeof SIGN_IN_LANGUAGES)[number];
+
 const startSchema = z.object({
   rememberMe: z.boolean().default(false),
-  language: z.enum(['uk', 'en']).optional(),
+  language: z.enum(SIGN_IN_LANGUAGES).optional(),
 });
 const callbackSchema = z.object({
   state: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
@@ -96,7 +107,7 @@ export function googleAuthRouter(deps: GoogleRouterDeps, attachSession: AttachSe
     res.setHeader('Referrer-Policy', 'no-referrer');
     if (config === null || provider === null)
       throw new ApiError(503, 'GOOGLE_LOGIN_UNAVAILABLE', 'Google sign-in is unavailable');
-    let language: 'uk' | 'en' | null = null;
+    let language: SignInLanguage | null = null;
     const languageQuery = (): string => (language === null ? '' : `&lang=${language}`);
     const fail = (code: string): void => {
       res.redirect(
@@ -120,7 +131,9 @@ export function googleAuthRouter(deps: GoogleRouterDeps, attachSession: AttachSe
         fail('failed');
         return;
       }
-      language = attempt.language === 'uk' || attempt.language === 'en' ? attempt.language : null;
+      language = (SIGN_IN_LANGUAGES as readonly string[]).includes(attempt.language ?? '')
+        ? (attempt.language as SignInLanguage)
+        : null;
       // deleteMany is the atomic claim: concurrent callbacks cannot both exchange a code.
       const consumed = await deps.prisma.googleLoginState.deleteMany({
         where: {

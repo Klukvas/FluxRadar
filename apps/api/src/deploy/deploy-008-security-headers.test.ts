@@ -89,9 +89,15 @@ const CSP_FIELD = 'Content-Security-Policy';
  * back to image beacons, so these are subdomain patterns by necessity — which is
  * exactly why they are confined to `connect-src` and `img-src` and kept out of
  * `script-src`, where a wildcard would let any Google-hosted script run.
+ *
+ * `https://analytics.google.com` stands apart from its pattern because a CSP
+ * `*.` matches subdomains only. A property linked to Google Ads reports to that
+ * name, and gtag.js sets no collection region for some countries, Ukraine among
+ * them, which leaves the bare host.
  */
 const GA_COLLECTION_SOURCES = [
   'https://*.google-analytics.com',
+  'https://analytics.google.com',
   'https://*.analytics.google.com',
   'https://*.googletagmanager.com',
 ];
@@ -204,6 +210,28 @@ describe('the Content-Security-Policy', () => {
       'https://*.google-analytics.com',
       'https://*.googletagmanager.com',
     ]);
+  });
+
+  // GA4 records nothing from a visitor whose hits are refused, and the only trace
+  // is that visitor's own browser console. On 2026-10-31 Plausible counted 8 ad
+  // visits from Ukraine over three days where GA4 counted none: linking the
+  // property to Google Ads had moved their hits to the bare host, which the `*.`
+  // pattern beside it does not match.
+  it('reaches the bare host a property linked to Google Ads reports to', () => {
+    expect(policy.get('connect-src')).toContain('https://analytics.google.com');
+  });
+
+  // The same link makes gtag.js join each session through
+  // `stats.g.doubleclick.net` and `www.google.<tld>/ads/ga-audiences`. The Cookie
+  // Policy promises no remarketing, so widening for analytics stops short of them.
+  // `www.google.com` stays out as well, knowingly: it is also where a hit with no
+  // collection region fails over to, so a failure on the primary host is not retried.
+  it('keeps the advertising hosts the tag knows out of every directive', () => {
+    const advertising =
+      /doubleclick\.net|googleadservices\.com|googlesyndication\.com|(?:^|\/\/)(\*\.|www\.|adservice\.)?google\./;
+    const sources = [...policy.values()].flat();
+
+    expect(sources.filter((source) => advertising.test(source))).toEqual([]);
   });
 });
 

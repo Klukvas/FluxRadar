@@ -6,6 +6,7 @@ import { AlertDialog, Button, Field, TextAreaField, Window } from './components'
 import type { Language } from './i18n';
 import { SUPPORT_LIMITS, supportCopy, type SupportCopy } from './support-copy';
 import './styles/support.css';
+import { reportLanguage } from './report-language';
 
 type SupportWidgetProps = {
   readonly language: Language;
@@ -141,7 +142,9 @@ function SupportDialog(props: {
           ...(asksForEmail ? { email: email.trim() } : {}),
           // The path only: a query can carry a one-time email token.
           page: window.location.pathname,
-          language,
+          // The answer arrives as an email, and emails are written in a report
+          // language, so a Russian reader is answered in Ukrainian.
+          language: reportLanguage(language),
         }),
       });
       setState({ kind: 'sent', replyTo });

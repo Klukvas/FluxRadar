@@ -296,11 +296,17 @@ export function IssuesScreen(props: {
       </div>
       {/* The chips are the first thing read on every row, and "Low" and
           "Medium" are relative words with nothing to be relative to. The four
-          meanings are listed once, in the order the chips rank. */}
+          meanings are listed once, in the order the chips rank. A colon joins
+          each word to its meaning, not a dash: the Russian copy may build no
+          sentence on one (`russian-copy-parity.test.ts`), and the example
+          report's severity line already reads this way. Which is why the
+          lead-in ends in a full stop and not a colon of its own: one sentence
+          with four colons in it reads as a list, two colons in a row as a
+          typo. */}
       <p className="muted issue-severity-legend">
         <strong>{t.severityLegendTerm}</strong> {t.severityLegendBody}{' '}
         {SEVERITY_OPTIONS.map(
-          (level) => `${f.severity[level] ?? level} — ${f.severityMeaning[level] ?? ''}`,
+          (level) => `${f.severity[level] ?? level}: ${f.severityMeaning[level] ?? ''}`,
         ).join(' · ')}
       </p>
       {showProblems ? (

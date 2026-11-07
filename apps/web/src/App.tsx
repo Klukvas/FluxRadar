@@ -33,6 +33,7 @@ import { AppFrame, VerifyBanner, WorkspaceFooter, WorkspaceHeader } from './Work
 import './styles/base.css';
 import './styles/account.css';
 import './styles/narrow-screens.css';
+import { siteChromeCopy } from './site-chrome-copy';
 
 export function App({
   initialRoute,
@@ -130,13 +131,9 @@ function SessionScreen({ app }: { readonly app: AppModel }) {
         ) : null}
         {sessionError ? (
           <Notice
-            message={
-              language === 'uk'
-                ? 'Не вдалося перевірити сеанс. Публічна сторінка доступна.'
-                : 'Your session could not be checked. This public page is available.'
-            }
+            message={siteChromeCopy[language].sessionUncheckable}
             onClose={retrySession}
-            closeLabel={language === 'uk' ? 'Повторити' : 'Retry'}
+            closeLabel={siteChromeCopy[language].retry}
           />
         ) : null}
         <HomeRoute app={app} />
@@ -153,18 +150,7 @@ function SessionScreen({ app }: { readonly app: AppModel }) {
     );
   }
   if (sessionError) {
-    const unavailable =
-      language === 'uk'
-        ? {
-            title: 'Не вдається підключитися до FluxRadar',
-            body: 'Перевірте з’єднання та спробуйте ще раз. Ви не вийшли з облікового запису.',
-            retry: 'Спробувати ще раз',
-          }
-        : {
-            title: 'FluxRadar is unavailable',
-            body: 'We could not check your session. Check your connection and try again.',
-            retry: 'Try again',
-          };
+    const unavailable = siteChromeCopy[language].unavailable;
     return (
       <AppFrame app={app} className="app-shell" active="desktop" signedIn={false}>
         <Window title={unavailable.title} terminal>

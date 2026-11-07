@@ -12,6 +12,7 @@
 // renders them as text.
 
 import { takesUkSingular, ukCountForm, ukPagesOf, type Language } from './i18n';
+import type { ReportLanguage } from './report-language';
 
 /** The recorded values of one finding, read by name. A missing value throws `MissingEvidenceValue`. */
 export interface EvidenceValues {
@@ -26,11 +27,27 @@ export type EvidenceLine = (values: EvidenceValues) => string;
 
 export interface EvidenceCopy {
   readonly lines: Readonly<Record<string, EvidenceLine>>;
+}
+
+/**
+ * The two labels the app writes around that list, rather than inside it: the
+ * findings a row had no room to name, and the accessible name of the list.
+ *
+ * Chrome, so all three languages: the lines above are the report's own words
+ * and a Russian reader reads the Ukrainian ones (`report-language.ts`).
+ */
+export interface EvidenceChromeCopy {
   /** The findings a row had no room to name: "and 5 more". */
   readonly more: (count: number) => string;
   /** The accessible name of the list of named findings. */
   readonly listLabel: string;
 }
+
+export const evidenceChromeCopy: Readonly<Record<Language, EvidenceChromeCopy>> = {
+  en: { more: (count) => `and ${count} more`, listLabel: 'Where it was found' },
+  uk: { more: (count) => `і ще ${count}`, listLabel: 'Де знайдено' },
+  ru: { more: (count) => `и ещё ${count}`, listLabel: 'Где найдено' },
+};
 
 const enChars = (count: number): string => `${count} ${count === 1 ? 'character' : 'characters'}`;
 const ukChars = (count: number): string =>
@@ -173,15 +190,12 @@ const UK_LINES: Readonly<Record<string, EvidenceLine>> = {
   'seo-onpage-005.evidence': (v) => `Зображень без підпису (alt-тексту): ${v.count('count')}`,
 };
 
-export const evidenceCopy: Record<Language, EvidenceCopy> = {
-  en: {
-    lines: EN_LINES,
-    more: (count) => `and ${count} more`,
-    listLabel: 'Where it was found',
-  },
-  uk: {
-    lines: UK_LINES,
-    more: (count) => `і ще ${count}`,
-    listLabel: 'Де знайдено',
-  },
+/**
+ * Keyed by `ReportLanguage`: these sentences state what a finding recorded, so
+ * they are the report's words and a caller has to map a Russian reader onto
+ * Ukrainian with `reportLanguage(language)` to read them.
+ */
+export const evidenceCopy: Readonly<Record<ReportLanguage, EvidenceCopy>> = {
+  en: { lines: EN_LINES },
+  uk: { lines: UK_LINES },
 };

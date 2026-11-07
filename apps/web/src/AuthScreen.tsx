@@ -23,7 +23,9 @@ import { readInitialRoute } from './app-routes';
 import { authCopy } from './auth-copy';
 import { AlertDialog, Button, Checkbox, Field, Window } from './components';
 import { copy, type Language } from './i18n';
+import { plausibleGoal } from './plausible';
 import { publicPagePath } from './public-page-routing';
+import { siteChromeCopy } from './site-chrome-copy';
 
 export type AuthMode = 'login' | 'register';
 export type EmailAction = { readonly kind: 'verify' | 'reset'; readonly token: string };
@@ -159,6 +161,11 @@ export function AuthScreen(props: {
       });
       // GA4's recommended names, so both land in the standard acquisition reports.
       trackEvent(mode === 'register' ? 'sign_up' : 'login', { method: 'email' });
+      // The same milestone in the cookieless count, which asks for no consent
+      // and so counts the registrations GA4 never sees. Registrations only: a
+      // sign-in is a returning account, and `login` is not one of the three
+      // names Plausible is given.
+      if (mode === 'register') plausibleGoal('sign_up');
       await props.onAuthed(account);
     } catch (caught) {
       props.onError(caught instanceof Error ? caught.message : t.failed);
@@ -213,7 +220,7 @@ export function AuthScreen(props: {
       title={title}
       className="window--dialog"
       onClose={props.onBack}
-      closeLabel={props.language === 'uk' ? 'Закрити вікно' : 'Close window'}
+      closeLabel={siteChromeCopy[props.language].closeWindow}
     >
       <form className="stack" onSubmit={submit}>
         <div>

@@ -194,13 +194,14 @@ function FixFirstRow(props: {
   labels: FindingsCopy;
   jumps?: FixFirstJumps;
   onOpenProblem?: (ruleId: string) => void;
+  problemTitles?: Readonly<Record<string, string>>;
 }) {
   const { group, labels } = props;
   // The problem's plain name, the one the Issue Center shows. Two names for one
   // rule — "Heading structure is broken (H1–H6)" here and "Headings do not form
   // a clear outline" there — read as two different problems, and this block is
   // the link to that one. The technical title stays in a finding's technical fold.
-  const title = problemTitle(group.ruleId, props.language);
+  const title = props.problemTitles?.[group.ruleId] ?? problemTitle(group.ruleId, props.language);
   return (
     <li className="fix-first__item">
       <StatusChip status={group.severity} label={labels.severity[group.severity]} />
@@ -264,6 +265,16 @@ export interface FixFirstProps {
   readonly jumps?: FixFirstJumps;
   /** An extra sentence under the heading, for a reader with no report of their own. */
   readonly unitNote?: string;
+  /**
+   * The plain name to print for a problem, keyed by rule, instead of the one
+   * the catalogue gives it.
+   *
+   * Set only by the public example, whose Russian page is translated for
+   * reading (`example-report-content.ts`). A report leaves it out: a finding's
+   * name belongs to the report's language, and handing this block a second
+   * opinion about it is exactly what must not happen there.
+   */
+  readonly problemTitles?: Readonly<Record<string, string>>;
 }
 
 export function FixFirst(props: FixFirstProps) {
@@ -293,6 +304,7 @@ export function FixFirst(props: FixFirstProps) {
                 labels={f}
                 jumps={props.jumps}
                 onOpenProblem={props.onOpenProblem}
+                problemTitles={props.problemTitles}
               />
             ))}
           </ol>
@@ -647,6 +659,10 @@ type ReportNextStepsProps = {
   nothingChecked?: boolean;
   /** GEO-VIS-009 lives in the module's fact digest rather than Issue rows. */
   hasGeoFactFindings?: boolean;
+  /** Passed through from the plan block, for the note beside the PDF button. */
+  onPlanLanguageChange?: (language: string) => void;
+  /** Passed through too: which languages a plan has actually been written in. */
+  onPlanLanguagesChange?: (languages: readonly string[]) => void;
 };
 
 /** The blocks on their own, fetching the report's issue summary themselves. */
@@ -715,6 +731,8 @@ export function ReportNextStepsWithSummary(
           hasOpenIssues={hasOpenIssues}
           nothingChecked={nothingChecked}
           onPlanReadyChange={setPlanReady}
+          onPlanLanguageChange={props.onPlanLanguageChange}
+          onPlanLanguagesChange={props.onPlanLanguagesChange}
         />
       )}
       {summary === null || planReady || onlyGeoFindings ? null : (

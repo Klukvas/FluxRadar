@@ -36,6 +36,17 @@
   margin: var(--sp-1) 0 var(--sp-3);
   padding-left: var(--sp-4);
 }
+/* The counts tables carry six columns of their own plus a first column holding
+   a section or page name, which is wider than a phone in every language: at
+   375px the panel pushed the whole report sideways (26px in English, 112px in
+   Ukrainian, 148px in Russian). The table keeps its natural width and scrolls
+   inside this frame instead, the way the Analytics tables do
+   (`.google-panel__scroll` in base.css). Not focusable, so it needs no name of
+   its own: every row is reachable by reading the table itself. */
+.comparison-scroll {
+  min-width: 0;
+  overflow-x: auto;
+}
 .comparison-table {
   width: 100%;
   border-collapse: collapse;

@@ -38,4 +38,18 @@ describe('initial Ukrainian static chrome contract', () => {
       'false',
     );
   });
+
+  // The product's interface speaks Russian; these hand-written documents do
+  // not. Offering a Russian option here would promise an article set that
+  // does not exist, so the switcher stays at the two languages the documents
+  // are actually written in — see `blog-public-locale.test.ts` for how a
+  // Russian reader is still sent back to the Russian public pages.
+  it.each(pages)('%s offers no language the document is not written in', (path) => {
+    const doc = pageDocument(path);
+    const offered = Array.from(doc.querySelectorAll('[data-language-option]'), (node) =>
+      node.getAttribute('data-language-option'),
+    );
+    expect(offered).toEqual(['en', 'uk']);
+    expect(doc.querySelector('[data-language-option="ru"]')).toBeNull();
+  });
 });

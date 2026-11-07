@@ -18,6 +18,7 @@ import './styles/hero-site-form.css';
 const INVALID_ADDRESS: Record<Language, string> = {
   en: 'Enter a public website address, like yoursite.com.',
   uk: 'Введіть адресу публічного сайту, наприклад yoursite.com.',
+  ru: 'Введите адрес публичного сайта, например yoursite.com.',
 };
 
 export function HeroSiteForm(props: {

@@ -334,6 +334,14 @@ const UK_GENERAL_CAUSES: readonly string[] = [
   'Сторінка повертається порожньою.',
 ];
 
+const RU_GENERAL_CAUSES: readonly string[] = [
+  'Сайт отвечает ошибкой (например, 404 или 500).',
+  'Сайт блокирует автоматические проверки: файрвол, защита от ботов или настройка безопасности хостинга.',
+  'Сайт не ответил вовремя или не работал во время проверки.',
+  'Сайт требует вход или пароль, прежде чем показать страницу.',
+  'Страница возвращается пустой.',
+];
+
 export const reportFailureCopy: Readonly<Record<Language, ReportFailureCopy>> = {
   en: {
     heading: 'We could not open your site',
@@ -537,6 +545,107 @@ export const reportFailureCopy: Readonly<Record<Language, ReportFailureCopy>> = 
       'У цьому звіті нічого не перевірено, тож планувати поки нічого. Запустіть перевірку ще раз, коли сайт можна буде прочитати.',
     printNoProblems: 'Проблем у списку немає, бо нічого не перевірено, а не тому, що їх немає.',
   },
+  ru: {
+    heading: 'Нам не удалось открыть ваш сайт',
+    lead: (domain) =>
+      `Мы пытались прочитать ${domain}, но не смогли открыть ни одной страницы. Ничего в этом отчёте пока не описывает ваш сайт: это не «чистый» результат, а отсутствие результата.`,
+    paidNotDelivered:
+      'Если проверка была платной, она считается не выполненной: возврат средств для неё фиксируется автоматически, просить не нужно, а дальше его вручную оформляют через Creem, поэтому это не мгновенно.',
+    whatWeSaw: 'Что мы увидели',
+    kinds: {
+      'access-denied':
+        'Ваш сайт ответил статусом, который обычно означает отказ (например, 401, 403, 429 или 503). Чаще всего это файрвол или защита от ботов перед сайтом, иногда вход по паролю или перегруженный сервер.',
+      'blocked-by-robots':
+        'Файл robots.txt вашего сайта запрещает нашему краулеру его читать, и мы это уважаем.',
+      unreachable:
+        'Ваш сайт не ответил: адрес не найден, соединение не удалось или ответ не пришёл вовремя.',
+      'bad-response':
+        'Ваш сайт ответил, но не страницей, которую мы могли прочитать: например, страницей ошибки или файлом вместо страницы.',
+      unknown:
+        'Мы не смогли прочитать ни одной страницы вашего сайта, а проверка не записала, почему.',
+    },
+    statusMeanings: {
+      gone: 'Сайт ответил, что этой страницы больше нет и она не вернётся.',
+      notFound: 'Сайт ответил, что по этому адресу нет такой страницы.',
+      needsLogin: 'Сайт попросил вход или пароль, прежде чем показать страницу.',
+      refused: 'Сайт отказался показать нам страницу.',
+      notAllowed: 'Сайт ответил, что не принимает таких запросов по этому адресу.',
+      notUnderstood: 'Сайт ответил, что не понял наш запрос.',
+      tooManyRequests: 'Сайт ответил, что мы запрашиваем страницы слишком часто.',
+      timedOut: 'Сайт перестал ждать наш запрос, прежде чем тот завершился.',
+      legal: 'Сайт ответил, что страница заблокирована по юридическим причинам.',
+      serverError: 'Что-то сработало не так на стороне сайта вместо того, чтобы страница пришла.',
+      pointedElsewhere:
+        'Сайт направил нас на другой адрес, и по нему не оказалось страницы, которую мы могли прочитать.',
+      answeredNotAPage:
+        'Сайт ответил нормально, но то, что пришло, не было веб-страницей, которую мы могли прочитать.',
+      startedButStopped: 'Сайт начал отвечать и остановился, поэтому страница так и не пришла.',
+      noAnswer: 'От сайта вообще не пришло ни одного ответа, даже страницы ошибки.',
+    },
+    causesHeading: 'Самые частые причины',
+    guidance: {
+      'access-denied': {
+        causes: [
+          'Файрвол или защита от ботов (например, Cloudflare) не пускает автоматических посетителей.',
+          'Настройка безопасности хостинга или лимит запросов блокирует повторные обращения.',
+          'Сайт требует вход или пароль, прежде чем показать страницу (статус 401).',
+          'Сервер был перегружен во время проверки.',
+        ],
+        steps: GENERAL_STEPS,
+      },
+      'blocked-by-robots': {
+        // "What we saw" already names the one cause; a list repeating it is noise.
+        causes: [],
+        steps: ['allowInRobots', 'runAgainAfterChange'],
+      },
+      unreachable: {
+        causes: [
+          'Адрес введён с ошибкой, или срок действия домена либо DNS-записи истёк.',
+          'Сервер не работал или отклонил соединение.',
+          'Сайт отвечал слишком долго, или файрвол молча отбрасывал наши запросы.',
+        ],
+        steps: GENERAL_STEPS,
+      },
+      'bad-response': {
+        causes: [
+          'Сайт отвечает страницей ошибки (например, 404 или 500).',
+          'По адресу отдаётся файл, а не веб-страница: например, PDF, изображение или просто данные.',
+          'Главная страница перенаправляет на адрес, который отвечает ошибкой.',
+        ],
+        steps: GENERAL_STEPS,
+      },
+      unknown: { causes: RU_GENERAL_CAUSES, steps: GENERAL_STEPS },
+    },
+    whatToDoHeading: 'Что делать',
+    checkInBrowser: (domain) =>
+      `Откройте ${domain} в браузере и убедитесь, что главная страница загружается без входа.`,
+    opensInBrowserBefore:
+      'Если у вас сайт открывается без проблем, это не значит, что отчёт ошибается: то, что стоит перед сайтом (хостинг, файрвол или сервис защиты от ботов), может пускать людей и не пускать автоматических посетителей. На странице',
+    opensInBrowserLink: 'О нашем краулере',
+    opensInBrowserAfter:
+      'названы мы и адреса, с которых мы приходим, чтобы тот, кто присматривает за сайтом, мог нас пустить.',
+    allowCrawlerBefore:
+      'Если сайт стоит за защитой или файрволом (например, Cloudflare), разрешите наш краулер. На странице',
+    crawlerLink: 'Наш краулер',
+    allowCrawlerAfter: 'есть всё, что нужно разрешить.',
+    allowInRobotsBefore: 'Разрешите FluxRadarBot в robots.txt. На странице',
+    allowInRobotsAfter: 'есть две строки, которые нужно вставить.',
+    robotsOverride: `Или выключите «Соблюдать robots.txt» в блоке «${newScanCopy.ru.expertTitle}» и рядом с кнопкой запуска поставьте отметку, что хотите прочитать пропущенные страницы.`,
+    runAgain: 'Запустите проверку ещё раз, когда сайт будет открываться в браузере.',
+    runAgainAfterChange: 'Запустите проверку ещё раз после изменений.',
+    sectionsNotChecked: (names) =>
+      `Эти разделы не проверены, потому что не было страницы для проверки: ${names}.`,
+    technicalDetails: (details) => `Технические детали: ${details}`,
+    httpStatus: (status) => `HTTP ${status}`,
+    nothingChecked:
+      'Ничего не проверено: эта проверка не дала результатов, поэтому не может показать список проблем. Это не значит, что проблем нет.',
+    noExports:
+      'Списка проблем нет, и скачивать нечего, потому что ничего не проверено. Выполните шаги выше и запустите проверку ещё раз.',
+    nothingToPlan:
+      'В этом отчёте ничего не проверено, поэтому планировать пока нечего. Запустите проверку ещё раз, когда сайт можно будет прочитать.',
+    printNoProblems:
+      'Проблем в списке нет, потому что ничего не проверено, а не потому, что их нет.',
+  },
 };
 
 /**
@@ -554,6 +663,42 @@ export function technicalDetailsOf(failure: SiteReadFailure, language: Language)
   return parts.length === 0 ? null : t.technicalDetails(parts.join(' · '));
 }
 
+/**
+ * The robots.txt sentence, in each language, with the engine names it names.
+ *
+ * A table rather than nested ternaries: with a third language the inline form
+ * became unreadable, and the sentence has to agree with its own list separator.
+ */
+const SEARCH_ENGINE_BLOCK: Readonly<
+  Record<
+    Language,
+    {
+      readonly anyEngine: string;
+      readonly join: string;
+      readonly sentence: (agents: string) => string;
+    }
+  >
+> = {
+  en: {
+    anyEngine: 'search engines',
+    join: ' and ',
+    sentence: (agents) =>
+      `This robots.txt prevents ${agents} from crawling the site, which can keep its pages out of search results.`,
+  },
+  uk: {
+    anyEngine: 'пошуковим системам',
+    join: ' і ',
+    sentence: (agents) =>
+      `Цей robots.txt забороняє ${agents} читати сайт, через що його сторінки можуть не з’являтися в пошуку.`,
+  },
+  ru: {
+    anyEngine: 'поисковым системам',
+    join: ' и ',
+    sentence: (agents) =>
+      `Этот robots.txt запрещает ${agents} читать сайт, из-за чего его страницы могут не появляться в поиске.`,
+  },
+};
+
 /** Old rows carry only the boolean; never invent which search engines they blocked. */
 export function searchEngineBlockCopy(
   language: Language,
@@ -564,13 +709,7 @@ export function searchEngineBlockCopy(
 ): string | null {
   const names = [...new Set(value.blockedSearchEngines ?? [])];
   if (names.length === 0 && value.searchEnginesBlocked !== true) return null;
-  const agents =
-    names.length === 0
-      ? language === 'uk'
-        ? 'пошуковим системам'
-        : 'search engines'
-      : names.join(language === 'uk' ? ' і ' : ' and ');
-  return language === 'uk'
-    ? `Цей robots.txt забороняє ${agents} читати сайт, через що його сторінки можуть не з’являтися в пошуку.`
-    : `This robots.txt prevents ${agents} from crawling the site, which can keep its pages out of search results.`;
+  const t = SEARCH_ENGINE_BLOCK[language];
+  const agents = names.length === 0 ? t.anyEngine : names.join(t.join);
+  return t.sentence(agents);
 }

@@ -1,4 +1,8 @@
 import { hasPrivateEntry, publicPageRoute } from './public-page-routing';
+import { russianInterfaceCopy } from './i18n.ru';
+import { russianIssuesCopy } from './i18n.ru.issues';
+import { russianReportCopy } from './i18n.ru.report';
+import { countForm } from './plural-forms';
 import { botCopyEn, botCopyUk } from './bot-copy';
 import { checksCopyEn, checksCopyUk } from './checks-copy';
 import { preferencesAllowed } from './browser-consent';
@@ -7,13 +11,37 @@ import { faqCopyEn, faqCopyUk } from './faq-copy';
 import { BASIC_PRICE_USD, COMPLETE_PRICE_USD, PLAN_PRICE, type PricedPlan } from './tariff-prices';
 import { tourStepCopy } from './tour-steps';
 
-export type Language = 'en' | 'uk';
+export type Language = 'en' | 'uk' | 'ru';
+
+/**
+ * The interface languages, in the order the switcher lists them.
+ *
+ * Russian is an interface language only: the report screen and the Issue
+ * Center are Russian chrome, but the report they frame — a finding's words,
+ * the printed page, the PDF and every email — stays Ukrainian, because that is
+ * the language the API writes a finding in. `report-language.ts` is where that
+ * boundary sits.
+ */
+export const LANGUAGES: readonly Language[] = ['en', 'uk', 'ru'];
+
+/** Whether a value read from storage, a URL or an answer names an interface language. */
+export function isLanguage(value: unknown): value is Language {
+  return (LANGUAGES as readonly unknown[]).includes(value);
+}
+
+/** The BCP 47 tag each interface language formats numbers and dates with. */
+export const INTL_LOCALES: Readonly<Record<Language, string>> = {
+  en: 'en-US',
+  uk: 'uk-UA',
+  ru: 'ru-RU',
+};
 
 export const LANGUAGE_STORAGE_KEY = 'fluxradar.language';
 
 export const languageOptions: readonly { value: Language; label: string }[] = [
   { value: 'en', label: 'English' },
   { value: 'uk', label: 'Українська' },
+  { value: 'ru', label: 'Русский' },
 ];
 
 export const LANGUAGE_QUERY_PARAM = 'lang';
@@ -30,19 +58,19 @@ function readStoredChoice(): Language | null {
       return null;
     }
     const stored = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
-    return stored === 'uk' || stored === 'en' ? stored : null;
+    return isLanguage(stored) ? stored : null;
   } catch {
     return null;
   }
 }
 
-/** `?lang=uk` / `?lang=en` on the current URL, or null when it is absent or unknown. */
+/** `?lang=uk` / `?lang=ru` / `?lang=en` on the current URL, or null when it is absent or unknown. */
 export function readLanguageParam(search: string = window.location.search): Language | null {
   try {
     const params = new URLSearchParams(search);
     const value =
       params.getAll(LANGUAGE_QUERY_PARAM).length === 1 ? params.get(LANGUAGE_QUERY_PARAM) : null;
-    return value === 'uk' || value === 'en' ? value : null;
+    return isLanguage(value) ? value : null;
   } catch {
     return null;
   }
@@ -50,6 +78,15 @@ export function readLanguageParam(search: string = window.location.search): Lang
 
 /** The Ukrainian home address that Instagram bios and other Ukrainian links point at. */
 export const UKRAINIAN_HOME_PATH = '/uk';
+
+/** The Russian home address, the same shape as the Ukrainian one. */
+export const RUSSIAN_HOME_PATH = '/ru';
+
+/** The locale a `/uk` or `/ru` home address names, for links that carry a token. */
+const LOCALE_HOME_PATHS: Readonly<Record<string, Language>> = {
+  [UKRAINIAN_HOME_PATH]: 'uk',
+  [RUSSIAN_HOME_PATH]: 'ru',
+};
 
 /** The explicit locale of a known public path; null for workspace and unknown paths. */
 export function readLanguagePath(pathname: string = window.location.pathname): Language | null {
@@ -62,7 +99,7 @@ export function readLanguagePath(pathname: string = window.location.pathname): L
  * A canonical public path wins over query aliases and stored preferences, so
  * the first client render agrees with the document returned for that URL.
  * Workspace language queries and the stored preference remain fallbacks on
- * non-public paths. Token and legacy hash entries retain query → legacy /uk
+ * non-public paths. Token and legacy hash entries retain query → localized home
  * path → stored preference, without treating the public English root as a default.
  * Preferences are written only with storage consent.
  */
@@ -70,10 +107,9 @@ export function readInitialLanguage(): Language {
   const isPrivate =
     hasPrivateEntry(window.location.search) ||
     ['#styleguide', '#integrations'].includes(window.location.hash);
-  const legacyUkrainianPath =
-    window.location.pathname.replace(/\/+$/, '') === UKRAINIAN_HOME_PATH ? 'uk' : null;
+  const localizedHomePath = LOCALE_HOME_PATHS[window.location.pathname.replace(/\/+$/, '')] ?? null;
   const requested = isPrivate
-    ? (readLanguageParam() ?? legacyUkrainianPath)
+    ? (readLanguageParam() ?? localizedHomePath)
     : (readLanguagePath() ?? readLanguageParam());
   if (requested === null) return readStoredLanguage();
   storeLanguage(requested);
@@ -125,11 +161,7 @@ export function takesUkSingular(count: number): boolean {
  * with the teens taking the many form however they end («11 речей»).
  */
 export function ukCountForm(count: number, one: string, few: string, many: string): string {
-  const teens = Math.abs(count) % 100;
-  if (teens >= 11 && teens <= 14) return many;
-  if (takesUkSingular(count)) return one;
-  const last = Math.abs(count) % 10;
-  return last >= 2 && last <= 4 ? few : many;
+  return countForm(count, one, few, many);
 }
 
 /** Accusative of «проблема», as the object of «знайшла»/«знайдено»: «1 проблему», «2 проблеми», «5 проблем». */
@@ -154,7 +186,14 @@ export const ukPagesAccusative = (count: number): string =>
 /** «річ» after a numeral, as the subject of «перевірено»: «1 річ», «2 речі», «5 речей». */
 const ukThings = (count: number): string => ukCountForm(count, 'річ', 'речі', 'речей');
 
-export const copy = {
+/**
+ * The two languages the whole product speaks, the report document included.
+ *
+ * The Russian interface is assembled from these below: it takes the Ukrainian
+ * `report` and `issues` sections as they are, because an audit report stays
+ * Ukrainian for a Russian reader (see `report-language.ts`).
+ */
+const BILINGUAL = {
   en: {
     nav: {
       home: 'Home',
@@ -2049,7 +2088,7 @@ export const copy = {
       // The four levels and their meanings are not written out here: the legend
       // is built from `findingsCopy.severityMeaning`, the same words the open
       // finding puts beside its own chip, so the two cannot drift apart.
-      severityLegendBody: 'says how soon to act:',
+      severityLegendBody: 'says how soon to act.',
       emptyFiltered: 'No issues match this filter',
       emptyFilteredBody:
         'Try another rule, module or URL — or clear the filters and look at everything.',
@@ -3782,7 +3821,8 @@ export const copy = {
       },
       comparison: {
         heading: 'Порівняння з попередньою перевіркою',
-        since: 'Проти звіту {plan} від {date}.',
+        // The date ends in «р.», so the sentence does not add a second stop.
+        since: 'Проти звіту {plan} від {date}',
         openPrevious: 'Відкрити попередній звіт',
         unavailable:
           'Порівняння з попередньою перевіркою не завантажилося. Усе вище — власний результат цієї перевірки.',
@@ -3915,7 +3955,7 @@ export const copy = {
       filterLabel: 'Фільтр',
       filterPlaceholder: 'правило, модуль, URL',
       severityLegendTerm: 'Критичність',
-      severityLegendBody: 'показує, коли братися:',
+      severityLegendBody: 'показує, коли братися за проблему.',
       emptyFiltered: 'Жодна знахідка не відповідає фільтру',
       emptyFilteredBody:
         'Спробуйте інше правило, модуль або URL — або скиньте фільтри й перегляньте все.',
@@ -4127,5 +4167,38 @@ export const copy = {
     },
   },
 } as const;
+
+/**
+ * The report screen's Russian chrome, around the report's Ukrainian words.
+ *
+ * `checks.titles` and `checks.notApplicableReasons` are not chrome: one names
+ * every rule, the other says why a named rule had nothing to look at, and both
+ * are the vocabulary the API's finding sentences are written against. They are
+ * taken from the Ukrainian branch by reference, so a reader never gets a rule
+ * named twice in two languages. `report-language.ts` states the boundary.
+ */
+const RU_REPORT = {
+  ...russianReportCopy,
+  checks: {
+    ...russianReportCopy.checks,
+    titles: BILINGUAL.uk.report.checks.titles,
+    notApplicableReasons: BILINGUAL.uk.report.checks.notApplicableReasons,
+  },
+} as const satisfies Record<keyof (typeof BILINGUAL)['uk']['report'], unknown>;
+
+/**
+ * The Russian interface.
+ *
+ * The Russian sections themselves live in `i18n.ru.ts` and, for the report
+ * screen and the Issue Center, in `i18n.ru.report.ts` and `i18n.ru.issues.ts`;
+ * only this merge stays here, where `BILINGUAL` is.
+ */
+const RU = {
+  ...russianInterfaceCopy,
+  report: RU_REPORT,
+  issues: russianIssuesCopy,
+} as const satisfies Record<keyof (typeof BILINGUAL)['en'], unknown>;
+
+export const copy = { ...BILINGUAL, ru: RU } as const;
 
 export type Copy = (typeof copy)[Language];

@@ -29,6 +29,7 @@ import { fetchScanComparison, type ScanComparison } from './comparison-api';
 import { Button, StatusChip } from './components';
 import { problemTitle } from './finding-explainers';
 import { findingsCopy } from './findings-copy';
+import { findingsDocumentCopyFor } from './findings-document-copy';
 import { formatDate } from './format-date';
 import { ownNameOnlyCount, percentOf } from './GeoVisibility';
 import { geoVisibilitySummaryOf } from './geo-visibility';
@@ -41,6 +42,7 @@ import { FULL_SCORE_MAX, freeDialProps, freeScoreCopy } from './free-score-copy'
 import { displayDomain, moduleResultLabel, moduleScoreLabel } from './scan-status';
 import { useDelayedFlag } from './use-delayed-flag';
 import './styles/print-report.css';
+import { reportLanguage, type ReportLanguage } from './report-language';
 
 /** Findings the document lists at most; the Issue Center and CSV carry the rest. */
 export const PRINT_FINDING_LIMIT = 1000;
@@ -153,13 +155,22 @@ export function PrintReport(props: {
   onBack: () => void;
   onError: (value: string) => void;
 }) {
-  const f = findingsCopy[props.language].print;
+  // Two catalogues, split where the owner drew the line: the article below is
+  // the document and is written in the report's language, while the window
+  // around it — this toolbar, its loading and failure states, the branding
+  // notice and the alert over them — is interface chrome and is translated
+  // (`report-language.ts`, `PrintReport.russian.test.tsx`).
+  const f = findingsDocumentCopyFor(props.language).print;
+  const toolbar = findingsCopy[props.language].print.toolbar;
   const [data, setData] = useState<PrintData | null>(null);
   const [failed, setFailed] = useState(false);
   // Bumping the counter re-runs the load: the retry button's only job.
   const [attempt, setAttempt] = useState(0);
   const { onError } = props;
-  const planLanguage = props.planLanguage ?? props.language;
+  // The plan is part of the document, so the default is the document's
+  // language: asking for `ru` would fetch a plan the printed report has no
+  // chapter for, and silently drop the paid one the reader did write.
+  const planLanguage = props.planLanguage ?? reportLanguage(props.language);
   // Page-shaped placeholders instead of a terminal: shown only once the fetch
   // is known to be slow, at the width the printed pages will take.
   const showSkeleton = useDelayedFlag(data === null && !failed);
@@ -177,20 +188,20 @@ export function PrintReport(props: {
       .catch((caught: unknown) => {
         if (current) {
           setFailed(true);
-          onError(caught instanceof Error ? caught.message : f.loadFailed);
+          onError(caught instanceof Error ? caught.message : toolbar.loadFailed);
         }
       });
     return () => {
       current = false;
     };
-  }, [props.scanId, planLanguage, onError, f, attempt]);
+  }, [props.scanId, planLanguage, onError, f, toolbar, attempt]);
 
   return (
     <div className="print-shell">
-      <div className="print-toolbar" role="toolbar" aria-label={f.windowTitle}>
-        <Button onClick={props.onBack}>{f.back}</Button>
+      <div className="print-toolbar" role="toolbar" aria-label={toolbar.windowTitle}>
+        <Button onClick={props.onBack}>{toolbar.back}</Button>
         <Button variant="primary" onClick={() => window.print()} disabled={data === null}>
-          {f.print}
+          {toolbar.print}
         </Button>
         <PrintBrandNotice data={data} language={props.language} />
       </div>
@@ -199,7 +210,7 @@ export function PrintReport(props: {
           // The toolbar keeps its Back and Print controls; the failure only
           // adds the retry the load needs.
           <div className="print-loading" role="alert">
-            <p>{f.loadFailed}</p>
+            <p>{toolbar.loadFailed}</p>
             <div className="button-row">
               <Button
                 variant="primary"
@@ -208,7 +219,7 @@ export function PrintReport(props: {
                   setAttempt((value) => value + 1);
                 }}
               >
-                {f.retry}
+                {toolbar.retry}
               </Button>
             </div>
           </div>
@@ -220,7 +231,7 @@ export function PrintReport(props: {
                 <div className="skeleton-shell print-skeleton__page" />
               </div>
             ) : null}
-            <p>{f.loading}</p>
+            <p>{toolbar.loading}</p>
           </div>
         )
       ) : (
@@ -246,7 +257,7 @@ function PrintBrandNotice(props: { data: PrintData | null; language: Language })
 }
 
 /** The written plan as document pages: Overview, then each Action with its steps. */
-function PrintActionPlan(props: { plan: ActionPlanContent; language: Language }) {
+function PrintActionPlan(props: { plan: ActionPlanContent; language: ReportLanguage }) {
   const t = usePrintCopy(props.language).actionPlan;
   return (
     <section className="print-section print-action-plan">
@@ -295,7 +306,7 @@ function PrintActionPlan(props: { plan: ActionPlanContent; language: Language })
 /** The cover: whose site, when it was scanned, the plan, the score and its coverage. */
 function PrintCover(props: {
   dashboard: Dashboard;
-  language: Language;
+  language: ReportLanguage;
   brand: BrandingView | null;
 }) {
   const { scan, overall } = props.dashboard;
@@ -363,7 +374,7 @@ function checkedNothing(data: PrintData): boolean {
 }
 
 /** The summary sentence: what is open, or that nothing was checked to be open. */
-function summarySentence(data: PrintData, language: Language): string {
+function summarySentence(data: PrintData, language: ReportLanguage): string {
   const f = printCopyFor(language, data.brand !== null).findings;
   const { summary, totalIssues } = data;
   const open = summary === null ? totalIssues : summary.open;
@@ -378,7 +389,7 @@ function summarySentence(data: PrintData, language: Language): string {
 }
 
 /** The site could not be read: said before any number, in the words the dashboard uses. */
-function PrintSiteUnread(props: { dashboard: Dashboard; language: Language }) {
+function PrintSiteUnread(props: { dashboard: Dashboard; language: ReportLanguage }) {
   const failure = siteReadFailureOf(props.dashboard.scan, props.dashboard.modules);
   if (failure === null) return null;
   const t = usePrintCopy(props.language).failure;
@@ -396,7 +407,7 @@ function PrintSiteUnread(props: { dashboard: Dashboard; language: Language }) {
 }
 
 /** How much is open, and how severe. */
-function PrintSummary(props: { data: PrintData; language: Language }) {
+function PrintSummary(props: { data: PrintData; language: ReportLanguage }) {
   const f = usePrintCopy(props.language).findings;
   const { summary } = props.data;
   return (
@@ -419,7 +430,7 @@ function PrintSummary(props: { data: PrintData; language: Language }) {
 }
 
 /** Each section's result and score. */
-function PrintSections(props: { modules: Dashboard['modules']; language: Language }) {
+function PrintSections(props: { modules: Dashboard['modules']; language: ReportLanguage }) {
   const f = usePrintCopy(props.language).findings;
   return (
     <section className="print-section">
@@ -470,7 +481,7 @@ function printShareCell(
  * otherwise ~9-character cells. The explanation itself appears once, in the
  * table's caption.
  */
-function printShareOfVoiceCell(provider: GeoProviderVisibility, language: Language): string {
+function printShareOfVoiceCell(provider: GeoProviderVisibility, language: ReportLanguage): string {
   const t = copy[language].report;
   const { shareOfVoice } = provider;
   if (shareOfVoice === null || shareOfVoice.competitors.length === 0) {
@@ -495,7 +506,7 @@ function printShareOfVoiceCell(provider: GeoProviderVisibility, language: Langua
  */
 function printShareOfVoiceCaptionNotes(
   providers: readonly GeoProviderVisibility[],
-  language: Language,
+  language: ReportLanguage,
 ): readonly string[] {
   const t = copy[language].report;
   const notes: string[] = [];
@@ -523,7 +534,7 @@ function printShareOfVoiceCaptionNotes(
 function printNoScore(
   provider: GeoProviderVisibility,
   minMeasuredForScore: number,
-  language: Language,
+  language: ReportLanguage,
 ): string {
   const t = copy[language].report;
   return provider.scoreUnavailableReason === 'not-measurable'
@@ -536,7 +547,7 @@ function printNoScore(
 }
 
 /** What a partial score counts, appended after the number when only one signal reached it. */
-function printScoreBasis(provider: GeoProviderVisibility, language: Language): string | null {
+function printScoreBasis(provider: GeoProviderVisibility, language: ReportLanguage): string | null {
   const t = copy[language].report;
   if (provider.scoreBasis === 'brand-only') {
     return fillCopy(t.geoVisibilityScoreBasisBrandOnly, { domain: provider.domainMeasuredCount });
@@ -551,7 +562,7 @@ function printScoreBasis(provider: GeoProviderVisibility, language: Language): s
 function printScoreCell(
   provider: GeoProviderVisibility,
   minMeasuredForScore: number,
-  language: Language,
+  language: ReportLanguage,
 ): string {
   if (provider.visibilityScore === null) {
     return printNoScore(provider, minMeasuredForScore, language);
@@ -566,7 +577,7 @@ function printScoreCell(
 function PrintGeoVisibilityRow(props: {
   provider: GeoProviderVisibility;
   minMeasuredForScore: number;
-  language: Language;
+  language: ReportLanguage;
 }) {
   const t = copy[props.language].report;
   return (
@@ -595,7 +606,7 @@ function PrintGeoVisibilityRow(props: {
 }
 
 /** Compact mirror of the report's "Visibility by engine" block: score and shares per engine. */
-function PrintGeoVisibility(props: { dashboard: Dashboard; language: Language }) {
+function PrintGeoVisibility(props: { dashboard: Dashboard; language: ReportLanguage }) {
   const t = copy[props.language].report;
   const hasGeoAnswers = (props.dashboard.geoObservations ?? []).length > 0;
   // A Free report's one AI answer is not printed (D-237): no engine table either.
@@ -652,7 +663,7 @@ function PrintGeoVisibility(props: { dashboard: Dashboard; language: Language })
 }
 
 /** Every problem in summary order, with the findings that belong to it. */
-function PrintProblems(props: { data: PrintData; language: Language }) {
+function PrintProblems(props: { data: PrintData; language: ReportLanguage }) {
   const f = usePrintCopy(props.language).findings;
   const { issues, totalIssues } = props.data;
   const byRule = new Map<string, Issue[]>();
@@ -690,8 +701,20 @@ function PrintProblems(props: { data: PrintData; language: Language }) {
   );
 }
 
+/**
+ * The document itself, in the report's language rather than the interface's.
+ *
+ * The toolbar above it is interface chrome and stays in the reader's language;
+ * everything inside the article is the report, and a report exists in English
+ * and Ukrainian only (`report-language.ts`). The mapping is applied once here
+ * and handed down, so no child has to remember it: a Russian reader used to
+ * get «2 октября 2026 г.», «Архивный тариф» and Russian section results set
+ * inside Ukrainian pages, because each of those four helpers was given the
+ * interface language.
+ */
 function PrintDocument(props: { data: PrintData; language: Language }) {
   const { dashboard, actionPlan } = props.data;
+  const documentLanguage = reportLanguage(props.language);
   return (
     <PrintBrandedContext.Provider value={props.data.brand !== null}>
       {props.data.brand ? <style>{'@page { margin: 0; }'}</style> : null}
@@ -703,19 +726,19 @@ function PrintDocument(props: { data: PrintData; language: Language }) {
             : undefined
         }
       >
-        <PrintCover dashboard={dashboard} language={props.language} brand={props.data.brand} />
-        <PrintSummary data={props.data} language={props.language} />
+        <PrintCover dashboard={dashboard} language={documentLanguage} brand={props.data.brand} />
+        <PrintSummary data={props.data} language={documentLanguage} />
         {actionPlan === null ? null : (
-          <PrintActionPlan plan={actionPlan} language={props.language} />
+          <PrintActionPlan plan={actionPlan} language={documentLanguage} />
         )}
-        <PrintSections modules={dashboard.modules} language={props.language} />
-        <PrintGeoVisibility dashboard={dashboard} language={props.language} />
+        <PrintSections modules={dashboard.modules} language={documentLanguage} />
+        <PrintGeoVisibility dashboard={dashboard} language={documentLanguage} />
         {props.data.comparison === null || !planIncludesIssueHistory(dashboard.scan.plan) ? null : (
-          <ComparisonPrintBlock comparison={props.data.comparison} language={props.language} />
+          <ComparisonPrintBlock comparison={props.data.comparison} language={documentLanguage} />
         )}
-        <PrintProblems data={props.data} language={props.language} />
+        <PrintProblems data={props.data} language={documentLanguage} />
         <footer className="print-footer muted">
-          {printCopyFor(props.language, props.data.brand !== null).findings.print.footer}
+          {printCopyFor(documentLanguage, props.data.brand !== null).findings.print.footer}
         </footer>
       </article>
     </PrintBrandedContext.Provider>
@@ -728,7 +751,7 @@ interface ExampleTexts {
 }
 
 /** The example finding's evidence and recommendation, in the reader's language when it has one. */
-function exampleTexts(example: Issue | undefined, language: Language): ExampleTexts {
+function exampleTexts(example: Issue | undefined, language: ReportLanguage): ExampleTexts {
   if (example === undefined) return { evidence: null, recommendation: null };
   const localized = example.localized?.[language];
   return {
@@ -741,7 +764,7 @@ function PrintProblem(props: {
   number: number;
   group: IssueRuleGroup;
   issues: readonly Issue[];
-  language: Language;
+  language: ReportLanguage;
 }) {
   const f = usePrintCopy(props.language).findings;
   const pages = [...new Set(props.issues.map((issue) => issue.targetUrl))];

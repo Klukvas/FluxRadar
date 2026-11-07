@@ -373,6 +373,21 @@ describe('base.css layout rules', () => {
     expect(BASE_CSS).toMatch(/\.google-panel__scroll \{[^}]*overflow-x: auto;/);
   });
 
+  // The same defect one panel down. The two "compared with the previous scan"
+  // counts tables carry six columns of verdicts plus a first column holding a
+  // section or page name, so at 375px the panel widened the document and the
+  // whole report scrolled sideways: 26px in English, 112px in Ukrainian, 148px
+  // in Russian. The table keeps its width and scrolls in its own frame.
+  it('lets the comparison counts tables scroll instead of widening the report', () => {
+    const comparison = stylesheet('comparison.css');
+    expect(comparison).toMatch(/\.comparison-scroll \{[^}]*overflow-x: auto;/);
+    expect(comparison).toMatch(/\.comparison-scroll \{[^}]*min-width: 0;/);
+    // The frame is what scrolls, so nothing may cap or squeeze the table inside
+    // it: a fixed layout or a forced break would hide the counts instead.
+    expect(comparison).not.toMatch(/\.comparison-table \{[^}]*table-layout:/);
+    expect(comparison).not.toMatch(/\.comparison-table \{[^}]*word-break:/);
+  });
+
   // The GEO summary quotes answers and prints page addresses. Without the same
   // guard as the panel's groups, one long address in a digest part, or one long
   // quote in a card's tone line, widened the GEO section past a 375px screen.

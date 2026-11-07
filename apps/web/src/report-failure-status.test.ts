@@ -5,9 +5,10 @@
 // answer arriving. An owner's whole record of what happened was then "HTTP 405"
 // in the small technical line, which is not a sentence anybody can act on.
 //
-// Every class is pinned here in both languages, because the sentence has to be
-// true of the status as well as readable: "the site refused us" and "the page
-// is gone" are different jobs, and neither may blame the owner or promise money.
+// Every class is pinned here in every interface language, because the sentence
+// has to be true of the status as well as readable: "the site refused us" and
+// "the page is gone" are different jobs, and neither may blame the owner or
+// promise money.
 
 import { describe, expect, it } from 'vitest';
 
@@ -21,7 +22,7 @@ import {
 } from './report-failure-copy';
 import type { Language } from './i18n';
 
-const LANGUAGES: readonly Language[] = ['en', 'uk'];
+const LANGUAGES: readonly Language[] = ['en', 'uk', 'ru'];
 
 /** One answer the start page can give, and the class its sentence comes from. */
 interface AnswerCase {
@@ -30,40 +31,179 @@ interface AnswerCase {
   /** A word the sentence has to carry, so a wrong-but-present sentence fails. */
   readonly en: RegExp;
   readonly uk: RegExp;
+  readonly ru: RegExp;
 }
 
 const ANSWERS: readonly AnswerCase[] = [
   // No answer at all. The crawler stores a throw as status 0, which is why the
   // block is handed null rather than a number here.
-  { status: null, expected: 'noAnswer', en: /No answer came back/i, uk: /не надійшло жодної/i },
+  {
+    status: null,
+    expected: 'noAnswer',
+    en: /No answer came back/i,
+    uk: /не надійшло жодної/i,
+    ru: /не пришло ни одного ответа/i,
+  },
   // 1xx: acknowledged, never delivered.
-  { status: 100, expected: 'startedButStopped', en: /began to answer/i, uk: /почав відповідати/i },
+  {
+    status: 100,
+    expected: 'startedButStopped',
+    en: /began to answer/i,
+    uk: /почав відповідати/i,
+    ru: /начал отвечать/i,
+  },
   // 2xx: a real answer that was not a page.
-  { status: 200, expected: 'answeredNotAPage', en: /not a web page/i, uk: /не було вебсторінкою/i },
-  { status: 204, expected: 'answeredNotAPage', en: /not a web page/i, uk: /не було вебсторінкою/i },
+  {
+    status: 200,
+    expected: 'answeredNotAPage',
+    en: /not a web page/i,
+    uk: /не було вебсторінкою/i,
+    ru: /не было веб-страницей/i,
+  },
+  {
+    status: 204,
+    expected: 'answeredNotAPage',
+    en: /not a web page/i,
+    uk: /не було вебсторінкою/i,
+    ru: /не было веб-страницей/i,
+  },
   // 3xx: sent somewhere else, and the somewhere else was not readable either.
-  { status: 301, expected: 'pointedElsewhere', en: /another address/i, uk: /іншу адресу/i },
-  { status: 302, expected: 'pointedElsewhere', en: /another address/i, uk: /іншу адресу/i },
-  { status: 399, expected: 'pointedElsewhere', en: /another address/i, uk: /іншу адресу/i },
+  {
+    status: 301,
+    expected: 'pointedElsewhere',
+    en: /another address/i,
+    uk: /іншу адресу/i,
+    ru: /другой адрес/i,
+  },
+  {
+    status: 302,
+    expected: 'pointedElsewhere',
+    en: /another address/i,
+    uk: /іншу адресу/i,
+    ru: /другой адрес/i,
+  },
+  {
+    status: 399,
+    expected: 'pointedElsewhere',
+    en: /another address/i,
+    uk: /іншу адресу/i,
+    ru: /другой адрес/i,
+  },
   // 4xx, each with its own job for the owner.
-  { status: 400, expected: 'notUnderstood', en: /make sense of our request/i, uk: /не зрозумів/i },
-  { status: 401, expected: 'needsLogin', en: /login or a password/i, uk: /вхід або пароль/i },
-  { status: 403, expected: 'refused', en: /refused to show/i, uk: /відмовився показати/i },
-  { status: 404, expected: 'notFound', en: /no such page/i, uk: /немає такої сторінки/i },
-  { status: 405, expected: 'notAllowed', en: /this kind of request/i, uk: /таких запитів/i },
-  { status: 406, expected: 'refused', en: /refused to show/i, uk: /відмовився показати/i },
-  { status: 407, expected: 'needsLogin', en: /login or a password/i, uk: /вхід або пароль/i },
-  { status: 408, expected: 'timedOut', en: /stopped waiting/i, uk: /перестав чекати/i },
-  { status: 410, expected: 'gone', en: /no longer exists/i, uk: /більше немає/i },
-  { status: 429, expected: 'tooManyRequests', en: /too often/i, uk: /надто часто/i },
-  { status: 451, expected: 'legal', en: /legal reasons/i, uk: /юридичних причин/i },
+  {
+    status: 400,
+    expected: 'notUnderstood',
+    en: /make sense of our request/i,
+    uk: /не зрозумів/i,
+    ru: /не понял/i,
+  },
+  {
+    status: 401,
+    expected: 'needsLogin',
+    en: /login or a password/i,
+    uk: /вхід або пароль/i,
+    ru: /вход или пароль/i,
+  },
+  {
+    status: 403,
+    expected: 'refused',
+    en: /refused to show/i,
+    uk: /відмовився показати/i,
+    ru: /отказался показать/i,
+  },
+  {
+    status: 404,
+    expected: 'notFound',
+    en: /no such page/i,
+    uk: /немає такої сторінки/i,
+    ru: /нет такой страницы/i,
+  },
+  {
+    status: 405,
+    expected: 'notAllowed',
+    en: /this kind of request/i,
+    uk: /таких запитів/i,
+    ru: /таких запросов/i,
+  },
+  {
+    status: 406,
+    expected: 'refused',
+    en: /refused to show/i,
+    uk: /відмовився показати/i,
+    ru: /отказался показать/i,
+  },
+  {
+    status: 407,
+    expected: 'needsLogin',
+    en: /login or a password/i,
+    uk: /вхід або пароль/i,
+    ru: /вход или пароль/i,
+  },
+  {
+    status: 408,
+    expected: 'timedOut',
+    en: /stopped waiting/i,
+    uk: /перестав чекати/i,
+    ru: /перестал ждать/i,
+  },
+  {
+    status: 410,
+    expected: 'gone',
+    en: /no longer exists/i,
+    uk: /більше немає/i,
+    ru: /больше нет/i,
+  },
+  {
+    status: 429,
+    expected: 'tooManyRequests',
+    en: /too often/i,
+    uk: /надто часто/i,
+    ru: /слишком часто/i,
+  },
+  {
+    status: 451,
+    expected: 'legal',
+    en: /legal reasons/i,
+    uk: /юридичних причин/i,
+    ru: /юридическим причинам/i,
+  },
   // The rest of 4xx: turned away without naming which of the above it was.
-  { status: 402, expected: 'refused', en: /refused to show/i, uk: /відмовився показати/i },
-  { status: 418, expected: 'refused', en: /refused to show/i, uk: /відмовився показати/i },
+  {
+    status: 402,
+    expected: 'refused',
+    en: /refused to show/i,
+    uk: /відмовився показати/i,
+    ru: /отказался показать/i,
+  },
+  {
+    status: 418,
+    expected: 'refused',
+    en: /refused to show/i,
+    uk: /відмовився показати/i,
+    ru: /отказался показать/i,
+  },
   // 5xx: the site's own side.
-  { status: 500, expected: 'serverError', en: /on the site’s own side/i, uk: /на боці сайту/i },
-  { status: 503, expected: 'serverError', en: /on the site’s own side/i, uk: /на боці сайту/i },
-  { status: 599, expected: 'serverError', en: /on the site’s own side/i, uk: /на боці сайту/i },
+  {
+    status: 500,
+    expected: 'serverError',
+    en: /on the site’s own side/i,
+    uk: /на боці сайту/i,
+    ru: /на стороне сайта/i,
+  },
+  {
+    status: 503,
+    expected: 'serverError',
+    en: /on the site’s own side/i,
+    uk: /на боці сайту/i,
+    ru: /на стороне сайта/i,
+  },
+  {
+    status: 599,
+    expected: 'serverError',
+    en: /on the site’s own side/i,
+    uk: /на боці сайту/i,
+    ru: /на стороне сайта/i,
+  },
 ];
 
 describe('every class of answer has a plain sentence', () => {

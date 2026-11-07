@@ -30,6 +30,30 @@ import type { FindingLanguage } from '@fluxradar/rules';
 import type { IncomparableCode } from '../../integrations/performance/index.ts';
 import { ukAfterCount, ukPlural, ukStillOpen } from './plural.ts';
 
+/**
+ * "What AI says about your business": how often each AI engine named the
+ * brand and cited the domain, as the scan stored it. Informational only, like
+ * the web block it mirrors: it never feeds the overall score.
+ */
+export interface GeoVisibilityCopy {
+  readonly heading: string;
+  readonly lead: string;
+  readonly scoreLabel: string;
+  /** A stored null score with too few measured answers: never shown as 0. */
+  readonly notEnoughData: (brand: number, domain: number, min: number) => string;
+  readonly notMeasurable: string;
+  readonly basisBrandOnly: string;
+  readonly basisDomainOnly: string;
+  readonly brandShare: (count: number, total: number, percent: number) => string;
+  readonly domainShare: (count: number, total: number, percent: number) => string;
+  readonly brandNotMeasurable: string;
+  readonly domainNotMeasurable: string;
+  readonly citedInsteadHeading: string;
+  readonly citedInsteadEntry: (hostname: string, count: number) => string;
+  readonly citedInsteadNone: string;
+  readonly mentionLabel: string;
+}
+
 export interface ReportCopy {
   readonly aiGenerated: string;
   readonly documentTitle: (domain: string) => string;
@@ -188,6 +212,7 @@ export interface ReportCopy {
    * than refuses.
    */
   readonly bingSiteMismatch: (site: string, domain: string) => string;
+  readonly geoVisibility: GeoVisibilityCopy;
   // ── The notice for characters no packaged font can draw ───────────────────
   readonly unsupportedGlyphsHeading: string;
   readonly unsupportedGlyphs: (count: number) => string;
@@ -385,6 +410,31 @@ const EN: ReportCopy = {
     `These Bing figures come from the property ${site}, which is not ${domain}. That is a valid ` +
     'choice — a subdomain or a different host can be the property Bing verified — but the numbers ' +
     'below describe that property, not this domain.',
+  geoVisibility: {
+    heading: 'What AI says about your business',
+    lead:
+      'How often each AI assistant named your business and cited your site in the answers of ' +
+      'this scan, and which other sites it cited instead. This is a snapshot of one run. It is ' +
+      'for information only and does not change the overall score.',
+    scoreLabel: 'Visibility score',
+    notEnoughData: (brand, domain, min) =>
+      `Not enough data for a score. Measured answers for the brand: ${brand}, for the domain: ` +
+      `${domain}. At least ${min} are needed for the brand or for the domain.`,
+    notMeasurable: 'No score: nothing could be measured in this run.',
+    basisBrandOnly: 'Based on brand mentions only.',
+    basisDomainOnly: 'Based on domain citations only.',
+    brandShare: (count, total, percent) =>
+      `Brand mentioned in ${count} of ${total} measurable ${total === 1 ? 'answer' : 'answers'} (${percent}%)`,
+    domainShare: (count, total, percent) =>
+      `Domain cited in ${count} of ${total} measurable ${total === 1 ? 'answer' : 'answers'} (${percent}%)`,
+    brandNotMeasurable: 'Brand mentions: not measurable in this run.',
+    domainNotMeasurable: 'Domain citations: not measurable in this run.',
+    citedInsteadHeading: 'Who got cited instead',
+    citedInsteadEntry: (hostname, count) =>
+      `${hostname}: ${count} ${count === 1 ? 'answer' : 'answers'}`,
+    citedInsteadNone: 'No other site was cited in an answer that did not cite yours.',
+    mentionLabel: 'Where your brand came up',
+  },
   unsupportedGlyphsHeading: 'Characters this document could not draw',
   unsupportedGlyphs: (count) =>
     `${count} character(s) in this report — Chinese, Japanese, Korean or emoji, for example — have ` +
@@ -606,6 +656,32 @@ const UK: ReportCopy = {
     `Ці дані Bing отримані для ресурсу ${site}, а не для ${domain}. Це припустимий вибір — ` +
     'підтвердженим у Bing ресурсом може бути піддомен або інший хост, — але наведені нижче числа ' +
     'описують саме той ресурс, а не цей домен.',
+  geoVisibility: {
+    heading: 'Що ШІ каже про ваш бізнес',
+    lead:
+      'Як часто кожен ШІ-асистент називав ваш бізнес і посилався на ваш сайт у відповідях цієї ' +
+      'перевірки, а також на які інші сайти він посилався замість вас. Це знімок одного запуску. ' +
+      'Він має лише інформаційний характер і не змінює загальну оцінку.',
+    scoreLabel: 'Оцінка видимості',
+    notEnoughData: (brand, domain, min) =>
+      `Недостатньо даних для оцінки. Зміряних відповідей для бренду: ${brand}, для домену: ` +
+      `${domain}. Потрібно щонайменше ${min} для бренду або для домену.`,
+    notMeasurable: 'Оцінки немає: у цьому запуску нічого не вдалося зміряти.',
+    basisBrandOnly: 'Оцінка спирається лише на згадки бренду.',
+    basisDomainOnly: 'Оцінка спирається лише на посилання на домен.',
+    brandShare: (count, total, percent) =>
+      `Бренд згадано у ${count} з ${total} ${ukAfterCount(total, 'зміряної відповіді', 'зміряних відповідей')} (${percent}%)`,
+    domainShare: (count, total, percent) =>
+      `Домен процитовано у ${count} з ${total} ${ukAfterCount(total, 'зміряної відповіді', 'зміряних відповідей')} (${percent}%)`,
+    brandNotMeasurable: 'Згадки бренду: у цьому запуску неможливо зміряти.',
+    domainNotMeasurable: 'Посилання на домен: у цьому запуску неможливо зміряти.',
+    citedInsteadHeading: 'Кого зацитували замість вас',
+    citedInsteadEntry: (hostname, count) =>
+      `${hostname}: ${count} ${ukPlural(count, { one: 'відповідь', few: 'відповіді', many: 'відповідей' })}`,
+    citedInsteadNone:
+      'У відповідях, де не було посилання на ваш сайт, не цитувався жоден інший сайт.',
+    mentionLabel: 'Де згадано ваш бренд',
+  },
   unsupportedGlyphsHeading: 'Символи, які цей документ не зміг намалювати',
   unsupportedGlyphs: (count) =>
     `${count} символ(ів) цього звіту — наприклад, китайські, японські, корейські або емодзі — не ` +

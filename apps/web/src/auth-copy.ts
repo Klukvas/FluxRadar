@@ -196,4 +196,72 @@ export const authCopy: Record<Language, AuthCopy> = {
     googleEmailExists:
       'Не вдалося увійти через Google: для цього email уже є акаунт FluxRadar. Увійдіть із паролем або скиньте його через email. Акаунти ніколи не об’єднуються автоматично.',
   },
+  ru: {
+    titles: {
+      login: 'FluxRadar / Вход',
+      register: 'FluxRadar / Создание аккаунта',
+      forgot: 'FluxRadar / Сброс пароля',
+      reset: 'FluxRadar / Новый пароль',
+      verify: 'FluxRadar / Подтверждение email',
+    },
+    headings: {
+      login: 'С возвращением',
+      register: 'Создайте аккаунт FluxRadar',
+      forgot: 'Сброс пароля',
+      reset: 'Установите новый пароль',
+      resetDone: 'Пароль обновлён',
+      verify: 'Подтвердите email',
+      verified: 'Email подтверждён',
+    },
+    leads: {
+      login: 'Войдите к своим сайтам, отчётам и истории проблем.',
+      register:
+        'Один аккаунт держит вместе ваши сайты, отчёты и историю проблем. Первая проверка главной страницы доступна сразу.',
+      registerForSite: (domain) =>
+        `Создайте аккаунт, и FluxRadar сразу проверит главную страницу ${domain}.`,
+      forgot: 'Введите email аккаунта. Мы никогда не сообщаем, зарегистрирован ли адрес.',
+      forgotSent: 'Если аккаунт существует, ссылка для сброса отправлена. Проверьте почту.',
+      reset: 'Выберите новый пароль для аккаунта FluxRadar.',
+      resetDone: 'Пароль изменён. Войдите снова с новым паролем.',
+      verifying: 'Проверяем одноразовую ссылку…',
+      verified: 'Ваш email подтверждён. Можно возвращаться в FluxRadar.',
+      verifyPending: 'Ссылка подтверждения проверяется.',
+    },
+    email: 'Email',
+    emailPlaceholder: 'you@example.com',
+    password: 'Пароль',
+    newPassword: 'Новый пароль',
+    passwordPlaceholder: 'от 8 символов',
+    showPassword: 'Показать пароль',
+    cookieNote:
+      'Вход использует необходимый cookie, который действует в течение этой сессии браузера. Подробнее: ',
+    consentNote:
+      'Создавая аккаунт, вы соглашаетесь с условиями и подтверждаете ознакомление с политиками: ',
+    working: 'Подождите…',
+    submit: {
+      login: 'Войти',
+      register: 'Создать аккаунт',
+      forgot: 'Отправить ссылку',
+      reset: 'Обновить пароль',
+    },
+    toRegister: 'Создать аккаунт',
+    toLogin: 'У меня уже есть аккаунт',
+    toHome: 'На главную',
+    toWorkspace: 'Открыть FluxRadar',
+    forgotLink: 'Забыли пароль?',
+    failed: 'Не удалось войти',
+    verificationFailed: 'Не удалось подтвердить email',
+    googleEmailChanged:
+      'Email вашего Google-аккаунта изменился. Для безопасности войдите с паролем FluxRadar или обратитесь в поддержку для восстановления доступа.',
+    googleUseEmail:
+      'Для этого Google-аккаунта зарегистрируйтесь или войдите через email. Google не может подтвердить текущего владельца этого адреса.',
+    googleContinue: 'Продолжить с Google',
+    googleOrEmail: 'Или продолжите через email',
+    googleUnavailable: 'Вход через Google сейчас недоступен. Воспользуйтесь email.',
+    googleFailed:
+      'Не удалось завершить вход через Google. Попробуйте ещё раз или воспользуйтесь email. Для адреса вне Gmail нужен аккаунт Google Workspace; иначе зарегистрируйтесь через email.',
+    googleCancelled: 'Вход через Google отменён. Попробуйте ещё раз или воспользуйтесь email.',
+    googleEmailExists:
+      'Не удалось войти через Google: для этого email уже есть аккаунт FluxRadar. Войдите с паролем или сбросьте его через email. Аккаунты никогда не объединяются автоматически.',
+  },
 };

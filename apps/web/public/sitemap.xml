@@ -1,43 +1,72 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
         xmlns:xhtml="http://www.w3.org/1999/xhtml">
-  <!-- Public app pages. Each one is served in English at its bare path and in
-       Ukrainian at /uk paths. Each alternate receives its declared
-       language in the initial HTML response. -->
+  <!-- Public app pages. Each one is served in English at its bare path, in
+       Ukrainian at /uk paths and in Russian at /ru paths. Each alternate
+       receives its declared language in the initial HTML response. The blog
+       and the knowledge base below stay English and Ukrainian: they are
+       hand-written documents, not app pages, and have no Russian edition. -->
   <url>
     <loc>https://fluxradar.net/</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/"/>
     <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://fluxradar.net/ru"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/"/>
   </url>
   <url>
     <loc>https://fluxradar.net/uk</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/"/>
     <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://fluxradar.net/ru"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/"/>
+  </url>
+  <url>
+    <loc>https://fluxradar.net/ru</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://fluxradar.net/ru"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/"/>
   </url>
   <url>
     <loc>https://fluxradar.net/faq</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/faq"/>
     <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/faq"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://fluxradar.net/ru/faq"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/faq"/>
   </url>
   <url>
     <loc>https://fluxradar.net/uk/faq</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/faq"/>
     <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/faq"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://fluxradar.net/ru/faq"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/faq"/>
+  </url>
+  <url>
+    <loc>https://fluxradar.net/ru/faq</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/faq"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/faq"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://fluxradar.net/ru/faq"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/faq"/>
   </url>
   <url>
     <loc>https://fluxradar.net/bot</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/bot"/>
     <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/bot"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://fluxradar.net/ru/bot"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/bot"/>
   </url>
   <url>
     <loc>https://fluxradar.net/uk/bot</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/bot"/>
     <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/bot"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://fluxradar.net/ru/bot"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/bot"/>
+  </url>
+  <url>
+    <loc>https://fluxradar.net/ru/bot</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/bot"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/bot"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://fluxradar.net/ru/bot"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/bot"/>
   </url>
   <!-- The public example report: a finished report for a made-up site, readable
@@ -47,60 +76,105 @@
     <loc>https://fluxradar.net/example-report</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/example-report"/>
     <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/example-report"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://fluxradar.net/ru/example-report"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/example-report"/>
   </url>
   <url>
     <loc>https://fluxradar.net/uk/example-report</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/example-report"/>
     <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/example-report"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://fluxradar.net/ru/example-report"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/example-report"/>
+  </url>
+  <url>
+    <loc>https://fluxradar.net/ru/example-report</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/example-report"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/example-report"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://fluxradar.net/ru/example-report"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/example-report"/>
   </url>
   <url>
     <loc>https://fluxradar.net/checks</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/checks"/>
     <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/checks"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://fluxradar.net/ru/checks"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/checks"/>
   </url>
   <url>
     <loc>https://fluxradar.net/uk/checks</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/checks"/>
     <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/checks"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://fluxradar.net/ru/checks"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/checks"/>
+  </url>
+  <url>
+    <loc>https://fluxradar.net/ru/checks</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/checks"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/checks"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://fluxradar.net/ru/checks"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/checks"/>
   </url>
   <url>
     <loc>https://fluxradar.net/privacy</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/privacy"/>
     <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://fluxradar.net/ru/privacy"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/privacy"/>
   </url>
   <url>
     <loc>https://fluxradar.net/uk/privacy</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/privacy"/>
     <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://fluxradar.net/ru/privacy"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/privacy"/>
+  </url>
+  <url>
+    <loc>https://fluxradar.net/ru/privacy</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/privacy"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/privacy"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://fluxradar.net/ru/privacy"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/privacy"/>
   </url>
   <url>
     <loc>https://fluxradar.net/terms</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/terms"/>
     <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/terms"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://fluxradar.net/ru/terms"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/terms"/>
   </url>
   <url>
     <loc>https://fluxradar.net/uk/terms</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/terms"/>
     <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/terms"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://fluxradar.net/ru/terms"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/terms"/>
+  </url>
+  <url>
+    <loc>https://fluxradar.net/ru/terms</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/terms"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/terms"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://fluxradar.net/ru/terms"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/terms"/>
   </url>
   <url>
     <loc>https://fluxradar.net/cookies</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/cookies"/>
     <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/cookies"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://fluxradar.net/ru/cookies"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/cookies"/>
   </url>
   <url>
     <loc>https://fluxradar.net/uk/cookies</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/cookies"/>
     <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/cookies"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://fluxradar.net/ru/cookies"/>
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/cookies"/>
+  </url>
+  <url>
+    <loc>https://fluxradar.net/ru/cookies</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://fluxradar.net/cookies"/>
+    <xhtml:link rel="alternate" hreflang="uk" href="https://fluxradar.net/uk/cookies"/>
+    <xhtml:link rel="alternate" hreflang="ru" href="https://fluxradar.net/ru/cookies"/>
     <xhtml:link rel="alternate" hreflang="x-default" href="https://fluxradar.net/cookies"/>
   </url>
   <!-- Blog index. One page with a client-side language filter, so it has a

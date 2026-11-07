@@ -16,6 +16,7 @@ import type { Issue, IssueSummary, Scan } from './api';
 import { developerTaskText, taskPageCount, type DeveloperTaskInput } from './developer-task';
 import { findingCountsPages } from './finding-explainers';
 import { findingsCopy } from './findings-copy';
+import { findingsDocumentCopy } from './findings-document-copy';
 import type { Language } from './i18n';
 import { IssuesScreen } from './Issues';
 
@@ -191,7 +192,7 @@ describe('the “Copy task for developer” hint and the message it copies', () 
       openFindings: 11,
     };
     const whereLine = (developerTaskText(input) ?? '').split('\n')[2] ?? '';
-    expect(whereLine).toBe(findingsCopy.en.task.wherePartial(11, 2, 2));
+    expect(whereLine).toBe(findingsDocumentCopy.en.task.wherePartial(11, 2, 2));
     expect(hintNumber(input)).toBe(11);
   });
 });

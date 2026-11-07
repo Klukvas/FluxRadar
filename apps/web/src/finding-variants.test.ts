@@ -18,6 +18,7 @@ import {
 } from './finding-explainers';
 import { findingEvidence, problemBreakdown } from './finding-variants';
 import { findingsCopy } from './findings-copy';
+import { findingsDocumentCopy } from './findings-document-copy';
 import type { Language } from './i18n';
 
 function issue(overrides: Partial<Issue> = {}): Issue {
@@ -544,13 +545,13 @@ describe('the task for a developer', () => {
   });
 
   it('words the partial count in agreement with its numbers', () => {
-    expect(findingsCopy.en.task.wherePartial(40, 1, 1)).toBe(
+    expect(findingsDocumentCopy.en.task.wherePartial(40, 1, 1)).toBe(
       '40 open findings; the 1 open one loaded so far is on 1 page.',
     );
-    expect(findingsCopy.uk.task.wherePartial(40, 1, 1)).toBe(
+    expect(findingsDocumentCopy.uk.task.wherePartial(40, 1, 1)).toBe(
       'Відкритих знахідок: 40; серед завантажених відкрито 1 — на 1 сторінці.',
     );
-    expect(findingsCopy.uk.task.wherePartial(40, 21, 3)).toBe(
+    expect(findingsDocumentCopy.uk.task.wherePartial(40, 21, 3)).toBe(
       'Відкритих знахідок: 40; серед завантажених відкрито 21 — на 3 сторінках.',
     );
   });

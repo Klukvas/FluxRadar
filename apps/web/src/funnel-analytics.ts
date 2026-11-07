@@ -2,11 +2,17 @@
 // scan started → report viewed → upgrade clicked → paid plan chosen →
 // checkout started → purchase.
 //
-// Every step goes through `trackEvent`, so nothing is sent before the visitor
-// allows analytics or after they withdraw it. The parameters are a closed set
-// on purpose: a plan name, a fixed enum or a boolean. Never the address the
-// visitor typed, the audited domain, an email, a profile name or a scan id —
-// scan ids are only held here, in memory, to report a step once per page load.
+// Every step goes through `trackEvent`, so none of them is sent to GA4 before
+// the visitor allows analytics or after they withdraw it. The parameters are a
+// closed set on purpose: a plan name, a fixed enum or a boolean. Never the
+// address the visitor typed, the audited domain, an email, a profile name or a
+// scan id — scan ids are only held here, in memory, to report a step once per
+// page load.
+//
+// `free_check_requested` is also one of the three milestones the cookieless
+// count reports (plausible.ts), so that step is counted for every visitor and
+// not only for the ones who accepted cookies. What Plausible is told is the
+// name alone: no `signed_in`, no parameter at all.
 //
 // | event                  | when                                              | params            |
 // | ---------------------- | ------------------------------------------------- | ----------------- |
@@ -22,6 +28,7 @@
 import { useEffect } from 'react';
 
 import { trackEvent } from './analytics';
+import { plausibleGoal } from './plausible';
 import { PLAN_ORDER, type PaidPlan, type Plan } from './plan-modules';
 import { TERMINAL_SCAN_STATUSES } from './scan-status';
 
@@ -56,6 +63,10 @@ function terminalStatus(value: string): TerminalStatus | null {
 
 export function trackFreeCheckRequested(signedIn: boolean): void {
   trackEvent('free_check_requested', { signed_in: signedIn });
+  // The same step in the cookieless count, which needs no consent and so counts
+  // every visitor who asks for a check. A bare +1: whether they were signed in
+  // is a GA4 parameter and stays one.
+  plausibleGoal('free_check_requested');
 }
 
 /** Once per scan: a confirmation seen twice (a poll and a button) is still one start. */
