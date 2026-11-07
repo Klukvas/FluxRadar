@@ -154,7 +154,7 @@ describe('public legal documents', () => {
     );
     expect(policy).toHaveTextContent(/Google OAuth tokens are never sent to an AI provider/i);
     expect(policy).toHaveTextContent(/Disconnecting Google deletes the stored tokens/i);
-    expect(policy).toHaveTextContent(/Effective 2 November 2026/);
+    expect(policy).toHaveTextContent(/Effective 7 November 2026/);
     // The merchant of record is Creem, and the policy says what FluxRadar sends
     // it before the buyer ever sees Creem's page — the account email, product
     // and checkout reference — as well as what comes back by webhook.
@@ -198,6 +198,35 @@ describe('public legal documents', () => {
   // is always Anthropic, so an answer produced by OpenAI, Gemini or Perplexity
   // leaves that provider and reaches Anthropic together with this audit's
   // evidence. A policy saying "the same provider" would hide that transfer.
+  // The Free check may ask one AI question, but only after the owner ticks its
+  // box: the policy says so in every language, names Anthropic as the only
+  // recipient, and never again claims the Free check sends nothing at all.
+  it.each<[Language, RegExp, RegExp]>([
+    [
+      'en',
+      /Free homepage check sends nothing to an AI provider unless you tick its box on the scan form.*Anthropic.*one closed-book question.*No other AI provider receives anything from a Free check/is,
+      /Effective 7 November 2026/,
+    ],
+    [
+      'uk',
+      /Безкоштовна перевірка головної сторінки нічого не надсилає AI‑провайдеру, якщо ви не позначите її галочку.*Anthropic.*одне питання.*Жоден інший AI‑провайдер нічого не отримує від безкоштовної перевірки/is,
+      /Чинна з 7 листопада 2026 року/,
+    ],
+    [
+      'ru',
+      /Проверка главной страницы по тарифу Free ничего не отправляет ИИ‑провайдеру, если вы не отметите её галочку.*Anthropic.*один вопрос.*Ни один другой ИИ‑провайдер ничего не получает от проверки Free/is,
+      /7 ноября 2026 года/,
+    ],
+  ])('discloses the Free check’s optional AI question (%s)', (language, disclosure, effective) => {
+    render(<LegalDocumentScreen kind="privacy" language={language} onLanguageChange={() => {}} />);
+    const policy = screen.getByRole('article');
+    expect(policy).toHaveTextContent(disclosure);
+    expect(policy).toHaveTextContent(effective);
+    expect(policy).not.toHaveTextContent(
+      /free[^.]{0,80}never sends|ніколи не надсилає дані|никогда не отправляет данные/i,
+    );
+  });
+
   it('names Anthropic as the sole judge of every provider’s answer, in both languages', () => {
     render(<LegalDocumentScreen kind="privacy" language="en" onLanguageChange={() => {}} />);
 
@@ -627,7 +656,7 @@ describe('public legal documents', () => {
     const privacy = screen.getByRole('article');
     expect(privacy).toHaveTextContent(/Аналітика сайту — лише з вашого дозволу/);
     expect(privacy).toHaveTextContent(/Google \(Google Analytics 4\).*як наш обробник/s);
-    expect(privacy).toHaveTextContent(/Чинна з 2 листопада 2026 року/);
+    expect(privacy).toHaveTextContent(/Чинна з 7 листопада 2026 року/);
     expect(privacy).toHaveTextContent(
       /Creem \(Armitage Labs OÜ, Rotermanni 14, Tallinn 10111, Естонія\) — merchant of record і checkout provider/,
     );
