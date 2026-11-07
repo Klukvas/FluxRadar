@@ -3,10 +3,15 @@
 
 import { Router } from 'express';
 import type { PrismaClient, Scan, ScanModule } from '@prisma/client';
-import { computeOverallScore, computeStoredScanOverallScore } from '@fluxradar/scoring';
-import { RULESET_VERSION, scanRequestInputSchema, scanScopeSchema } from '@fluxradar/contracts';
+import { computeStoredScanOverallScore } from '@fluxradar/scoring';
+import {
+  RULESET_VERSION,
+  reportLanguageSchema,
+  scanRequestInputSchema,
+  scanScopeSchema,
+} from '@fluxradar/contracts';
 import { isModuleName, isPlan, parsePlan, readStoredPlan } from '@fluxradar/contracts';
-import type { ScanScopeInput } from '@fluxradar/contracts';
+import type { ReportLanguage, ScanScopeInput } from '@fluxradar/contracts';
 import { z } from 'zod';
 
 import { accountIdFrom, requireAuth } from '../auth/middleware.ts';
@@ -29,12 +34,20 @@ import { parseInput } from '../http/validate.ts';
 import { modulePlanFor } from '../orchestrator/module-plan.ts';
 import { findOwnProfile } from '../profiles/routes.ts';
 import { RequestRateLimiter, scanActionRules } from '../auth/rate-limit.ts';
+import {
+  freeAiConsentSchema,
+  recordFreeAiConsent,
+  type FreeAiConsentInput,
+} from './free-ai-consent.ts';
 import { freeScanScope } from './free-scan-scope.ts';
 import { assertReportSnapshotReady } from './report-readiness.ts';
+import { overallScoreView } from './free-score-view.ts';
+import { sortModules } from './module-order.ts';
 import { toModuleDto, toScanDto } from './scan-dto.ts';
 import { listScanHistory } from './scan-history.ts';
 import { geoEvidenceFrom, geoObservationsFrom, geoVisibilitySummaryFrom } from './geo-report.ts';
 import { captureExecutionConfig, lockOwnProfile } from '../profiles/execution-config.ts';
+import { resolveSiteLanguage } from './site-language.ts';
 import type { EgressLocationMonitor } from '../integrations/crawl-egress-monitor.ts';
 import {
   egressLaunchConfig,
@@ -54,10 +67,18 @@ export interface ScansRouterDeps {
   readonly egress: EgressLocationMonitor;
 }
 
-const freeCheckBodySchema = z
+export const freeCheckBodySchema = z
   .object({
     scope: scanScopeSchema.optional(),
     expectedProfileConfigVersion: z.number().int().min(1).optional(),
+    /** The owner's opt-in to the one-question GEO preview (D-236). */
+    aiConsent: freeAiConsentSchema.optional(),
+    /**
+     * The language the GEO preview asks and is evaluated in: the owner's
+     * choice, else the site's, else the UI's (D-237). Absent: the stored
+     * profile's site language, else English.
+     */
+    language: reportLanguageSchema.optional(),
   })
   .optional();
 const scanListQuerySchema = pageQuerySchema.extend({
@@ -100,6 +121,8 @@ export function scansRouter(deps: ScansRouterDeps): Router {
       allowedOrigins: freeCheckAllowedOrigins,
       requestedScope: body?.scope,
       expectedProfileConfigVersion: body?.expectedProfileConfigVersion,
+      aiConsent: body?.aiConsent,
+      language: body?.language,
       egress: await resolveLaunchEgressLocation(deps.egress, undefined),
     });
     deps.enqueueScan(created.id);
@@ -230,20 +253,20 @@ export function scansRouter(deps: ScansRouterDeps): Router {
         },
       ];
     });
-    // Free exposes the fixed SEO homepage check, but it intentionally has no
-    // overall score weight. Its SEO module must therefore not be passed to the
-    // scoring engine, which correctly rejects unweighted non-side modules.
-    const overall =
-      scan.plan === 'Free'
-        ? computeOverallScore('Free', [])
-        : computeStoredScanOverallScore(readStoredPlan(scan.plan), moduleSummaries);
+    // Free scores its homepage SEO check like any rules module (D-236); its GEO
+    // preview reaches the engine too, which leaves a plan's preview modules out.
+    // Free is shown out of 40 (free-score.ts, D-237); stored scores are not touched.
+    const overall = overallScoreView(
+      scan.plan,
+      computeStoredScanOverallScore(readStoredPlan(scan.plan), moduleSummaries),
+    );
     // The claim validator and the DTO must judge against the same snapshot, so
     // it is parsed once here rather than twice below.
     const geoEvidence = geoEvidenceFrom(geoModule?.metadataJson);
     sendOk(res, {
       scan: toScanDto(scan, scan.modules),
       overall,
-      modules: scan.modules.map(toModuleDto),
+      modules: sortModules(scan.modules).map((module) => toModuleDto(module, scan.plan)),
       geoObservations: geoObservationsFrom(geoModule?.metadataJson, geoResponses, geoEvidence),
       geoEvidence,
       geoVisibilitySummary: geoVisibilitySummaryFrom(geoModule?.metadataJson),
@@ -350,6 +373,13 @@ export interface CreateFreeScanParams {
   readonly allowedOrigins?: ReadonlySet<string>;
   readonly requestedScope?: ScanScopeInput | undefined;
   readonly expectedProfileConfigVersion?: number | undefined;
+  /**
+   * The owner's opt-in to the GEO preview. Absent means the preview asks
+   * nothing and reports ConsentMissing; the homepage check and score still run.
+   */
+  readonly aiConsent?: FreeAiConsentInput | undefined;
+  /** The GEO preview's language; absent means the site's language, else English. */
+  readonly language?: ReportLanguage | undefined;
   /** The default egress location, checked at launch (`resolveLaunchEgressLocation`). */
   readonly egress: LaunchEgress;
 }
@@ -418,7 +448,17 @@ export async function createFreeScan(
         status: 'Pending',
         scopeJson: JSON.stringify(scope),
         profileConfigVersion: profile.scanConfigVersion,
-        executionConfigJson: JSON.stringify(captureExecutionConfig(profile, 'Free', scope)),
+        // The AI question's language: the client's (the owner's choice, else
+        // the site's, else the UI's), else the site's from the stored profile,
+        // else English (D-237). Accept-Language is never read.
+        executionConfigJson: JSON.stringify(
+          captureExecutionConfig(
+            profile,
+            'Free',
+            scope,
+            params.language ?? resolveSiteLanguage(profile) ?? 'en',
+          ),
+        ),
         rulesetVersion: RULESET_VERSION,
         createdAt: now,
       },
@@ -426,6 +466,9 @@ export async function createFreeScan(
     await tx.job.create({
       data: { scanId: scan.id, type: 'scan', status: 'Pending', createdAt: now },
     });
+    if (params.aiConsent !== undefined) {
+      await recordFreeAiConsent(tx, { accountId, scanId: scan.id, consent: params.aiConsent });
+    }
     return scan;
   });
 }

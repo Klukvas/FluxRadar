@@ -12,14 +12,16 @@
 // the other half of this catalogue and lives in `findings-document-copy.ts`,
 // in the report's two languages only (`report-language.ts`).
 
+import { FREE_CHECK_COUNT } from './free-score-copy';
 import {
   takesUkSingular,
+  ukCountForm,
   ukPagesAccusative,
   ukPagesOf,
   ukProblemsAccusative,
   type Language,
 } from './i18n';
-import { BASIC_PRICE } from './tariff-prices';
+import { COMPLETE_PRICE } from './tariff-prices';
 import { russianFindingsCopy } from './findings-copy.ru';
 
 export type FindingsCopy = {
@@ -160,7 +162,7 @@ export type FindingsCopy = {
     readonly working: string;
   };
   /**
-   * The Free report's last block, which sells Basic. Its lead states what this
+   * The Free report's last block, which sells Complete. Its lead states what this
    * free check found on the homepage, and nothing about the rest of the site:
    * no page past the homepage was read, so there is nothing to count there.
    */
@@ -358,21 +360,21 @@ export const findingsCopy: Readonly<Record<Language, FindingsCopy>> = {
       lead: (domain, problems) => {
         const rest = 'The other pages of the site have not been checked yet.';
         if (problems === null)
-          return `The free check looked at four things on the homepage of ${domain}. ${rest}`;
+          return `The free check looked at ${FREE_CHECK_COUNT} things on the homepage of ${domain}. ${rest}`;
         if (problems === 0)
-          return `On the homepage of ${domain}, the free check found no problems in the four things it looks at. ${rest}`;
-        return `The free check found ${problems} ${problems === 1 ? 'problem' : 'problems'} on the homepage of ${domain}, in the four things it looks at. ${rest}`;
+          return `On the homepage of ${domain}, the free check found no problems in the ${FREE_CHECK_COUNT} things it looks at. ${rest}`;
+        return `The free check found ${problems} ${problems === 1 ? 'problem' : 'problems'} on the homepage of ${domain}, in the ${FREE_CHECK_COUNT} things it looks at. ${rest}`;
       },
-      listIntro: 'A full Basic report checks every page for:',
+      listIntro: 'The complete verification checks every page for:',
       points: [
-        'Broken links — where a visitor clicks and lands nowhere',
-        'Pages with no description, the same title, or duplicates',
-        'Which pages Google cannot show — and why',
-        'Whether AI assistants like ChatGPT know about your business',
+        'Broken links, pages with no description, duplicates — and which pages Google cannot show',
+        'What ChatGPT and Claude say about your business, and who they name instead',
+        'Security: certificates, headers and what a visitor’s browser is exposed to',
+        'Speed and accessibility: how fast pages load and who cannot use them',
       ],
-      price: `Basic — ${BASIC_PRICE}, paid once, no subscription.`,
-      action: `Check the whole site for ${BASIC_PRICE}`,
-      compare: 'Need security, speed and accessibility too? Compare plans',
+      price: `Complete — ${COMPLETE_PRICE}, paid once, no subscription.`,
+      action: `Run the complete verification for ${COMPLETE_PRICE}`,
+      compare: 'Only need search and AI visibility? Compare plans',
     },
     download: {
       pdf: 'Download full report (PDF)',
@@ -531,21 +533,21 @@ export const findingsCopy: Readonly<Record<Language, FindingsCopy>> = {
       lead: (domain, problems) => {
         const rest = 'Інші сторінки сайту ще не перевірено.';
         if (problems === null)
-          return `Безкоштовна перевірка подивилася чотири речі на головній сторінці ${domain}. ${rest}`;
+          return `Безкоштовна перевірка подивилася ${FREE_CHECK_COUNT} ${ukCountForm(FREE_CHECK_COUNT, 'річ', 'речі', 'речей')} на головній сторінці ${domain}. ${rest}`;
         if (problems === 0)
-          return `На головній сторінці ${domain} у чотирьох речах, які дивиться безкоштовна перевірка, проблем немає. ${rest}`;
-        return `Безкоштовна перевірка знайшла на головній сторінці ${domain} ${problems} ${ukProblemsAccusative(problems)} у чотирьох речах, які вона дивиться. ${rest}`;
+          return `На головній сторінці ${domain} у ${FREE_CHECK_COUNT} речах, які дивиться безкоштовна перевірка, проблем немає. ${rest}`;
+        return `Безкоштовна перевірка знайшла на головній сторінці ${domain} ${problems} ${ukProblemsAccusative(problems)} у ${FREE_CHECK_COUNT} речах, які вона дивиться. ${rest}`;
       },
-      listIntro: 'Повний звіт Basic перевірить на всіх сторінках:',
+      listIntro: 'Повна перевірка охопить на всіх сторінках:',
       points: [
-        'Биті посилання — куди клієнт клікає і потрапляє в нікуди',
-        'Сторінки без опису, з однаковими заголовками або дублікатами',
-        'Які сторінки Google не може показати — і чому',
-        'Чи знають про ваш бізнес ШІ-помічники на кшталт ChatGPT',
+        'Биті посилання, сторінки без опису, дублікати — і які сторінки Google не може показати',
+        'Що кажуть про ваш бізнес ChatGPT і Claude та кого називають замість вас',
+        'Безпеку: сертифікати, заголовки й те, що відкрито браузеру відвідувача',
+        'Швидкість і доступність: як швидко вантажаться сторінки і хто не може ними користуватися',
       ],
-      price: `Basic — ${BASIC_PRICE}, оплата один раз, без підписки.`,
-      action: `Перевірити весь сайт за ${BASIC_PRICE}`,
-      compare: 'Потрібні ще безпека, швидкість і доступність? Порівняти тарифи',
+      price: `Complete — ${COMPLETE_PRICE}, оплата один раз, без підписки.`,
+      action: `Запустити повну перевірку за ${COMPLETE_PRICE}`,
+      compare: 'Потрібні лише пошук і видимість у ШІ? Порівняти тарифи',
     },
     download: {
       pdf: 'Завантажити повний звіт (PDF)',

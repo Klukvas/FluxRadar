@@ -8,6 +8,7 @@ import {
   isModuleName,
   readStoredPlan,
   SIDE_SCORE_MODULES,
+  planPreviewModules,
   storedPlanScoreWeights,
   type StoredPlan,
 } from '@fluxradar/contracts';
@@ -106,7 +107,9 @@ export function scoringRefuses(plan: StoredPlan, summaries: readonly ModuleSumma
       (summary) =>
         outOfRange(summary.score, 100) ||
         outOfRange(summary.coverage, 1) ||
-        (weights[summary.module] === undefined && !SIDE_SCORE_MODULES.includes(summary.module)),
+        (weights[summary.module] === undefined &&
+          !SIDE_SCORE_MODULES.includes(summary.module) &&
+          !planPreviewModules(plan).includes(summary.module)),
     )
   );
 }

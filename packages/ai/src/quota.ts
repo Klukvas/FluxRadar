@@ -18,7 +18,7 @@ export class AiQuotaTracker {
     private readonly committed: ReadonlySet<string>,
   ) {}
 
-  /** Лимит из тарифа: Basic 50, Complete 500, Free 0 (TARIFFS.aiRequestLimit). */
+  /** Лимит из тарифа: Basic 50, Complete 500, Free 2 (TARIFFS.aiRequestLimit, D-236). */
   static forPlan(plan: Plan): AiQuotaTracker {
     return AiQuotaTracker.withLimit(TARIFFS[plan].aiRequestLimit);
   }

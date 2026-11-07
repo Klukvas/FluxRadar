@@ -88,4 +88,9 @@ export interface WorkerDeps {
     options: EgressProbeOptions,
   ) => Promise<EgressHealth>;
   readonly now?: () => Date;
+  /**
+   * Origins exempt from the Free limits; their Free checks never ask the GEO
+   * preview (D-236). Absent reads the same environment the routes read.
+   */
+  readonly freeCheckAllowedOrigins?: ReadonlySet<string>;
 }

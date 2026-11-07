@@ -421,6 +421,10 @@ export const siteProfilePatchInputSchema = siteProfileInputSchema.partial().exte
 });
 export type SiteProfilePatchInput = z.infer<typeof siteProfilePatchInputSchema>;
 
+/** The languages a report's AI texts can be produced in. */
+export const reportLanguageSchema = z.enum(['en', 'uk']);
+export type ReportLanguage = z.infer<typeof reportLanguageSchema>;
+
 // `competitors` is omitted from `profile`: that nested object is the shape
 // captured into executionConfigJson at launch and later handed to the AI
 // provider as prompt context (captureExecutionConfig / GeoProfileContext in
@@ -443,6 +447,11 @@ export const executionConfigSchema = z.object({
   plan: z.enum(PLANS),
   scope: scanScopeSchema,
   competitors: siteProfileInputSchema.shape.competitors,
+  // The Free GEO preview's language (W1, D-237: the owner's choice, else the
+  // site's language, else the UI language at launch); it asks and is evaluated
+  // in it. Fixed for the scan; absent (paid, or captured before this field
+  // existed) means English.
+  language: reportLanguageSchema.optional(),
 });
 export type ExecutionConfig = z.infer<typeof executionConfigSchema>;
 

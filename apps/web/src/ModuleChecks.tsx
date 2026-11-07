@@ -81,6 +81,9 @@ export function hasModuleChecks(
   observations: readonly GeoObservation[],
 ): boolean {
   if (module.module === GEO_MODULE) {
+    // The Free preview's one answer is shown in its own block (FreeAiPreview,
+    // D-236); a checks panel here would print the same answer a second time.
+    if (module.metadata?.freePreview === true) return false;
     return observations.length > 0 || geoChecksOf(module.metadata) !== null;
   }
   if (module.module === PERFORMANCE_MODULE) {

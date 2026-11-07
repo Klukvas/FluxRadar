@@ -5,6 +5,14 @@ import { RussianPrivacy } from './PrivacyPolicy.ru';
 import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } from './SharedLegal';
 
 /**
+ * 7 November 2026: the Free homepage check can ask one AI question. It sends
+ * nothing to an AI provider unless the owner ticks its box on the scan form;
+ * with the tick it asks Anthropic one closed-book question naming the business
+ * or domain, and Anthropic checks that answer against the profile fields and
+ * homepage text of that check, under the existing core-ai-processing-notice-v6
+ * (apps/web/src/free-preview-copy.ts consent, apps/api/src/scans/free-ai-consent.ts).
+ * No new recipient: Anthropic was already one.
+ *
  * 2 November 2026: the cookieless count now also counts three product steps,
  * not page views alone: a completed registration, a free check requested, and a
  * completed purchase. Each one is a bare count of that step against the cleaned
@@ -71,9 +79,9 @@ import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } fro
  * Plan as an AI purpose, and consent-based Google Analytics 4.
  */
 const PRIVACY_EFFECTIVE: EffectiveDate = {
-  uk: '2 листопада 2026 року',
-  en: '2 November 2026',
-  ru: '2 ноября 2026 года',
+  uk: '7 листопада 2026 року',
+  en: '7 November 2026',
+  ru: '7 ноября 2026 года',
 };
 
 export function PrivacyPolicy({ language }: { readonly language: Language }): JSX.Element {
@@ -266,6 +274,16 @@ function UkrainianPrivacy(): JSX.Element {
           отримують нічого, доки ви не оберете їх для конкретної перевірки, і цей вибір зберігається
           разом із нею. Дані акаунта, оплати, повний номер картки та Google/Bing tokens не входять
           до AI‑запиту.
+        </p>
+        <p>
+          Безкоштовна перевірка головної сторінки нічого не надсилає AI‑провайдеру, якщо ви не
+          позначите її галочку у формі перевірки. Якщо позначите, вона ставить{' '}
+          <strong>Anthropic</strong> одне питання, що називає ваш бізнес або домен, «із закритою
+          книгою» — без вебпошуку та інших інструментів, — а потім Anthropic окремим запитом звіряє
+          цю відповідь з обмеженим знімком цієї перевірки: полями профілю, які ви зберегли, і
+          текстом вашої головної сторінки. Галочку записують разом із перевіркою за повідомленням
+          core-ai-processing-notice-v6. Жоден інший AI‑провайдер нічого не отримує від безкоштовної
+          перевірки, а питання ставлять щонайбільше один раз на перевірку.
         </p>
         <p>
           AI‑план дій (Basic і Complete) надсилає до Anthropic лише метадані правил цього звіту:
@@ -662,6 +680,15 @@ function EnglishPrivacy(): JSX.Element {
           nothing at all unless you select them for a particular audit, and that choice is stored
           with it. Account details, payment data, the full card number and Google/Bing tokens are
           not AI inputs.
+        </p>
+        <p>
+          The Free homepage check sends nothing to an AI provider unless you tick its box on the
+          scan form. If you do, it asks <strong>Anthropic</strong> one closed-book question that
+          names your business or domain, with no web search and no other tools, and Anthropic then
+          checks that answer in a separate request against a bounded snapshot of this check: the
+          profile fields you saved and text from your homepage. The tick is recorded with the check
+          under the core-ai-processing-notice-v6 disclosure. No other AI provider receives anything
+          from a Free check, and the question is asked at most once per check.
         </p>
         <p>
           The AI Action Plan (Basic and Complete) sends Anthropic the report’s rule metadata only:

@@ -1,5 +1,6 @@
-// Free-проверка (§18): фиксированные 4 правила против homepage —
-// title, H1, meta description, индексация (FREE_CHECK_RULE_IDS, contracts).
+// Free-проверка (§18, D-237): фиксированный набор правил против homepage —
+// title, H1, meta description, индексация, social preview, alt изображений
+// (FREE_CHECK_RULE_IDS, contracts — единственный источник списка и его длины).
 // Мини-раннер повторяет агрегацию page-правил движка rules (D-156/D-121):
 // прогон полного SEO-модуля с последующей фильтрацией исказил бы счётчики
 // applicable/completed и показал бы пользователю Free находки платных правил.
@@ -14,7 +15,7 @@ function freeCheckRules(): readonly PageRule[] {
   return FREE_CHECK_RULE_IDS.map((ruleId) => {
     const rule = SEO_RULES.find((candidate) => candidate.descriptor.ruleId === ruleId);
     if (rule === undefined || rule.kind !== 'page') {
-      // Все 4 правила Free-проверки — page-level по построению T-08.
+      // Все правила Free-проверки — page-level (ruleset.test.ts это держит).
       throw new Error(`free-check: правило ${ruleId} не найдено среди page-правил SEO`);
     }
     return rule;
@@ -22,28 +23,36 @@ function freeCheckRules(): readonly PageRule[] {
 }
 
 /**
- * Why a Free module row carries no score.
+ * What a Free SEO score is a score of.
  *
- * Free has no tariff score weights (§18), so `score` is null by design rather
- * than for lack of readable data. The report has to be able to tell those two
- * apart, and a Completed module may not carry a status_reason (§15/§16) — so
- * the reason travels in the module metadata instead.
+ * Free used to carry no score at all (`NotScoredOnFreePlan`, D-123). D-236
+ * scores the Free homepage rules with the same rule penalties as every other
+ * rules module, and the number describes the homepage only — never the site.
+ * The row says so, so the report can label it a homepage score. The report
+ * shows it out of 40 (free-score.ts, D-237); the stored value stays 0–100.
  */
-export const FREE_CHECK_SCORING_REASON = 'NotScoredOnFreePlan';
+export const FREE_CHECK_SCORE_SCOPE = 'homepage';
+
+/**
+ * The reason a Free row stored before D-236 carries, matched by readers of old
+ * reports (the web app's scan-status.ts keeps the literal). Nothing writes it.
+ */
+export const LEGACY_FREE_CHECK_SCORING_REASON = 'NotScoredOnFreePlan';
 
 /**
  * What the Free check actually looked at.
  *
- * The paid SEO module reports structured data and social preview coverage; the
- * Free check runs the four homepage rules above and nothing else. Writing the
- * paid metadata onto a Free row would advertise checks that never ran, so the
- * row carries the real rule list, taken from the registry rather than restated.
+ * The paid SEO module reports site-wide structured data and social preview
+ * coverage; the Free check runs the homepage rules in FREE_CHECK_RULE_IDS and
+ * nothing else. Writing the paid metadata onto a Free row would advertise
+ * site-wide counts that were never taken, so the row carries the real rule
+ * list, taken from the registry rather than restated.
  */
 export function freeCheckMetadata(): Record<string, unknown> {
   return {
     freeCheck: true,
     scope: 'homepage only',
-    scoring: FREE_CHECK_SCORING_REASON,
+    scoreScope: FREE_CHECK_SCORE_SCOPE,
     automation: 'static-html-homepage',
     checks: FREE_CHECK_RULE_IDS.map((ruleId) => ({ ruleId, title: descriptorFor(ruleId).title })),
   };
@@ -99,8 +108,8 @@ export function runFreeCheck(ctx: SiteContext): ModuleRunResult {
       // Как и в движке: проверенными считаются только страницы, которые правило
       // взяло в работу (§14, run-coverage.ts).
       checkedTargets: applicablePages.map((page) => page.normalizedUrl),
-      // Free — одна homepage-проверка четырьмя правилами, ни одно из которых не
-      // смотрит за пределы самой страницы.
+      // Free — одна homepage-проверка правилами, ни одно из которых не смотрит
+      // за пределы самой страницы.
       inputTargets: rule.inputTargets?.(ctx) ?? [],
       requestedInputs: rule.requestedInputs?.(ctx),
     });

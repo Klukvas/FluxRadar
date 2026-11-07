@@ -152,13 +152,16 @@ describe('runGeoModule — деградации', () => {
     expect(calls()).toBe(1);
   });
 
-  it('Free-тариф (лимит 0) → все QuotaExceeded, модуль Unavailable', async () => {
+  // Free used to have a limit of 0. D-236 gives it exactly the two requests its
+  // GEO preview spends; anything past them is refused before the provider.
+  it('Free-тариф (лимит 2) → третий запрос QuotaExceeded до провайдера', async () => {
     const { provider, calls } = countingProvider();
-    const result = await runGeoModule(moduleInput({ plan: 'Free' }), { provider });
-    expect(result.status).toBe('Unavailable');
-    expect(result.statusReason).toBe('QuotaExceeded');
-    expect(result.quota.spent).toBe(0);
-    expect(calls()).toBe(0);
+    const requests = [...TWO_REQUESTS, makeRequest({ sequence: 3, question: QUESTION_WITH_BRAND })];
+    const result = await runGeoModule(moduleInput({ plan: 'Free', requests }), { provider });
+    expect(result.status).toBe('Partial');
+    expect(result.statusReason).toContain('QuotaExceeded');
+    expect(result.quota.spent).toBe(2);
+    expect(calls()).toBe(2);
   });
 
   it('redaction fail-closed на всех запросах → Unavailable RedactionBlocked', async () => {

@@ -7,10 +7,10 @@ import { createDefaultAiProvider } from './orchestrator/geo.ts';
 import { processPendingJobs, processScan } from './orchestrator/worker.ts';
 import { silentLogger } from './http/logger.ts';
 import { deleteAccountData } from './data-retention.ts';
-import { FREE_CHECK_SCORING_REASON } from './orchestrator/free-check.ts';
+import { FREE_CHECK_SCORE_SCOPE } from './orchestrator/free-check.ts';
 import { purchaseScan } from './test-utils/purchase-scan.ts';
 import { createTestDb, type TestDb } from './test-utils/test-db.ts';
-import { FREE_CHECK_RULE_IDS } from '@fluxradar/contracts';
+import { FREE_CHECK_RULE_IDS, FREE_SCORE_MAX, freeDisplayScore } from '@fluxradar/contracts';
 import { CURRENT_AI_PROCESSING_NOTICE_VERSION } from '@fluxradar/ai';
 import { startFixtureSite, type FixtureSite } from '@fluxradar/crawler';
 
@@ -61,35 +61,58 @@ describe('T-12 API happy paths', () => {
 
     const dashboard = await agent.get(`/scans/${scanId}/dashboard`).set('Cookie', account.cookie);
     expect(dashboard.status).toBe(200);
+    // D-236 (replacing D-123's unscored Free): the overall is the homepage SEO
+    // score at full weight, and the unconsented GEO preview neither scores nor
+    // turns the scan Partial.
+    const seoScore = (dashboard.body.data.modules as Record<string, unknown>[]).find(
+      (module) => module.module === 'SEO',
+    )?.score;
+    expect(seoScore).toEqual(expect.any(Number));
     expect(dashboard.body.data.overall).toEqual({
-      verdict: 'insufficient_data',
-      score: null,
-      weightedCoverage: 0,
-      moduleWeights: [],
+      verdict: 'normal',
+      score: seoScore,
+      weightedCoverage: 1,
+      moduleWeights: [{ module: 'SEO', tariffWeight: 1, effectiveWeight: 1 }],
+      scoreMax: FREE_SCORE_MAX,
     });
-    // The pair the report has to reconcile, pinned on both halves: the overall
-    // verdict above is `insufficient_data` with a weighted coverage of 0 because
-    // Free carries no tariff score weight (D-123) — while the SEO row itself ran
-    // every check it had and says so. A screen that printed both verbatim told
-    // the owner a completed check had failed.
+    // D-237: shown out of 40; the stored row keeps its 0–100 value.
+    const storedSeo = await db.prisma.scanModule.findFirstOrThrow({
+      where: { scanId, module: 'SEO' },
+    });
+    expect(seoScore).toBe(freeDisplayScore(storedSeo.score).value);
+    expect(
+      (dashboard.body.data.modules as Record<string, unknown>[]).find(
+        (module) => module.module === 'SEO',
+      )?.scoreMax,
+    ).toBe(FREE_SCORE_MAX);
+    const geo = (dashboard.body.data.modules as Record<string, unknown>[]).find(
+      (module) => module.module === 'AI SEO / GEO',
+    );
+    expect(geo).toMatchObject({
+      status: 'Not applicable',
+      statusReason: 'ConsentMissing',
+      usableOutput: false,
+    });
+    expect(dashboard.body.data.geoObservations).toEqual([]);
+    const aiResponses = await db.prisma.aiResponseRecord.count({ where: { scanId } });
+    expect(aiResponses).toBe(0);
     const seo = (dashboard.body.data.modules as Record<string, unknown>[]).find(
       (module) => module.module === 'SEO',
     );
     expect(seo).toMatchObject({
       module: 'SEO',
       status: 'Completed',
-      score: null,
       usableOutput: true,
       coverage: 1,
     });
     expect(seo?.completedApplicableChecks).toBe(seo?.applicableChecks);
     expect(seo?.applicableChecks).toBeGreaterThan(0);
-    // And the row names the four homepage rules it ran, not the paid module's
-    // structured-data and social-preview checks.
+    // And the row names the homepage rules it ran, not the paid module's
+    // site-wide structured-data and social-preview counts.
     expect(seo?.metadata).toMatchObject({
       freeCheck: true,
       scope: 'homepage only',
-      scoring: FREE_CHECK_SCORING_REASON,
+      scoreScope: FREE_CHECK_SCORE_SCOPE,
     });
     expect((seo?.metadata as { checks: unknown[] }).checks).toHaveLength(
       FREE_CHECK_RULE_IDS.length,
@@ -115,6 +138,101 @@ describe('T-12 API happy paths', () => {
       .send({});
     expect(sameDomain.status).toBe(409);
     expect(sameDomain.body.error.code).toBe('FREE_CHECK_DOMAIN_USED');
+  });
+
+  // D-236: with the owner's opt-in the Free check asks Anthropic one question
+  // (and evaluates the answer) — nobody else, never past the tariff's limit,
+  // and never moving the homepage score or the scan outcome.
+  it('runs the one-question GEO preview on a consented Free check', async () => {
+    const app = createApp({ prisma: db.prisma, autoProcess: false, logger: silentLogger });
+    const agent = request.agent(app);
+    const account = await register(agent, 'free-geo@example.com');
+    const profile = await createProfile(agent, account.cookie, 'https://free-geo.example.com');
+
+    const refused = await agent
+      .post(`/profiles/${profile.id}/free-check`)
+      .set('Cookie', account.cookie)
+      .send({
+        aiConsent: {
+          providers: ['anthropic', 'openai'],
+          noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+        },
+      });
+    expect(refused.status).toBe(400);
+
+    const created = await agent
+      .post(`/profiles/${profile.id}/free-check`)
+      .set('Cookie', account.cookie)
+      .send({
+        aiConsent: {
+          providers: ['anthropic'],
+          noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+        },
+      });
+    expect(created.status).toBe(201);
+    const scanId = created.body.data.id as string;
+    await runScan(db, scanId);
+
+    const dashboard = await agent.get(`/scans/${scanId}/dashboard`).set('Cookie', account.cookie);
+    expect(dashboard.status).toBe(200);
+    expect(dashboard.body.data.scan.status).toBe('Completed');
+    const observations = dashboard.body.data.geoObservations as Record<string, unknown>[];
+    expect(observations).toHaveLength(1);
+    expect(observations[0]).toMatchObject({ purpose: 'closed-book', status: 'answered' });
+    const seo = (dashboard.body.data.modules as Record<string, unknown>[]).find(
+      (module) => module.module === 'SEO',
+    );
+    expect(dashboard.body.data.overall.score).toBe(seo?.score);
+
+    const ledger = await db.prisma.aiResponseRecord.findMany({ where: { scanId } });
+    // The mock answers the question and its evaluation: exactly the limit.
+    expect(ledger).toHaveLength(2);
+    expect(new Set(ledger.map((record) => record.provider))).toEqual(new Set(['anthropic']));
+  });
+
+  // D-236 fix pass: the external retry exists for a site that could not be read.
+  // Pass 1 marks the GEO row unreadable without building a request, so the
+  // retry must still ask the opted-in question — once, within the limit.
+  it('asks the Free preview on the external retry after an unreadable first pass', async () => {
+    const app = createApp({ prisma: db.prisma, autoProcess: false, logger: silentLogger });
+    const agent = request.agent(app);
+    const account = await register(agent, 'free-geo-retry@example.com');
+    const profile = await createProfile(agent, account.cookie, 'https://free-retry.example.com');
+    const created = await agent
+      .post(`/profiles/${profile.id}/free-check`)
+      .set('Cookie', account.cookie)
+      .send({
+        aiConsent: {
+          providers: ['anthropic'],
+          noticeVersion: CURRENT_AI_PROCESSING_NOTICE_VERSION,
+        },
+      });
+    expect(created.status).toBe(201);
+    const scanId = created.body.data.id as string;
+
+    let attempts = 0;
+    const result = await processScan(
+      {
+        prisma: db.prisma,
+        logger: silentLogger,
+        createAiProvider: (scan, siteProfile) =>
+          createDefaultAiProvider(siteProfile.name, new URL(scan.domain).hostname),
+        crawl: {
+          // Nothing listens on port 1: the first attempt reads no page at all.
+          originOverride: () => (attempts++ === 0 ? 'http://127.0.0.1:1' : fixture.origin),
+          dangerouslyAllowLoopback: true,
+        },
+      },
+      scanId,
+    );
+    expect(result.outcome).toBe('Completed');
+    expect(attempts).toBeGreaterThanOrEqual(2);
+
+    const dashboard = await agent.get(`/scans/${scanId}/dashboard`).set('Cookie', account.cookie);
+    expect(dashboard.body.data.geoObservations).toHaveLength(1);
+    const ledger = await db.prisma.aiResponseRecord.findMany({ where: { scanId } });
+    expect(ledger).toHaveLength(2);
+    expect(new Set(ledger.map((record) => record.provider))).toEqual(new Set(['anthropic']));
   });
 
   it('allows only one account to claim a domain under concurrent Free checks', async () => {

@@ -21,7 +21,7 @@ import type { CrawlSummary } from '@fluxradar/contracts';
 import type { Prisma, PrismaClient, Scan } from '@prisma/client';
 
 /** Works both on the root client and inside a `$transaction` callback. */
-type DbClient = PrismaClient | Prisma.TransactionClient;
+export type DbClient = PrismaClient | Prisma.TransactionClient;
 
 import { issueStatusesForModule } from './issue-sync.ts';
 import type { IssueRowData } from './module-result.ts';
@@ -85,6 +85,8 @@ export async function markEveryModuleUnreadable(
   scanId: string,
   modules: readonly string[],
   summary: CrawlSummary,
+  /** Per-module metadata a row must keep, e.g. the Free preview marker (D-236). */
+  keepMetadata: Readonly<Record<string, Record<string, unknown>>> = {},
 ): Promise<void> {
   const statusReason = siteReachStatusReason(summary) ?? 'SiteUnreachable';
   for (const module of modules) {
@@ -96,7 +98,7 @@ export async function markEveryModuleUnreadable(
       applicableChecks: 1,
       completedApplicableChecks: 0,
       usableOutput: false,
-      metadataJson: JSON.stringify({ crawl: summary }),
+      metadataJson: JSON.stringify({ ...keepMetadata[module], crawl: summary }),
     });
   }
 }

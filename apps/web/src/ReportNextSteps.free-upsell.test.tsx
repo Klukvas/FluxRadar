@@ -11,11 +11,14 @@ import { resolve } from 'node:path';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { FREE_UNLOCK_PLAN } from './FreeAiPreview';
+import { FREE_UPSELL_PLAN } from './FreeUpsell';
 import { ReportNextSteps } from './ReportNextSteps';
+import { FREE_CHECK_COUNT } from './free-score-copy';
 import type { IssueRuleGroup, IssueSummary, Scan } from './api';
 import type { PaidPlan } from './plan-modules';
 import type { SiteReadFailure } from './report-failure-copy';
-import { BASIC_PRICE } from './tariff-prices';
+import { COMPLETE_PRICE } from './tariff-prices';
 
 const FREE_SCAN: Scan = {
   id: 'scan-free-upsell',
@@ -121,19 +124,19 @@ describe('Free upsell → what the free check found', () => {
   it.each([
     [
       0,
-      `On the homepage of smile.example, the free check found no problems in the four things it looks at. ${EN_REST}`,
+      `On the homepage of smile.example, the free check found no problems in the ${FREE_CHECK_COUNT} things it looks at. ${EN_REST}`,
     ],
     [
       1,
-      `The free check found 1 problem on the homepage of smile.example, in the four things it looks at. ${EN_REST}`,
+      `The free check found 1 problem on the homepage of smile.example, in the ${FREE_CHECK_COUNT} things it looks at. ${EN_REST}`,
     ],
     [
       2,
-      `The free check found 2 problems on the homepage of smile.example, in the four things it looks at. ${EN_REST}`,
+      `The free check found 2 problems on the homepage of smile.example, in the ${FREE_CHECK_COUNT} things it looks at. ${EN_REST}`,
     ],
     [
       5,
-      `The free check found 5 problems on the homepage of smile.example, in the four things it looks at. ${EN_REST}`,
+      `The free check found 5 problems on the homepage of smile.example, in the ${FREE_CHECK_COUNT} things it looks at. ${EN_REST}`,
     ],
   ])('in English, with %i open problems', async (count, lead) => {
     stubFetch(summaryWithOpenProblems(count));
@@ -146,19 +149,19 @@ describe('Free upsell → what the free check found', () => {
   it.each([
     [
       0,
-      `На головній сторінці smile.example у чотирьох речах, які дивиться безкоштовна перевірка, проблем немає. ${UK_REST}`,
+      `На головній сторінці smile.example у ${FREE_CHECK_COUNT} речах, які дивиться безкоштовна перевірка, проблем немає. ${UK_REST}`,
     ],
     [
       1,
-      `Безкоштовна перевірка знайшла на головній сторінці smile.example 1 проблему у чотирьох речах, які вона дивиться. ${UK_REST}`,
+      `Безкоштовна перевірка знайшла на головній сторінці smile.example 1 проблему у ${FREE_CHECK_COUNT} речах, які вона дивиться. ${UK_REST}`,
     ],
     [
       2,
-      `Безкоштовна перевірка знайшла на головній сторінці smile.example 2 проблеми у чотирьох речах, які вона дивиться. ${UK_REST}`,
+      `Безкоштовна перевірка знайшла на головній сторінці smile.example 2 проблеми у ${FREE_CHECK_COUNT} речах, які вона дивиться. ${UK_REST}`,
     ],
     [
       5,
-      `Безкоштовна перевірка знайшла на головній сторінці smile.example 5 проблем у чотирьох речах, які вона дивиться. ${UK_REST}`,
+      `Безкоштовна перевірка знайшла на головній сторінці smile.example 5 проблем у ${FREE_CHECK_COUNT} речах, які вона дивиться. ${UK_REST}`,
     ],
   ])('in Ukrainian, with %i open problems', async (count, lead) => {
     stubFetch(summaryWithOpenProblems(count));
@@ -187,7 +190,7 @@ describe('Free upsell → what the free check found', () => {
     const block = await upsellBlock(UK_HEADING);
     expect(
       await within(block).findByText(
-        `Безкоштовна перевірка знайшла на головній сторінці smile.example ${count} ${noun} у чотирьох речах, які вона дивиться. ${UK_REST}`,
+        `Безкоштовна перевірка знайшла на головній сторінці smile.example ${count} ${noun} у ${FREE_CHECK_COUNT} речах, які вона дивиться. ${UK_REST}`,
       ),
     ).toBeInTheDocument();
   });
@@ -209,7 +212,7 @@ describe('Free upsell → what the free check found', () => {
     const block = await upsellBlock(EN_HEADING);
     expect(
       within(block).getByText(
-        `The free check looked at four things on the homepage of smile.example. ${EN_REST}`,
+        `The free check looked at ${FREE_CHECK_COUNT} things on the homepage of smile.example. ${EN_REST}`,
       ),
     ).toBeInTheDocument();
     expect(within(block).queryByText(/\d+ problems?/)).toBeNull();
@@ -223,37 +226,43 @@ describe('Free upsell → what the free check found', () => {
     const block = await upsellBlock(UK_HEADING);
     expect(
       within(block).getByText(
-        `Безкоштовна перевірка подивилася чотири речі на головній сторінці smile.example. ${UK_REST}`,
+        `Безкоштовна перевірка подивилася ${FREE_CHECK_COUNT} речей на головній сторінці smile.example. ${UK_REST}`,
       ),
     ).toBeInTheDocument();
   });
 });
 
-describe('Free upsell → what Basic adds', () => {
-  it('lists the four things Basic checks on every page, with the Basic price', async () => {
+// Owner decision (D-236): every upgrade on a Free report sells Complete. This
+// block used to sell Basic — those expectations were intentionally replaced.
+describe('Free upsell → what the complete verification adds', () => {
+  it('lists what Complete checks on every page, with the Complete price', async () => {
     stubFetch(summaryWithOpenProblems(1));
     renderNextSteps();
 
     const block = await upsellBlock(EN_HEADING);
-    expect(within(block).getByText('A full Basic report checks every page for:')).toBeVisible();
+    expect(
+      within(block).getByText('The complete verification checks every page for:'),
+    ).toBeVisible();
     expect(
       within(block)
         .getAllByRole('listitem')
         .map((item) => item.textContent),
     ).toEqual([
-      'Broken links — where a visitor clicks and lands nowhere',
-      'Pages with no description, the same title, or duplicates',
-      'Which pages Google cannot show — and why',
-      'Whether AI assistants like ChatGPT know about your business',
+      'Broken links, pages with no description, duplicates — and which pages Google cannot show',
+      'What ChatGPT and Claude say about your business, and who they name instead',
+      'Security: certificates, headers and what a visitor’s browser is exposed to',
+      'Speed and accessibility: how fast pages load and who cannot use them',
     ]);
     expect(
-      within(block).getByText(`Basic — ${BASIC_PRICE}, paid once, no subscription.`),
+      within(block).getByText(`Complete — ${COMPLETE_PRICE}, paid once, no subscription.`),
     ).toBeInTheDocument();
     expect(
-      within(block).getByRole('button', { name: `Check the whole site for ${BASIC_PRICE}` }),
+      within(block).getByRole('button', {
+        name: `Run the complete verification for ${COMPLETE_PRICE}`,
+      }),
     ).toBeInTheDocument();
     const compare = within(block).getByRole('link', {
-      name: 'Need security, speed and accessibility too? Compare plans',
+      name: 'Only need search and AI visibility? Compare plans',
     });
     expect(compare).toHaveAttribute('href', '/plans');
   });
@@ -263,28 +272,26 @@ describe('Free upsell → what Basic adds', () => {
     renderNextSteps({ language: 'uk' });
 
     const block = await upsellBlock(UK_HEADING);
-    expect(
-      within(block).getByText('Повний звіт Basic перевірить на всіх сторінках:'),
-    ).toBeVisible();
+    expect(within(block).getByText('Повна перевірка охопить на всіх сторінках:')).toBeVisible();
     expect(
       within(block)
         .getAllByRole('listitem')
         .map((item) => item.textContent),
     ).toEqual([
-      'Биті посилання — куди клієнт клікає і потрапляє в нікуди',
-      'Сторінки без опису, з однаковими заголовками або дублікатами',
-      'Які сторінки Google не може показати — і чому',
-      'Чи знають про ваш бізнес ШІ-помічники на кшталт ChatGPT',
+      'Биті посилання, сторінки без опису, дублікати — і які сторінки Google не може показати',
+      'Що кажуть про ваш бізнес ChatGPT і Claude та кого називають замість вас',
+      'Безпеку: сертифікати, заголовки й те, що відкрито браузеру відвідувача',
+      'Швидкість і доступність: як швидко вантажаться сторінки і хто не може ними користуватися',
     ]);
     expect(
-      within(block).getByText(`Basic — ${BASIC_PRICE}, оплата один раз, без підписки.`),
+      within(block).getByText(`Complete — ${COMPLETE_PRICE}, оплата один раз, без підписки.`),
     ).toBeInTheDocument();
     expect(
-      within(block).getByRole('button', { name: `Перевірити весь сайт за ${BASIC_PRICE}` }),
+      within(block).getByRole('button', { name: `Запустити повну перевірку за ${COMPLETE_PRICE}` }),
     ).toBeInTheDocument();
     expect(
       within(block).getByRole('link', {
-        name: 'Потрібні ще безпека, швидкість і доступність? Порівняти тарифи',
+        name: 'Потрібні лише пошук і видимість у ШІ? Порівняти тарифи',
       }),
     ).toHaveAttribute('href', '/plans');
   });
@@ -297,21 +304,25 @@ describe('Free upsell → what Basic adds', () => {
     ].map((match) => match[1]);
     expect(upsells).toHaveLength(2);
     for (const body of upsells) {
-      expect(body).toContain('${BASIC_PRICE}');
+      expect(body).toContain('${COMPLETE_PRICE}');
+      expect(body).not.toContain('BASIC_PRICE');
       expect(body).not.toMatch(/\$\d/);
     }
   });
 
-  it('opens the upgrade on Basic', async () => {
+  it('opens the upgrade on Complete, the same plan as the locked-preview button', async () => {
     stubFetch(summaryWithOpenProblems(1));
     const onUpgrade = vi.fn();
     renderNextSteps({ onUpgrade });
 
     const block = await upsellBlock(EN_HEADING);
-    fireEvent.click(within(block).getByRole('button', { name: /^Check the whole site for/ }));
+    fireEvent.click(
+      within(block).getByRole('button', { name: /^Run the complete verification for/ }),
+    );
 
     expect(onUpgrade).toHaveBeenCalledTimes(1);
-    expect(onUpgrade).toHaveBeenCalledWith('Basic');
+    expect(onUpgrade).toHaveBeenCalledWith('Complete');
+    expect(FREE_UPSELL_PLAN).toBe(FREE_UNLOCK_PLAN);
   });
 });
 

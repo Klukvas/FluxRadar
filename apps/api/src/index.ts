@@ -202,6 +202,7 @@ export function createApp(options: CreateAppOptions): Express {
     prisma: options.prisma,
     logger,
     now,
+    freeCheckAllowedOrigins,
     createAiProvider:
       options.createAiProvider ??
       ((scan: Scan, profile: SiteProfile) =>
@@ -454,7 +455,18 @@ export async function startServer(
   // One monitor for the process: the timer below refreshes the same answers
   // the launch routes read.
   const egress = createConfiguredEgressMonitor(logger);
-  const app = createApp({ prisma, logger, mailer, objectStore, actionPlanRuns, egress });
+  // Read once: the routes waive the Free limits for these origins and the worker
+  // skips their Free GEO preview (D-236), so both must see the same set.
+  const freeCheckAllowedOrigins = resolveFreeCheckAllowedOrigins(logger);
+  const app = createApp({
+    prisma,
+    logger,
+    mailer,
+    objectStore,
+    actionPlanRuns,
+    egress,
+    freeCheckAllowedOrigins,
+  });
   // Recover before listen so a newly submitted scan cannot be claimed by the
   // HTTP path while startup is requeueing jobs left by the previous process.
   const recovered = await recoverClaimedJobs(prisma);
@@ -474,6 +486,7 @@ export async function startServer(
     createRenderRuntime: () => createRenderRuntime(),
     createBingDataRunner: () => createBingDataRunner({ prisma, requestOptions: { logger } }),
     egressLocations: egress.configured,
+    freeCheckAllowedOrigins,
   };
   let queueDrainRunning = false;
   const drainQueue = async (): Promise<void> => {

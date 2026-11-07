@@ -2,6 +2,8 @@ import { useId } from 'react';
 
 import type { CheckoutConfig } from './api';
 import { Checkbox } from './components';
+import { FreeAiConsentField } from './FreeAiConsentField';
+import { FreeAiLanguageField } from './FreeAiLanguageField';
 import { copy, type Language } from './i18n';
 import { newScanCopy } from './new-scan-copy';
 import type { NewScanForm } from './new-scan-form';
@@ -48,6 +50,8 @@ export function PlanStep(props: {
     checkoutConfig,
     checkoutPending,
     choosePlan,
+    freeAiConsent,
+    freeAiLanguage,
     offeredOptInAiProviders,
     optInAiProviders,
     paidAvailable,
@@ -55,6 +59,7 @@ export function PlanStep(props: {
     paidScopeControls,
     plan,
     planOptions,
+    setFreeAiConsent,
     toggleOptInAiProvider,
   } = props.form;
   // The paid cards reserve their slots the moment the checkout configuration is
@@ -208,6 +213,16 @@ export function PlanStep(props: {
             </ScanCallout>
           ) : null}
         </>
+      ) : null}
+      {plan === 'Free' ? (
+        <FreeAiConsentField
+          language={props.language}
+          checked={freeAiConsent}
+          onChange={setFreeAiConsent}
+        />
+      ) : null}
+      {plan === 'Free' && freeAiConsent ? (
+        <FreeAiLanguageField language={props.language} aiLanguage={freeAiLanguage} />
       ) : null}
     </NewScanStep>
   );

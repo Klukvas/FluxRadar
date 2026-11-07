@@ -321,6 +321,8 @@ export interface ScanModule {
   readonly statusReason: string | null;
   readonly coverage: number | null;
   readonly score: number | null;
+  /** The denominator `score` is printed over: 40 for a Free SEO score, else 100 (D-237). */
+  readonly scoreMax?: number;
   readonly applicableChecks: number | null;
   readonly completedApplicableChecks: number | null;
   readonly usableOutput: boolean;
@@ -803,6 +805,8 @@ export interface Dashboard {
   readonly overall: {
     readonly verdict: string;
     readonly score: number | null;
+    /** The denominator `score` is printed over: 40 for Free, else 100 (D-237). */
+    readonly scoreMax?: number;
     readonly weightedCoverage: number;
     readonly moduleWeights: readonly {
       module: string;

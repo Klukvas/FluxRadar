@@ -68,9 +68,9 @@ export function metadataForRuleModule(
   // alone: an accessibility or content check reads the same markup.
   const rendering = renderingMetadata(context.rendering);
   if (plan === 'Free' && module === 'SEO') {
-    // Free runs the fixed four-rule homepage check, not the full SEO module:
-    // the paid module's structured-data and social-preview metadata would
-    // describe checks that never ran (see free-check.ts).
+    // Free runs the fixed homepage check (FREE_CHECK_RULE_IDS), not the full
+    // SEO module: the paid module's site-wide structured-data and
+    // social-preview metadata would describe counts never taken (free-check.ts).
     return JSON.stringify({ ...freeCheckMetadata(), ruleChecks });
   }
   return JSON.stringify({ ...standardMetadata(module, context), ...rendering, ruleChecks });

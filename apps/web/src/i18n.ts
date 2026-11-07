@@ -6,6 +6,7 @@ import { countForm } from './plural-forms';
 import { botCopyEn, botCopyUk } from './bot-copy';
 import { checksCopyEn, checksCopyUk } from './checks-copy';
 import { preferencesAllowed } from './browser-consent';
+import { resolveBrowserLanguage } from './browser-language';
 import { faqCopyEn, faqCopyUk } from './faq-copy';
 import { BASIC_PRICE_USD, COMPLETE_PRICE_USD, PLAN_PRICE, type PricedPlan } from './tariff-prices';
 import { tourStepCopy } from './tour-steps';
@@ -45,16 +46,21 @@ export const languageOptions: readonly { value: Language; label: string }[] = [
 
 export const LANGUAGE_QUERY_PARAM = 'lang';
 
+/** The stored choice, or the browser's language when nothing usable is stored or storage is declined. */
 export function readStoredLanguage(): Language {
+  return readStoredChoice() ?? resolveBrowserLanguage();
+}
+
+function readStoredChoice(): Language | null {
   try {
     if (!preferencesAllowed()) {
       window.localStorage.removeItem(LANGUAGE_STORAGE_KEY);
-      return 'en';
+      return null;
     }
     const stored = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
-    return isLanguage(stored) ? stored : 'en';
+    return isLanguage(stored) ? stored : null;
   } catch {
-    return 'en';
+    return null;
   }
 }
 
@@ -707,7 +713,7 @@ const BILINGUAL = {
       startInWorkspace:
         'You buy a report after signing in: choose your site and a package, and the check starts as soon as the payment goes through.',
       freeNote:
-        'There is also a free check of your homepage: the page name and description Google shows, its headings, and whether Google may show the page at all. Once per account and once per site. It is a first look at the report format, not a product of its own.',
+        'There is also a free check of your homepage: six checks — the page name Google shows, its description, its headings, whether Google may show the page, its link preview for social networks, and image alt text. It is a quick check with a homepage score out of 40; not everything is checked. The full audit checks the whole site and scores it out of 100. Once per account and once per site. It is a first look at the report format, not a product of its own.',
       coverageLink: 'See every check →',
       faqLink: 'Read the FAQ →',
       // Beside the two links the pricing block already ends on: somebody
@@ -809,9 +815,9 @@ const BILINGUAL = {
       prefillNote: 'Settings carried over from your last check of this site.',
       freeScopeTitle: 'What the free check does',
       freeScopeNote:
-        'The free check reads your homepage and nothing else: the page title, the heading structure, the meta description, and whether search engines are allowed to index it.',
+        'The free check reads your homepage and nothing else: the page title, the heading structure, the meta description, whether search engines are allowed to index it, the link preview for social networks (Open Graph/Twitter) and image alt text.',
       freeScopeLocked:
-        'Page limits, subdomains, path patterns, URL parameters and the AI visibility check belong to the paid plans and are not available on Free.',
+        'Page limits, subdomains, path patterns, URL parameters and the full AI visibility check belong to the paid plans. Free can include one optional AI answer about your business.',
       freeScopePages: 'Pages read',
       freeScopePagesValue: 'Homepage only',
       freeScopeRobots: 'robots.txt',
@@ -1173,6 +1179,10 @@ const BILINGUAL = {
       siteCoverageRead: 'We read {read} of the {found} addresses we found on your site.',
       siteCoverageComplete:
         'That is every address the crawl found, so the sections below cover the whole site.',
+      // A Free report (D-236): the free check reads the homepage alone, so
+      // "the whole site" would contradict its homepage-only score and upsell.
+      siteCoverageCompleteFree:
+        'The free check reads only the homepage, so the sections below describe the homepage, not the rest of the site.',
       siteCoveragePartial:
         'The sections below describe only the pages we read, not the whole site.',
       siteCoverageLimitedByOwner:
@@ -1303,8 +1313,9 @@ const BILINGUAL = {
       // `insufficient_data` with a weighted coverage of 0 for it — the same
       // verdict a paid scan gets when it could not read the site — so a Free
       // report used to say "Insufficient data · coverage 0%" next to an SEO
-      // section that had completed all four of its checks. These say the honest
-      // thing instead: the check ran, and this plan carries no score.
+      // section that had completed every one of its checks. These say the honest
+      // thing instead: the check ran, and this plan carries no score. Since D-236
+      // they serve only Free reports stored before Free was scored.
       unscoredLabel: 'Not scored on this plan',
       unscoredChecks: '{completed}/{applicable} checks completed',
       unscoredChecksNone: 'homepage could not be read',
@@ -1373,6 +1384,15 @@ const BILINGUAL = {
           'The external performance service did not answer. Nothing was measured for this section — run the check again to try once more.',
         aiConsentMissing:
           'The AI visibility questions were not asked because this scan has no recorded AI-processing notice for the provider. New paid audits record it automatically after showing the disclosure before launch.',
+        // The Free preview without the owner's opt-in (D-236): a choice, not a fault.
+        aiFreeConsentNotGiven:
+          'No AI question was asked: the AI answer was not included when this free check was started, so nothing was sent to any AI service.',
+        aiFreePreviewAllowlisted:
+          'No AI question was asked: this site is on the operator’s list for repeated free checks, and those never include the AI answer. Nothing was sent to any AI service.',
+        aiFreePreviewAlreadyRequested:
+          'No AI question was asked on this run: an earlier run of this check already reached the AI step, and the AI answer is never requested twice for one free check. Nothing was sent on this run.',
+        aiFreePreviewProviderUnavailable:
+          'The AI service did not answer this time, so this free check has no AI answer. Your homepage check and its score are complete and unaffected; nothing here needs action from you.',
         aiRedactionBlocked:
           'FluxRadar stopped the request itself: before anything goes to an AI service it strips out passwords, keys and other private values, and that step did not finish. Nothing was sent.',
         aiQuotaExceeded:
@@ -1695,11 +1715,13 @@ const BILINGUAL = {
           'SEC-PASSIVE-007': 'SPF or DMARC protection is missing or unsafe',
           'A11Y-012': 'Page prevents visitors from zooming in',
           'CONTENT-011': 'Placeholder text is still published',
-          // The four Free checks, which a Free report names on its SEO card.
+          // The Free checks (FREE_CHECK_RULE_IDS), which a Free report names on its SEO card.
           'SEO-ONPAGE-001': 'Page title',
           'SEO-ONPAGE-002': 'Page description for search (meta description)',
           'SEO-ONPAGE-003': 'Heading structure (H1–H6)',
           'SEO-TECH-008': 'Whether search engines may list the page (noindex)',
+          'SEO-SOCIAL-001': 'Link preview for social networks (Open Graph)',
+          'SEO-ONPAGE-005': 'Image alt text',
           'A11Y-001': 'Text contrast',
           'A11Y-002': 'Image alt text',
           'A11Y-003': 'Page language and heading structure',
@@ -2774,7 +2796,7 @@ const BILINGUAL = {
       startInWorkspace:
         'Купити звіт можна після входу: оберіть свій сайт і пакет, і щойно пройде оплата, перевірка почнеться.',
       freeNote:
-        'Є також безкоштовна перевірка головної сторінки: назва й опис, які показує Google, підзаголовки і чи дозволено Google показувати сторінку. Один раз на акаунт і один раз на сайт. Це перший погляд на формат звіту, а не окремий продукт.',
+        'Є також безкоштовна перевірка головної сторінки: шість перевірок — назва, яку показує Google, опис сторінки, підзаголовки, чи дозволено Google показувати сторінку, превʼю посилання для соцмереж і alt-текст зображень. Це швидка перевірка з оцінкою головної сторінки з 40; перевірено не все. Повний аудит перевіряє весь сайт і оцінює його за шкалою зі 100. Один раз на акаунт і один раз на сайт. Це перший погляд на формат звіту, а не окремий продукт.',
       coverageLink: 'Переглянути всі перевірки →',
       faqLink: 'Читати FAQ →',
       exampleLink: 'Подивитися готовий приклад звіту →',
@@ -2867,9 +2889,9 @@ const BILINGUAL = {
       prefillNote: 'Налаштування перенесено з вашої попередньої перевірки цього сайту.',
       freeScopeTitle: 'Що робить безкоштовна перевірка',
       freeScopeNote:
-        'Безкоштовна перевірка читає лише головну сторінку: заголовок сторінки, структуру заголовків, meta description і чи дозволено пошуковим системам індексувати сторінку.',
+        'Безкоштовна перевірка читає лише головну сторінку: заголовок сторінки, структуру заголовків, meta description, чи дозволено пошуковим системам індексувати сторінку, превʼю посилання для соцмереж (Open Graph/Twitter) і alt-текст зображень.',
       freeScopeLocked:
-        'Ліміти сторінок, піддомени, шаблони шляхів, параметри URL і перевірка AI-видимості належать до платних тарифів і недоступні на Free.',
+        'Ліміти сторінок, піддомени, шаблони шляхів, параметри URL і повна перевірка AI-видимості належать до платних тарифів. Free може містити одну необовʼязкову відповідь ШІ про ваш бізнес.',
       freeScopePages: 'Прочитано сторінок',
       freeScopePagesValue: 'Лише головна',
       freeScopeRobots: 'robots.txt',
@@ -3180,6 +3202,8 @@ const BILINGUAL = {
       siteCoverageRead: 'Ми прочитали {read} з {found} адрес, які знайшли на вашому сайті.',
       siteCoverageComplete:
         'Це всі адреси, які знайшов обхід, тож розділи нижче охоплюють увесь сайт.',
+      siteCoverageCompleteFree:
+        'Безкоштовна перевірка читає лише головну сторінку, тож розділи нижче описують головну, а не решту сайту.',
       siteCoveragePartial: 'Розділи нижче описують лише прочитані сторінки, а не весь сайт.',
       siteCoverageLimitedByOwner:
         'Ваші налаштування перевірки обмежують її {limit} сторінками, тому решту сайту не прочитано. Підніміть ліміт сторінок перед наступною перевіркою, щоб охопити більше.',
@@ -3346,6 +3370,14 @@ const BILINGUAL = {
           'Зовнішній сервіс швидкодії не відповів. Для цього розділу нічого не виміряно — запустіть перевірку ще раз, щоб спробувати знову.',
         aiConsentMissing:
           'Питання про видимість в AI не ставилися, бо для цієї перевірки немає запису про повідомлення щодо AI-обробки цим провайдером. Нові платні аудити записують його автоматично після показу дисклеймера перед запуском.',
+        aiFreeConsentNotGiven:
+          'Питання ШІ не ставилося: запускаючи цю безкоштовну перевірку, відповідь ШІ не додали, тож жоден ШІ-сервіс нічого не отримав.',
+        aiFreePreviewAllowlisted:
+          'Питання ШІ не ставилося: цей сайт у списку оператора для повторних безкоштовних перевірок, а вони ніколи не містять відповіді ШІ. Жоден ШІ-сервіс нічого не отримав.',
+        aiFreePreviewAlreadyRequested:
+          'Цього разу питання ШІ не ставилося: попередній запуск цієї перевірки вже дійшов до кроку ШІ, а для однієї безкоштовної перевірки відповідь ШІ двічі не запитують. Цього разу нічого не надсилалося.',
+        aiFreePreviewProviderUnavailable:
+          'ШІ-сервіс цього разу не відповів, тож у цій безкоштовній перевірці немає відповіді ШІ. Перевірка головної сторінки та її оцінка повні й не змінилися; від вас нічого не потрібно.',
         aiRedactionBlocked:
           'FluxRadar сама зупинила запит: перед надсиланням до AI-сервісу вона вилучає паролі, ключі та інші приватні значення, і цей крок не завершився. Нічого не надіслано.',
         aiQuotaExceeded:
@@ -3616,6 +3648,8 @@ const BILINGUAL = {
           'SEO-ONPAGE-002': 'Опис сторінки для пошуку (meta description)',
           'SEO-ONPAGE-003': 'Структура заголовків (H1–H6)',
           'SEO-TECH-008': 'Чи може пошуковик показувати сторінку (noindex)',
+          'SEO-SOCIAL-001': 'Превʼю посилання для соцмереж (Open Graph)',
+          'SEO-ONPAGE-005': 'Alt-текст зображень',
           'A11Y-001': 'Контраст тексту',
           'A11Y-002': 'Альтернативний текст зображень',
           'A11Y-003': 'Мова сторінки та структура заголовків',

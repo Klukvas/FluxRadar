@@ -31,6 +31,7 @@ import {
   type ConfigurationState,
 } from './new-scan-configuration';
 import { usePlanSelected } from './funnel-analytics';
+import { useFreeAiLanguage, type FreeAiLanguage } from './use-free-ai-language';
 import { requestScan } from './new-scan-request';
 import { PAID_PLAN_ORDER, PLAN_MODULES, type PaidPlan, type Plan } from './plan-modules';
 import {
@@ -81,9 +82,12 @@ export interface NewScanFormProps {
   onError: (value: string) => void;
   /**
    * The plan the owner already chose — on the pricing cards before signing up,
-   * with a report's upgrade button (Basic from a Free report, Complete from a
-   * locked Action Plan), or on the dashboard card (Basic after a Free scan).
-   * Applied once, and only when that plan can actually be bought here.
+   * with a report's upgrade button (Complete from a Free report's upsell or
+   * locked preview, and from a locked Action Plan), or on the dashboard card
+   * (Basic after a Free scan).
+   * Applied once, and only when that plan can actually be bought here. Once
+   * applied, the request stands — including when the site's saved settings load
+   * or reload afterwards — until the owner picks a plan themselves.
    */
   initialPlan?: Plan | null;
   /**
@@ -159,6 +163,11 @@ export interface NewScanForm {
    */
   readonly offeredOptInAiProviders: readonly AiProcessingOptInProvider[];
   readonly optInAiProviders: readonly AiProcessingOptInProvider[];
+  /** Free only: whether the owner opted in to the one-question AI preview. */
+  readonly freeAiConsent: boolean;
+  readonly setFreeAiConsent: (selected: boolean) => void;
+  /** Free only: the language the AI question is asked in (site's first, D-237). */
+  readonly freeAiLanguage: FreeAiLanguage;
   /** What the submit button says right now, including while it is working. */
   readonly launchLabel: string;
   readonly paidAvailable: boolean;
@@ -291,6 +300,13 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   const [optInAiProviders, setOptInAiProviders] = useState<readonly AiProcessingOptInProvider[]>(
     [],
   );
+  // Off until the owner ticks it: a Free check sends nothing to an AI service
+  // on its own (D-236).
+  const [freeAiConsent, setFreeAiConsent] = useState(false);
+  const freeAiLanguage = useFreeAiLanguage(
+    props.profiles.find((profile) => profile.id === target) ?? null,
+    props.language,
+  );
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   // A profile switch loads a fresh persisted configuration. Its fields must not
   // inherit a discard warning from the profile the owner just left.
@@ -414,6 +430,8 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
    * that choosing a plan is three state changes.
    */
   const choosePlan = (chosen: Plan): void => {
+    // The owner's own choice replaces the plan the form was opened for.
+    requestedPlanRef.current = null;
     setHasUnsavedChanges(true);
     setPlan(chosen);
     setScope((current) => clampScopeToPlan(current, chosen));
@@ -453,6 +471,13 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   // seconds earlier. Another site, or a version written elsewhere, still loads.
   const lastLoadedTargetRef = useRef<string | null>(null);
   const writtenVersionRef = useRef<number | null>(null);
+  // The plan this form was opened for (an upgrade button, a pricing card, the
+  // dashboard's free check), once applied below. The saved settings can load —
+  // or load again, when the profile list is re-read — after it was applied, and
+  // restoring the saved plan then silently replaced the request: a Free report's
+  // "Unlock with the complete verification" opened the form on Free. The
+  // request stands until the owner picks a plan themselves.
+  const requestedPlanRef = useRef<Plan | null>(null);
 
   /** Opens the form on the reusable settings stored with the selected profile. */
   useEffect(() => {
@@ -472,12 +497,18 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     if (selected?.scanConfig != null) {
       setConfigLoading(false);
       const restored = restoredProfileForm(selected, paidAvailable);
-      setPlan(restored.plan);
-      setScope(restored.scope);
+      const requested = requestedPlanRef.current;
+      setPlan(requested ?? restored.plan);
+      setScope(requested === null ? restored.scope : clampScopeToPlan(restored.scope, requested));
       setCarriedOver(true);
       setSavedConfigFingerprint(restored.fingerprint);
       setSavedConfigVersion(restored.version);
-      setHasUnsavedChanges(restored.hasUnsavedChanges);
+      // A requested plan that differs from the saved one is a change to the
+      // saved settings, exactly as when it was first applied (below).
+      setHasUnsavedChanges(
+        restored.hasUnsavedChanges ||
+          (requested !== null && requested !== selected.scanConfig.plan),
+      );
       return;
     }
     let cancelled = false;
@@ -511,6 +542,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     if (initialPlanApplied.current || initialPlan == null) return;
     if (initialPlan !== 'Free' && !paidAvailable) return;
     initialPlanApplied.current = true;
+    requestedPlanRef.current = initialPlan;
     // A plan chosen on a pricing card is a change to the saved configuration,
     // and the launch saves it as a new version before the checkout opens. The
     // panel has to say so first: a visitor who pressed "Choose Complete" on a
@@ -663,6 +695,8 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
         // record consent to a recipient this scan never asks — the same
         // inaccuracy as the notice promising a transfer that does not happen.
         optInAiProviders: selectedOptInAiProviders,
+        freeAiConsent: plan === 'Free' && freeAiConsent,
+        language: freeAiLanguage.language,
         internalFreeAccess: props.internalFreeAccess,
         idempotencyKey: checkoutKey,
         onCheckoutStarted: props.onCheckoutStarted,
@@ -778,6 +812,9 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     apiCheckProblems,
     offeredOptInAiProviders,
     optInAiProviders,
+    freeAiConsent,
+    setFreeAiConsent,
+    freeAiLanguage,
     launchLabel,
     paidAvailable,
     paidScopeControls,

@@ -2,9 +2,14 @@ import { apiRequest, type CheckoutSession, type Scan } from './api';
 import type { PendingCheckout } from './Checkout';
 import { trackBeginCheckout } from './checkout-analytics';
 import { trackScanStarted } from './funnel-analytics';
-import { AI_PROCESSING_NOTICE_VERSION, AI_PROCESSING_PROVIDERS } from './ai-processing-notice';
+import {
+  AI_PROCESSING_NOTICE_VERSION,
+  AI_PROCESSING_PROVIDERS,
+  FREE_AI_PROCESSING_PROVIDERS,
+} from './ai-processing-notice';
 import type { AiProcessingOptInProvider } from './ai-processing-notice';
 import type { Plan } from './plan-modules';
+import type { AiLanguage } from './site-language';
 import type { ScanScopePayload } from './scan-scope';
 
 /**
@@ -28,6 +33,20 @@ export interface ScanRequest {
    * Empty is the normal case, and a provider absent from it receives nothing.
    */
   readonly optInAiProviders: readonly AiProcessingOptInProvider[];
+  /**
+   * Free only: the owner ticked the one-question AI preview. Unticked sends no
+   * record, and the preview then asks nothing (D-236).
+   */
+  readonly freeAiConsent?: boolean;
+  /**
+   * Free only: the language the AI preview asks and is judged in — the owner's
+   * choice, else the site's language, else the UI language at launch (D-237).
+   * It stays fixed for the scan: a later UI switch changes the labels, never
+   * the stored texts. Sent only together with the AI consent: without it no
+   * question is asked, and the server derives the language from the profile
+   * itself should it ever need one. Paid requests do not send it.
+   */
+  readonly language?: AiLanguage;
   readonly internalFreeAccess: boolean;
   /**
    * The per-draft idempotency key the form minted for this launch. Sent on the
@@ -44,7 +63,19 @@ export async function requestScan(request: ScanRequest): Promise<Scan | null> {
   if (plan === 'Free') {
     const scan = await apiRequest<Scan>(`/profiles/${profileId}/free-check`, {
       method: 'POST',
-      body: JSON.stringify({ scope, expectedProfileConfigVersion }),
+      body: JSON.stringify({
+        scope,
+        expectedProfileConfigVersion,
+        ...(request.freeAiConsent === true
+          ? {
+              ...(request.language !== undefined ? { language: request.language } : {}),
+              aiConsent: {
+                providers: [...FREE_AI_PROCESSING_PROVIDERS],
+                noticeVersion: AI_PROCESSING_NOTICE_VERSION,
+              },
+            }
+          : {}),
+      }),
     });
     trackScanStarted(scan);
     return scan;

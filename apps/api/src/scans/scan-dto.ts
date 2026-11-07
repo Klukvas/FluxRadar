@@ -4,6 +4,8 @@ import { parseCrawlSummary, readStoredPlan, scanScopeSchema } from '@fluxradar/c
 import { egressLocationView } from '../integrations/crawl-egress-locations.ts';
 import { recordedEgressLocation, storedExecutionConfig } from '../profiles/execution-config.ts';
 import { LEGACY_COVERAGE_PROOF_KEY } from '../orchestrator/run-coverage.ts';
+import { moduleScoreView } from './free-score-view.ts';
+import { sortModules } from './module-order.ts';
 import { isReportSnapshotReady } from './report-readiness.ts';
 
 const TERMINAL_MODULE_STATUSES = new Set(['Completed', 'Partial', 'Unavailable', 'Not applicable']);
@@ -39,17 +41,23 @@ export function toScanDto(
     startedAt: scan.startedAt?.toISOString() ?? null,
     completedAt: scan.completedAt?.toISOString() ?? null,
     createdAt: scan.createdAt.toISOString(),
-    modules: modules.map(toModuleDto),
+    // Canonical order, never the database's row order (module-order.ts).
+    modules: sortModules(modules).map((module) => toModuleDto(module, scan.plan)),
   };
 }
 
-export function toModuleDto(module: ScanModule): Record<string, unknown> {
+/**
+ * A module as a report reads it. `plan` is the scan's stored plan: a Free SEO
+ * score is shown out of 40 (`scoreMax: 40`, D-237), every other score as stored
+ * over `scoreMax: 100`.
+ */
+export function toModuleDto(module: ScanModule, plan: string): Record<string, unknown> {
   return {
     module: module.module,
     status: module.runtimeStatus,
     statusReason: module.statusReason,
     coverage: module.coverage,
-    score: module.score,
+    ...moduleScoreView(plan, module.module, module.score),
     applicableChecks: module.applicableChecks,
     completedApplicableChecks: module.completedApplicableChecks,
     usableOutput: module.usableOutput,

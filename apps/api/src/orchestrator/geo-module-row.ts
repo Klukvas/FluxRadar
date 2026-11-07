@@ -52,14 +52,16 @@ import type { assessAiCrawlerReadiness } from '@fluxradar/rules';
 
 import { redactEvidence } from './ai-evidence.ts';
 import { GEO_PROVIDER_DISPLAY_NAMES } from './geo.ts';
+import type { FreeGeoSkipReason } from './free-geo.ts';
 import type { GeoQuestionGenerationResult } from './geo.ts';
+import type { GeoScope } from './module-plan.ts';
 import type { ModuleRowData } from './module-row.ts';
 
 /**
  * Почему у строки GEO нет score.
  *
  * §15/§16 запрещают обычному Completed-модулю нести status_reason, поэтому
- * причина едет в metadata — тем же механизмом, что FREE_CHECK_SCORING_REASON.
+ * причина едет в metadata (как когда-то NotScoredOnFreePlan у Free до D-236).
  */
 export const GEO_SCORING_REASON = 'InformationalOnly';
 
@@ -239,6 +241,11 @@ const QUESTION_METHOD =
   'search enabled, plus closed-book questions about the business asked without search ' +
   'or tools';
 
+/** The Free preview's method (D-236): one question, one provider, no search. */
+const FREE_PREVIEW_QUESTION_METHOD =
+  'Free preview: one closed-book question about the business asked of Anthropic without ' +
+  'search or tools; no discovery questions and no other provider';
+
 /**
  * What this scan did with its answers after they came back, in the row's own words.
  *
@@ -249,17 +256,22 @@ const QUESTION_METHOD =
  * described a check that never ran for those scans, which is exactly the claim
  * the metadata must not make.
  */
-function evaluationMethod(tally: EvaluationTally, evidence: GeoEvidenceSnapshot | null): string {
+function evaluationMethod(
+  tally: EvaluationTally,
+  evidence: GeoEvidenceSnapshot | null,
+  scope: GeoScope,
+): string {
+  const method = scope === 'free-preview' ? FREE_PREVIEW_QUESTION_METHOD : QUESTION_METHOD;
   if (evidence === null) {
-    return `${QUESTION_METHOD}; no answer was evaluated, because this scan sent no site evidence for judging`;
+    return `${method}; no answer was evaluated, because this scan sent no site evidence for judging`;
   }
   if (tally.completed === 0) {
     return tally.attempted === 0
-      ? `${QUESTION_METHOD}; no answer reached evaluation against this scan’s own evidence`
-      : `${QUESTION_METHOD}; none of the ${tally.attempted} evaluations against this scan’s own evidence completed`;
+      ? `${method}; no answer reached evaluation against this scan’s own evidence`
+      : `${method}; none of the ${tally.attempted} evaluations against this scan’s own evidence completed`;
   }
   return (
-    `${QUESTION_METHOD}; ${tally.completed} of ${tally.attempted} answers evaluated separately ` +
+    `${method}; ${tally.completed} of ${tally.attempted} answers evaluated separately ` +
     'against this scan’s own evidence'
   );
 }
@@ -455,6 +467,7 @@ export function geoModuleRow(
   brand: string,
   /** Up to 5 competitor names (T7); matched locally, never sent to a provider. */
   competitors: readonly string[] = [],
+  scope: GeoScope = 'full',
 ): ModuleRowData {
   const reasonParts = statusReasonParts(geo, generation);
   // Each answer's evaluation is a check of its own: a judge that could not run
@@ -483,6 +496,10 @@ export function geoModuleRow(
     metadataJson: JSON.stringify({
       standard: 'AI crawler readiness',
       scoring: GEO_SCORING_REASON,
+      ...(scope === 'free-preview' ? { freePreview: true } : {}),
+      // The language the questions were asked in (W1), recorded here rather than
+      // in the prompt version, whose `-closed-book` suffix names the purpose.
+      ...(geo.language !== undefined ? { language: geo.language } : {}),
       automation: aiCrawlerReadiness.automation,
       providerTokenRequired: aiCrawlerReadiness.providerTokenRequired,
       robots: aiCrawlerReadiness.robots,
@@ -496,8 +513,8 @@ export function geoModuleRow(
         // Per purpose, because it is no longer one answer for the module: a
         // discovery question needs a searching assistant, a direct one is
         // answered from memory or not at all.
-        webSearch: { discovery: true, closedBook: false },
-        method: evaluationMethod(tally, evidence),
+        webSearch: { discovery: scope === 'full', closedBook: false },
+        method: evaluationMethod(tally, evidence, scope),
         interpretation: evaluationInterpretation(tally, evidence),
         observations: geoObservations(geo),
         evidence: evidenceRecord(evidence),
@@ -507,6 +524,52 @@ export function geoModuleRow(
         visibilitySummary: visibilitySummaryRecord(geo, siteDomain, brand, competitors),
         answerDigest: answerDigestRecord(geo, extras.positions, extras.positionInput),
         requests: geo.outcomes.map((outcome) => requestRecord(geo, extras, outcome)),
+      },
+    }),
+  };
+}
+
+/**
+ * The GEO row of a Free preview that asked nothing (D-236): Not applicable,
+ * zero checks, the reason named. No request was built, so the row carries the
+ * crawler-readiness facts the crawl already had and an empty request list.
+ */
+export function freePreviewSkippedRow(
+  reason: FreeGeoSkipReason,
+  aiCrawlerReadiness: ReturnType<typeof assessAiCrawlerReadiness>,
+): ModuleRowData {
+  const coverage = computeCoverage({
+    applicableChecks: 0,
+    completedApplicableChecks: 0,
+    statusReason: reason,
+  });
+  return {
+    runtimeStatus: coverage.status,
+    statusReason: coverage.statusReason,
+    coverage: coverage.coverage,
+    score: null,
+    applicableChecks: coverage.applicableChecks,
+    completedApplicableChecks: coverage.completedApplicableChecks,
+    usableOutput: false,
+    metadataJson: JSON.stringify({
+      standard: 'AI crawler readiness',
+      scoring: GEO_SCORING_REASON,
+      freePreview: true,
+      // The sticky proof (free-geo.ts): only a run that refused because the AI
+      // step was already reached carries it; the other skips sent nothing.
+      ...(reason === 'FreePreviewAlreadyRequested' ? { previewRequested: true } : {}),
+      automation: aiCrawlerReadiness.automation,
+      providerTokenRequired: aiCrawlerReadiness.providerTokenRequired,
+      robots: aiCrawlerReadiness.robots,
+      pages: aiCrawlerReadiness.pages,
+      limitations: aiCrawlerReadiness.limitations,
+      providerVisibility: {
+        status: coverage.status,
+        statusReason: coverage.statusReason,
+        requiresConsent: true,
+        providers: [],
+        method: FREE_PREVIEW_QUESTION_METHOD,
+        requests: [],
       },
     }),
   };

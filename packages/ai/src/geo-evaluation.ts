@@ -26,6 +26,11 @@ import type { AiRequestCapsShape } from '@fluxradar/contracts';
 import { noticeCoversGeoTone } from './consent.js';
 import type { AiConsent } from './consent.js';
 import { AiModuleError, AiRequestCancelledError, RedactionBlockedError } from './errors.js';
+import {
+  geoEvaluationCapsFor,
+  geoEvaluationSystemInstructionsFor,
+  type GeoAnswerLanguage,
+} from './geo-evaluation-language.js';
 import { renderGeoEvidence, evidenceSourceById, type GeoEvidenceSnapshot } from './geo-evidence.js';
 import {
   GEO_TONE_NOT_JUDGED,
@@ -334,6 +339,11 @@ export interface GeoEvaluationRequestInput {
    */
   readonly judgeTone: boolean;
   /**
+   * The answer's language (W1, D-237): `uk` asks for Ukrainian claim texts in the
+   * system prompt only. Absent or `en` leaves the request byte-identical.
+   */
+  readonly language?: GeoAnswerLanguage;
+  /**
    * The answer's own request sequence, so the judge's key is stable.
    *
    * Not the position in the list of answers that happened to succeed: a retry
@@ -367,14 +377,17 @@ export function buildGeoEvaluationRequest(input: GeoEvaluationRequestInput): AiR
     ].join('\n\n'),
     brandFacts: [],
     pageTitles: [],
-    systemInstructions: GEO_EVALUATION_SYSTEM_INSTRUCTIONS,
+    systemInstructions: geoEvaluationSystemInstructionsFor(
+      GEO_EVALUATION_SYSTEM_INSTRUCTIONS,
+      input.language,
+    ),
     // Bounded classification against supplied text: adaptive thinking would only
     // take budget from the JSON the parser needs to see in full.
     reasoningMode: 'disabled',
     responseSchema: judgeTone
       ? GEO_EVALUATION_RESPONSE_SCHEMA_V2
       : GEO_EVALUATION_RESPONSE_SCHEMA_V1,
-    caps: GEO_EVALUATION_CAPS,
+    caps: geoEvaluationCapsFor(GEO_EVALUATION_CAPS, input.language),
   };
 }
 

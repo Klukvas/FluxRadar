@@ -10,6 +10,7 @@ import { noticeCoversGeoTone } from './consent.js';
 import type { AiConsent } from './consent.js';
 import { AiModuleError, AiRequestCancelledError } from './errors.js';
 import { evaluateGeoAnswer, geoEvaluationPromptVersion } from './geo-evaluation.js';
+import type { GeoAnswerLanguage } from './geo-evaluation-language.js';
 import type {
   GeoAnswerEvaluation,
   GeoAnswerPurpose,
@@ -48,6 +49,11 @@ export interface GeoModuleInput {
    * never implies a check that did not run.
    */
   readonly evidence?: GeoEvidenceSnapshot | null;
+  /**
+   * The language the answers were asked in (W1, D-237). Only the judge reads
+   * it, to write its claim texts in that language; absent means English.
+   */
+  readonly language?: GeoAnswerLanguage;
 }
 
 export interface GeoModuleOptions {
@@ -112,6 +118,8 @@ export interface GeoModuleResult {
    * и ScanCancelled-вердикты в `answerEvaluations`.
    */
   readonly interrupted: boolean;
+  /** The language the run was asked in, echoed from the input; absent means English. */
+  readonly language?: GeoAnswerLanguage;
 }
 
 /** Причина незавершённости прерванного отменой прогона (§16). */
@@ -316,6 +324,7 @@ async function evaluateAnswers(
           // across a retry, however many of its siblings failed that time.
           index: answer.request.sequence,
           consent: input.consent,
+          ...(input.language !== undefined ? { language: input.language } : {}),
         },
         {
           provider: options.provider,
@@ -455,5 +464,6 @@ export async function runGeoModule(
     // заставшая проход судей, вопросов уже не касается: она видна здесь и в
     // ScanCancelled-вердиктах, из которых строка модуля получает свой Partial.
     interrupted: interrupted || evaluated.cancelled,
+    ...(input.language !== undefined ? { language: input.language } : {}),
   };
 }

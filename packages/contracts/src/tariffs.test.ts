@@ -7,6 +7,7 @@ import {
   SIDE_SCORE_MODULES,
   TARIFFS,
   normalizeScoreWeights,
+  planPreviewModules,
   planRunsModule,
   planSupports,
 } from './tariffs.js';
@@ -15,13 +16,30 @@ const weightSum = (weights: Readonly<Partial<Record<string, number>>>): number =
   Object.values(weights).reduce((sum: number, weight) => sum + (weight ?? 0), 0);
 
 describe('tariff matrix §18', () => {
-  it('sums score weights of scoring plans to exactly 1.0', () => {
+  it('sums score weights of every plan to exactly 1.0', () => {
+    expect(weightSum(TARIFFS.Free.scoreWeights)).toBeCloseTo(1, 10);
     expect(weightSum(TARIFFS.Basic.scoreWeights)).toBeCloseTo(1, 10);
     expect(weightSum(TARIFFS.Complete.scoreWeights)).toBeCloseTo(1, 10);
   });
 
-  it('computes no score for Free', () => {
-    expect(TARIFFS.Free.scoreWeights).toEqual({});
+  // D-236 reverses D-123's "Free score is not calculated": Free scores its
+  // homepage SEO rules, and its GEO preview never enters that number.
+  it('scores Free from the homepage SEO check alone', () => {
+    expect(TARIFFS.Free.scoreWeights).toEqual({ SEO: 1 });
+    expect(TARIFFS.Free.scoreWeights).not.toHaveProperty('AI SEO / GEO');
+  });
+
+  it('runs the GEO module on Free only as an unscored preview', () => {
+    expect(planPreviewModules('Free')).toEqual(['AI SEO / GEO']);
+    expect(planPreviewModules('Basic')).toEqual([]);
+    expect(planPreviewModules('Complete')).toEqual([]);
+    expect(planPreviewModules('WebsiteAudit')).toEqual([]);
+    for (const plan of PLANS) {
+      for (const preview of TARIFFS[plan].previewModules) {
+        expect(TARIFFS[plan].scoreWeights).not.toHaveProperty(preview);
+        expect(TARIFFS[plan].modules).not.toContain(preview);
+      }
+    }
   });
 
   it('fixes the §15 weights per module', () => {
@@ -58,7 +76,8 @@ describe('tariff matrix §18', () => {
     expect(TARIFFS.Free).toMatchObject({
       priceUsd: 0,
       urlLimit: 1,
-      aiRequestLimit: 0,
+      // One closed-book question and one evaluation of its answer (D-236).
+      aiRequestLimit: 2,
       retentionDays: 30,
     });
     expect(TARIFFS.Basic).toMatchObject({
@@ -83,7 +102,7 @@ describe('tariff matrix §18', () => {
   });
 
   it('weights every scored module the plan runs, and only those', () => {
-    for (const plan of ['Basic', 'Complete'] as const) {
+    for (const plan of PLANS) {
       const scored = TARIFFS[plan].modules.filter((module) => !SIDE_SCORE_MODULES.includes(module));
       expect(Object.keys(TARIFFS[plan].scoreWeights).sort()).toEqual([...scored].sort());
     }
@@ -123,12 +142,14 @@ describe('tariff matrix §18', () => {
     expect(ENTITLEMENT_DAYS).toBe(30);
   });
 
-  it('fixes the Free homepage check to the four §18 rules in order', () => {
+  it('fixes the Free homepage check to the §18 rules plus the D-237 additions, in order', () => {
     expect(FREE_CHECK_RULE_IDS).toEqual([
       'SEO-ONPAGE-001',
       'SEO-ONPAGE-003',
       'SEO-ONPAGE-002',
       'SEO-TECH-008',
+      'SEO-SOCIAL-001',
+      'SEO-ONPAGE-005',
     ]);
   });
 });

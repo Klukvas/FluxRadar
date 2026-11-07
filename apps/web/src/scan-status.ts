@@ -6,6 +6,7 @@
 // the progress window, in the reports list and on the report itself — and so a
 // new locale is a translation, not another switch statement.
 
+import { FREE_SCORE_MAX, freeScoreCopy, isFreeScale } from './free-score-copy';
 import { INTL_LOCALES, copy, type Language } from './i18n';
 import { isNotApplicable } from './module-status';
 import type { ScanModule } from './api';
@@ -78,15 +79,22 @@ export function moduleResultLabel(module: ScanModule, language: Language): strin
 }
 
 /**
- * The wire value a module row uses to say its plan carries no score.
+ * The wire value a Free module row stored before D-236 used to say its plan
+ * carried no score.
  *
- * §15/§16 forbid an ordinary `Completed` module from carrying a status_reason,
- * so the reason a Free row has no number travels in the row's own metadata
- * instead. This is the API's `FREE_CHECK_SCORING_REASON`, matched as a literal
- * because the web app does not depend on the contracts package; the producing
- * side pins the same string in free-check-metadata.test.ts.
+ * Free now scores its homepage check (the row carries a number and
+ * `scoreScope: 'homepage'`), so nothing writes this any more. Rows written
+ * before that change are still within their retention window and still say it,
+ * so it is read — and only read — here and by `isLegacyUnscoredReport`. The API
+ * pins the literal as `LEGACY_FREE_CHECK_SCORING_REASON` (free-check.ts); the
+ * web app does not depend on the contracts package, so it is matched as one.
  */
 const NOT_SCORED_ON_PLAN = 'NotScoredOnFreePlan';
+
+/** Whether a report predates the Free score: a row says its plan carried none. */
+export function isLegacyUnscoredReport(modules: readonly ScanModule[]): boolean {
+  return modules.some((module) => module.metadata?.scoring === NOT_SCORED_ON_PLAN);
+}
 
 /**
  * The wire value a module row uses to say its checks are informational.
@@ -118,7 +126,11 @@ const INFORMATIONAL_ONLY = 'InformationalOnly';
  */
 export function moduleScoreLabel(module: ScanModule, language: Language): string {
   if (module.score !== null) {
-    return module.score.toFixed(2);
+    // A Free SEO score is shown out of 40 by the API (D-237): "39 / 40". A paid
+    // one keeps its stored two decimals.
+    return isFreeScale(module.scoreMax)
+      ? freeScoreCopy[language].valueOverMax(Math.round(module.score), FREE_SCORE_MAX)
+      : module.score.toFixed(2);
   }
   const t = copy[language].report;
   if (!module.usableOutput) {

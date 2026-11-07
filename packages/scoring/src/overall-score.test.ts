@@ -197,8 +197,10 @@ describe('computeOverallScore — вырожденные состояния (§1
     expect(result.moduleWeights).toHaveLength(8);
   });
 
-  it('нулевой знаменатель tariff weights (Free) → insufficient_data (D-123)', () => {
-    const result = computeOverallScore('Free', []);
+  it('нулевой знаменатель tariff weights → insufficient_data без исключения (D-123)', () => {
+    // Free больше не пустой тариф (D-236); вырожденный случай — устаревший план
+    // без единого сохранённого модуля.
+    const result = computeStoredScanOverallScore('Legacy', []);
     expect(result.verdict).toBe('insufficient_data');
     expect(result.score).toBeNull();
     expect(result.weightedCoverage).toBe(0);
@@ -337,5 +339,52 @@ describe('computeStoredScanOverallScore — scan of a retired plan', () => {
     expect(computeStoredScanOverallScore('Basic', modules)).toEqual(
       computeOverallScore('Basic', modules),
     );
+  });
+});
+
+// D-236: Free scores its homepage rules (FREE_CHECK_RULE_IDS); the GEO preview is shown and never weighted.
+describe('computeOverallScore — Free homepage score', () => {
+  it('equals the SEO module score with full weight', () => {
+    const result = computeOverallScore('Free', [moduleSummary({ module: 'SEO', score: 87.5 })]);
+    expect(result).toEqual({
+      verdict: 'normal',
+      score: 87.5,
+      weightedCoverage: 1,
+      moduleWeights: [{ module: 'SEO', tariffWeight: 1, effectiveWeight: 1 }],
+    });
+  });
+
+  it('is bounded to 0-100 and identical for the same input', () => {
+    for (const score of [0, 42.25, 100]) {
+      const input = [moduleSummary({ module: 'SEO', score })];
+      const first = computeOverallScore('Free', input);
+      expect(first.score).toBe(score);
+      expect(computeOverallScore('Free', input)).toEqual(first);
+      expect(first.score).toBeGreaterThanOrEqual(0);
+      expect(first.score).toBeLessThanOrEqual(100);
+    }
+  });
+
+  it('is not moved by the GEO preview, whatever it ended as', () => {
+    const seo = moduleSummary({ module: 'SEO', score: 75 });
+    const alone = computeOverallScore('Free', [seo]);
+    for (const geo of [
+      moduleSummary({ module: 'AI SEO / GEO', score: null }),
+      moduleSummary({ module: 'AI SEO / GEO', score: 100 }),
+      unavailable('AI SEO / GEO'),
+      notApplicable('AI SEO / GEO'),
+    ]) {
+      expect(computeOverallScore('Free', [seo, geo])).toEqual(alone);
+      expect(computeStoredScanOverallScore('Free', [seo, geo])).toEqual(alone);
+    }
+  });
+
+  it('still refuses a paid module that no Free tariff weight or preview covers', () => {
+    expect(() =>
+      computeOverallScore('Free', [
+        moduleSummary({ module: 'SEO', score: 75 }),
+        moduleSummary({ module: 'Security', score: 90 }),
+      ]),
+    ).toThrow(/Security/);
   });
 });

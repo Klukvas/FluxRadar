@@ -33,7 +33,8 @@ import { PLAN_ORDER, type PaidPlan, type Plan } from './plan-modules';
 import { TERMINAL_SCAN_STATUSES } from './scan-status';
 
 /** Where an upgrade button sits. */
-export type UpgradeSource = 'free_report' | 'dashboard' | 'action_plan';
+export type UpgradeSource =
+  'free_report' | 'free_locked_preview' | 'free_score' | 'dashboard' | 'action_plan';
 
 /**
  * How long the form has to hold a plan before it counts as chosen. The form

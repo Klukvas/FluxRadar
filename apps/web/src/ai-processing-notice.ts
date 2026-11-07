@@ -10,6 +10,14 @@ export const AI_PROCESSING_NOTICE_VERSION = 'core-ai-processing-notice-v6';
 export const AI_PROCESSING_PROVIDERS = ['anthropic', 'openai'] as const;
 
 /**
+ * The one recipient of a Free check's AI preview (D-236): one closed-book
+ * question about the business, and the check of that answer against the
+ * homepage. The API refuses a Free record naming anything else
+ * (apps/api/src/scans/free-ai-consent.ts).
+ */
+export const FREE_AI_PROCESSING_PROVIDERS = ['anthropic'] as const;
+
+/**
  * Providers a customer can add to their own scan, and which receive nothing
  * unless they do. The notice names the recipient before the choice is offered,
  * and the same exclusions apply: no account or payment data, no Google or Bing

@@ -23,6 +23,7 @@ export * from './geo-measurability.js';
 export * from './geo-evidence.js';
 export * from './geo-tone.js';
 export * from './geo-evaluation.js';
+export * from './geo-evaluation-language.js';
 export * from './geo-rules.js';
 export * from './geo-module.js';
 export * from './geo-visibility-summary.js';

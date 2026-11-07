@@ -27,6 +27,7 @@ import type { PrismaClient, Scan, SiteProfile } from '@prisma/client';
 import { z } from 'zod';
 
 import { clearActionPlansForScan } from '../action-plan/service.ts';
+import { readFreeCheckAllowlist } from '../billing/free-check-allowlist.ts';
 import { readCrawlEgressLocations } from '../integrations/crawl-egress-config.ts';
 import {
   isEgressUsable,
@@ -36,7 +37,7 @@ import {
 } from '../integrations/crawl-egress-health.ts';
 import { logEgressUsage, recordEgressUsage } from '../integrations/crawl-egress-usage.ts';
 import { competitorsFromJson } from '../profiles/competitors.ts';
-import { executionProfile } from '../profiles/execution-config.ts';
+import { executionProfile, storedExecutionConfig } from '../profiles/execution-config.ts';
 import { persistAiResponse, redactEvidence } from './ai-evidence.ts';
 import { collectSiteSecurityFacts } from './site-security-facts.ts';
 import { runApiChecks } from './api-checks.ts';
@@ -58,6 +59,8 @@ import { buildCrawlSummary } from './crawl-summary.ts';
 import type { WorkerDeps } from './deps.ts';
 import { resolveScanEgress, type ScanEgress } from './egress.ts';
 import { runFreeCheck } from './free-check.ts';
+import { freePreviewFacts, runFreeGeoPreview } from './free-geo.ts';
+import { FREE_PREVIEW_REQUESTED_METADATA, prepareModuleRows } from './module-rows.ts';
 import {
   buildGeoRequests,
   generateGeoDiscoveryQuestions,
@@ -65,8 +68,8 @@ import {
   type GeoQuestionGenerationResult,
 } from './geo.ts';
 import { buildScanEvidence } from './geo-evidence.ts';
-import { geoModuleRow } from './geo-module-row.ts';
-import { includesAnalytics, modulePlanFor } from './module-plan.ts';
+import { freePreviewSkippedRow, geoModuleRow } from './geo-module-row.ts';
+import { includesAnalytics, modulePlanFor, type GeoScope } from './module-plan.ts';
 import { metadataForRuleModule, type RuleModuleContext } from './module-metadata.ts';
 import { markEveryModuleUnreadable, persistModuleResult, setModule } from './module-persistence.ts';
 import { finalizeRuleModule, issueRowsForModule } from './module-result.ts';
@@ -208,6 +211,7 @@ async function persistGeoModule(
   siteDomain: string,
   brand: string,
   competitors: readonly string[],
+  scope: GeoScope,
 ): Promise<void> {
   // Строку модуля строит чистый билдер (geo-module-row.ts), а пишется она в
   // одной транзакции с ответами провайдера: строка — это то, что следующая
@@ -221,6 +225,7 @@ async function persistGeoModule(
     siteDomain,
     brand,
     competitors,
+    scope,
   );
   await prisma.$transaction(async (tx) => {
     await setModule(tx, scanId, geo.module, moduleRow);
@@ -458,15 +463,16 @@ export async function runScanAttempt(
   const restoredCrawl =
     resumedCrawl === null ? null : await restoreCrawl(prisma, scanId, resumedCrawl, now());
   const modulesToRun = targetModules.filter((module) => !completedStages.has(module));
-  await clearPreviousModuleRows(prisma, scanId, {
+  // Reads the Free preview guard, then clears and resets the rows this attempt
+  // rewrites — in that order, and keeping the guard's proof sticky (D-236).
+  const { freePreviewRequestedBefore } = await prepareModuleRows(prisma, scanId, {
     retryModule,
     // A continuing attempt keeps what settled; anything else replaces the
     // whole snapshot exactly as it did before checkpoints existed.
     modules: continues ? modulesToRun : null,
+    modulesToRun,
+    geoScope: modulePlan.geoScope,
   });
-  for (const module of modulesToRun) {
-    await setModule(prisma, scanId, module, { runtimeStatus: 'Pending' });
-  }
 
   throwIfCancelled(scanId, signal);
   // Checked before anything is fetched: a dead proxy must not be reported as a
@@ -606,7 +612,15 @@ export async function runScanAttempt(
     // rules over a challenge page, no AI quota spent on a scan that is about to
     // be refunded, and no PSI number that would make this Partial instead of
     // Failed. Every planned module says the same thing, and says why.
-    await markEveryModuleUnreadable(prisma, scanId, modulesToRun, crawlSummary);
+    await markEveryModuleUnreadable(
+      prisma,
+      scanId,
+      modulesToRun,
+      crawlSummary,
+      // An unread site must not wash out the proof that this scan's preview
+      // already reached the AI step on an earlier attempt.
+      freePreviewRequestedBefore ? FREE_PREVIEW_REQUESTED_METADATA : {},
+    );
     if (control !== undefined) await releaseResumeState(prisma, scanId);
     return { analyticsPages: [], stopped: false };
   }
@@ -662,7 +676,7 @@ export async function runScanAttempt(
     throwIfCancelled(scanId, signal);
     await setModule(prisma, scanId, module, { runtimeStatus: 'Running' });
     const result = plan === 'Free' ? runFreeCheck(ctx) : runModuleRules(module, ctx);
-    const finalized = finalizeRuleModule(result, plan);
+    const finalized = finalizeRuleModule(result);
     // Строка модуля и его findings пишутся вместе: отмена после этой точки
     // оставляет секцию с её доказательствами, а не score без находок.
     await persistModuleResult(prisma, scan, {
@@ -698,68 +712,107 @@ export async function runScanAttempt(
     throwIfCancelled(scanId, signal);
     await setModule(prisma, scanId, 'AI SEO / GEO', { runtimeStatus: 'Running' });
     const siteHostname = new URL(ctx.domain).hostname;
-    const consent = loadConsent(scan);
     const provider = deps.createAiProvider(scan, profile);
-    const generation = await generateGeoDiscoveryQuestions({
-      scanId,
-      brand: profile.name,
-      siteHostname,
-      context: profile,
-      consent,
-      provider,
-      quota: aiQuota,
-      ...(signal !== undefined ? { signal } : {}),
-    });
-    // One snapshot for the whole scan, built once and handed unchanged to every
-    // evaluator, so two answers cannot be judged against different evidence.
-    //
-    // It is built only when the notice this scan was bought under disclosed that
-    // the site's own evidence is sent for evaluation. Under an older supported
-    // notice the answers are still asked and shown — the customer paid for them —
-    // and no profile field or page text is sent anywhere for judging.
-    const geoEvidence =
-      consent !== null && noticeCoversGeoEvidence(consent.noticeVersion)
-        ? buildScanEvidence(ctx, profile, siteHostname)
-        : null;
-    const geo = await runGeoModule(
-      {
+    const runPaidGeo = async (): Promise<{
+      readonly geo: GeoModuleResult;
+      readonly generation: GeoQuestionGenerationResult;
+    }> => {
+      const consent = loadConsent(scan);
+      const generation = await generateGeoDiscoveryQuestions({
         scanId,
-        plan,
         brand: profile.name,
-        siteOrigin: ctx.domain,
-        siteDomain: siteHostname,
+        siteHostname,
+        context: profile,
         consent,
-        requests: buildGeoRequests(
+        provider,
+        quota: aiQuota,
+        ...(signal !== undefined ? { signal } : {}),
+      });
+      // One snapshot for the whole scan, built once and handed unchanged to every
+      // evaluator, so two answers cannot be judged against different evidence.
+      //
+      // It is built only when the notice this scan was bought under disclosed that
+      // the site's own evidence is sent for evaluation. Under an older supported
+      // notice the answers are still asked and shown — the customer paid for them —
+      // and no profile field or page text is sent anywhere for judging.
+      const geoEvidence =
+        consent !== null && noticeCoversGeoEvidence(consent.noticeVersion)
+          ? buildScanEvidence(ctx, profile, siteHostname)
+          : null;
+      const geo = await runGeoModule(
+        {
           scanId,
-          profile.name,
-          siteHostname,
-          generation.questions,
-          geoProvidersFor(consent),
-        ),
-        evidence: geoEvidence,
-      },
-      { provider, quota: generation.quota, ...(signal !== undefined ? { signal } : {}) },
-    );
-    // Записывается ДО проверки отмены, и это принципиально: ответы, которые
-    // провайдер уже прислал, оплачены, а их ai_response record — единственный
-    // носитель deletion_evidence_ref (AI-001/DATA-006). Выбросить их значило бы
-    // оставить у провайдера данные, на которые у системы нет ни записи, ни
-    // ссылки на удаление, — и скан уже терминальный, второго шанса не будет.
-    // Незавершённая часть при этом не выдаётся за результат: geoModuleRow
-    // считает знаменателем все заданные вопросы, поэтому строка получает
-    // Partial с реальным числом завершённых проверок (§575).
-    await persistGeoModule(
-      prisma,
-      scanId,
-      geo,
-      generation,
-      assessAiCrawlerReadiness(crawlResult),
-      geo.evaluatedEvidence,
-      siteHostname,
-      profile.name,
-      competitorsFromJson(profile.competitorsJson) ?? [],
-    );
-    aiQuota = geo.quota;
+          plan,
+          brand: profile.name,
+          siteOrigin: ctx.domain,
+          siteDomain: siteHostname,
+          consent,
+          requests: buildGeoRequests(
+            scanId,
+            profile.name,
+            siteHostname,
+            generation.questions,
+            geoProvidersFor(consent),
+          ),
+          evidence: geoEvidence,
+        },
+        { provider, quota: generation.quota, ...(signal !== undefined ? { signal } : {}) },
+      );
+      return { geo, generation };
+    };
+    // The Free preview (D-236): one question of Anthropic alone, never twice per
+    // scan and never for an allowlisted origin — decided in free-geo.ts.
+    const preview =
+      modulePlan.geoScope === 'free-preview'
+        ? await runFreeGeoPreview({
+            scanId,
+            brand: profile.name,
+            siteOrigin: ctx.domain,
+            siteHostname,
+            language: storedExecutionConfig(scan.executionConfigJson)?.language ?? 'en',
+            facts: freePreviewFacts({
+              consent: loadConsent(scan),
+              profileDomain: profile.domain,
+              allowedOrigins: deps.freeCheckAllowedOrigins ?? readFreeCheckAllowlist().origins,
+              alreadyRequested: freePreviewRequestedBefore,
+            }),
+            buildEvidence: () => buildScanEvidence(ctx, profile, siteHostname),
+            provider,
+            quota: aiQuota,
+            ...(signal !== undefined ? { signal } : {}),
+          })
+        : null;
+    if (preview?.kind === 'skipped') {
+      await setModule(
+        prisma,
+        scanId,
+        'AI SEO / GEO',
+        freePreviewSkippedRow(preview.reason, assessAiCrawlerReadiness(crawlResult)),
+      );
+    } else {
+      const { geo, generation } = preview ?? (await runPaidGeo());
+      // Записывается ДО проверки отмены, и это принципиально: ответы, которые
+      // провайдер уже прислал, оплачены, а их ai_response record — единственный
+      // носитель deletion_evidence_ref (AI-001/DATA-006). Выбросить их значило бы
+      // оставить у провайдера данные, на которые у системы нет ни записи, ни
+      // ссылки на удаление, — и скан уже терминальный, второго шанса не будет.
+      // Незавершённая часть при этом не выдаётся за результат: geoModuleRow
+      // считает знаменателем все заданные вопросы, поэтому строка получает
+      // Partial с реальным числом завершённых проверок (§575).
+      await persistGeoModule(
+        prisma,
+        scanId,
+        geo,
+        generation,
+        assessAiCrawlerReadiness(crawlResult),
+        geo.evaluatedEvidence,
+        siteHostname,
+        profile.name,
+        competitorsFromJson(profile.competitorsJson) ?? [],
+        modulePlan.geoScope,
+      );
+      aiQuota = geo.quota;
+    }
     completedStages.add('AI SEO / GEO');
     await saveCheckpoint('AI SEO / GEO');
     // Уже полученные ответы записаны выше; отмена прекращает попытку здесь,
@@ -860,37 +913,4 @@ export async function runScanAttempt(
     analyticsPages: includesAnalytics(plan) ? analyticsPageFacts(ctx) : [],
     stopped: false,
   };
-}
-
-/**
- * Clears what this attempt is about to rewrite, and nothing else.
- *
- * `modules === null` means the whole snapshot is being replaced — a first run,
- * a module-less retry, or an attempt without a control. Otherwise only the
- * stages this attempt will actually run are cleared, so a module that already
- * settled keeps its row, its findings and its provider records.
- */
-async function clearPreviousModuleRows(
-  prisma: PrismaClient,
-  scanId: string,
-  options: { readonly retryModule?: string; readonly modules: readonly string[] | null },
-): Promise<void> {
-  const { retryModule, modules } = options;
-  if (retryModule !== undefined) {
-    await prisma.issue.deleteMany({ where: { scanId, module: retryModule } });
-    if (retryModule === 'AI SEO / GEO' || retryModule === 'UX/Conversion') {
-      await prisma.aiResponseRecord.deleteMany({ where: { scanId, module: retryModule } });
-    }
-    await prisma.scanModule.deleteMany({ where: { scanId, module: retryModule } });
-    return;
-  }
-  if (modules === null) {
-    await prisma.issue.deleteMany({ where: { scanId } });
-    await prisma.aiResponseRecord.deleteMany({ where: { scanId } });
-    await prisma.scanModule.deleteMany({ where: { scanId } });
-    return;
-  }
-  await prisma.issue.deleteMany({ where: { scanId, module: { in: [...modules] } } });
-  await prisma.aiResponseRecord.deleteMany({ where: { scanId, module: { in: [...modules] } } });
-  await prisma.scanModule.deleteMany({ where: { scanId, module: { in: [...modules] } } });
 }

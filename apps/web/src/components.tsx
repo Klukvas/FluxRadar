@@ -12,6 +12,7 @@ import {
 
 import { FLUXLAB_URL, createdByFluxLab } from './brand';
 import { copy, fillCopy, languageOptions, type Language } from './i18n';
+import './styles/free-score.css';
 import { statusKind } from './status-kind';
 import { tourTargets } from './tour-targets';
 import { useDelayedFlag } from './use-delayed-flag';
@@ -751,9 +752,25 @@ export function ScoreDial(props: {
   language: Language;
   verdict?: string;
   coverage?: number;
+  /** What the number is a score of; "Score" when absent (Free: the homepage, D-236). */
+  label?: string;
+  /**
+   * A stated scale (Free, D-237): the number is shown as a whole number followed
+   * by `suffix` ("/ 100") and announced as a meter with that maximum.
+   */
+  scale?: { readonly max: number; readonly suffix: string; readonly valueText: string };
+  /** A sentence kept next to the number, such as the rule that caps it. */
+  note?: string;
 }) {
   const t = copy[props.language].report;
-  const score = props.score === null ? '—' : props.score.toFixed(2);
+  const scale = props.score === null ? undefined : props.scale;
+  const score =
+    props.score === null
+      ? '—'
+      : scale === undefined
+        ? props.score.toFixed(2)
+        : props.score.toFixed(0);
+  const scoreText = scale === undefined ? score : scale.valueText;
   const verdictLabel =
     props.score === null
       ? t.insufficientData
@@ -771,12 +788,30 @@ export function ScoreDial(props: {
     <div
       className="score-dial"
       aria-label={
-        props.score === null ? t.insufficientData : fillCopy(t.scoreValueLabel, { score })
+        props.score === null
+          ? t.insufficientData
+          : props.label === undefined
+            ? fillCopy(t.scoreValueLabel, { score: scoreText })
+            : `${props.label}: ${scoreText}`
       }
     >
-      <div className="score-dial__number">{score}</div>
+      {scale === undefined ? (
+        <div className="score-dial__number">{score}</div>
+      ) : (
+        <div
+          className="score-dial__number"
+          role="meter"
+          aria-label={props.label ?? t.helpScoreTerm}
+          aria-valuemin={0}
+          aria-valuemax={scale.max}
+          aria-valuenow={Number(score)}
+          aria-valuetext={scoreText}
+        >
+          {score} <span className="score-dial__max">{scale.suffix}</span>
+        </div>
+      )}
       <div className="score-dial__label">
-        {props.score === null ? t.insufficientData : t.helpScoreTerm}
+        {props.score === null ? t.insufficientData : (props.label ?? t.helpScoreTerm)}
       </div>
       {verdictLabel ? <StatusChip status={chipStatus} label={verdictLabel} /> : null}
       {props.coverage !== undefined ? (
@@ -784,6 +819,7 @@ export function ScoreDial(props: {
           {fillCopy(t.coverageValue, { percent: (props.coverage * 100).toFixed(0) })}
         </div>
       ) : null}
+      {props.note === undefined ? null : <p className="score-dial__note">{props.note}</p>}
     </div>
   );
 }

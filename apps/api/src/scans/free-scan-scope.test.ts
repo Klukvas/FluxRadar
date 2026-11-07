@@ -247,7 +247,7 @@ describe('free check crawl enforcement', () => {
     );
 
     expect(outcome.outcome).toBe('Completed');
-    // Four fixed rules against one page. A crawl that had followed the
+    // The fixed Free rules against one page. A crawl that had followed the
     // fixture's links — which the request asked it to, twice over — would put
     // several pages behind each of them.
     const seo = await db.prisma.scanModule.findFirstOrThrow({

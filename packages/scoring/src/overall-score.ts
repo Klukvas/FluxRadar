@@ -10,6 +10,7 @@ import {
   MODULE_NAMES,
   SIDE_SCORE_MODULES,
   TARIFFS,
+  planPreviewModules,
   storedPlanScoreWeights,
 } from '@fluxradar/contracts';
 
@@ -85,7 +86,7 @@ function scoreWithWeights(
   const tariffWeightTotal = sumBy(moduleWeights, (entry) => entry.tariffWeight);
   const effectiveWeightTotal = sumBy(moduleWeights, (entry) => entry.effectiveWeight);
   if (tariffWeightTotal <= 0) {
-    // Free / пустой тариф: нулевой знаменатель — Insufficient data, не исключение (D-123).
+    // Пустой тариф: нулевой знаменатель — Insufficient data, не исключение (D-123).
     return { verdict: 'insufficient_data', score: null, weightedCoverage: 0, moduleWeights };
   }
   const weightedCoverage = effectiveWeightTotal / tariffWeightTotal;
@@ -119,6 +120,9 @@ function indexByModule(
     if (scoreWeights[summary.module] === undefined) {
       if (SIDE_SCORE_MODULES.includes(summary.module)) {
         continue; // §15: побочные оценки 0–100 показываются отдельно.
+      }
+      if (planPreviewModules(plan).includes(summary.module)) {
+        continue; // D-236: превью платного модуля (Free GEO) в общий score не входит.
       }
       throw new Error(`Модуль ${summary.module} не входит в score тарифа ${plan}`);
     }

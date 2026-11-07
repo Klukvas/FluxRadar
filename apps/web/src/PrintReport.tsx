@@ -38,6 +38,7 @@ import { planIncludesIssueHistory, planIncludesWhiteLabel, planName } from './pl
 import { nothingWasChecked, siteReadFailureOf } from './report-failure-copy';
 import { ComparisonPrintBlock } from './ScanComparisonPrint';
 import { moduleLabel } from './rule-titles';
+import { FULL_SCORE_MAX, freeDialProps, freeScoreCopy } from './free-score-copy';
 import { displayDomain, moduleResultLabel, moduleScoreLabel } from './scan-status';
 import { useDelayedFlag } from './use-delayed-flag';
 import './styles/print-report.css';
@@ -312,6 +313,10 @@ function PrintCover(props: {
   const f = usePrintCopy(props.language).findings;
   const domain = displayDomain(scan.domain);
   const scored = overall.score !== null && overall.moduleWeights.length > 0;
+  const freeNote =
+    scored && scan.plan === 'Free'
+      ? freeDialProps(overall, props.dashboard.modules, props.language).note
+      : undefined;
   return (
     <header className={`print-cover${props.brand ? ' print-cover--branded' : ''}`}>
       {props.brand ? (
@@ -338,16 +343,29 @@ function PrintCover(props: {
           <dd>{formatDate(scan.completedAt ?? scan.createdAt, props.language)}</dd>
         </div>
         <div>
-          <dt>{f.print.score}</dt>
-          <dd>{scored ? `${overall.score?.toFixed(0)} / 100` : f.print.noScore}</dd>
+          <dt>
+            {/* Free's number is the homepage's (D-236); never print it as the site's. */}
+            {scan.plan === 'Free' ? freeScoreCopy[props.language].homepageScore : f.print.score}
+          </dt>
+          <dd>{scored ? printedScore(overall) : f.print.noScore}</dd>
         </div>
         <div>
           <dt>{f.print.coverage}</dt>
           <dd>{scored ? `${(overall.weightedCoverage * 100).toFixed(0)}%` : '—'}</dd>
         </div>
       </dl>
+      {/* A Free score is a quick check out of 40; the page says so beside the number (D-237). */}
+      {freeNote === undefined ? null : <p className="muted">{freeNote}</p>}
     </header>
   );
+}
+
+/**
+ * The cover's score over the denominator the API stated: "39 / 40" on a Free
+ * report (D-237), the stored number over 100 on a paid one.
+ */
+function printedScore(overall: Dashboard['overall']): string {
+  return `${(overall.score ?? 0).toFixed(0)} / ${overall.scoreMax ?? FULL_SCORE_MAX}`;
 }
 
 /** Whether this document's scan checked nothing — so an empty list is no verdict. */
@@ -591,7 +609,8 @@ function PrintGeoVisibilityRow(props: {
 function PrintGeoVisibility(props: { dashboard: Dashboard; language: ReportLanguage }) {
   const t = copy[props.language].report;
   const hasGeoAnswers = (props.dashboard.geoObservations ?? []).length > 0;
-  if (!hasGeoAnswers) return null;
+  // A Free report's one AI answer is not printed (D-237): no engine table either.
+  if (!hasGeoAnswers || props.dashboard.scan.plan === 'Free') return null;
   const summary = geoVisibilitySummaryOf(props.dashboard.geoVisibilitySummary);
   const captionNotes =
     summary === null ? [] : printShareOfVoiceCaptionNotes(summary.providers, props.language);

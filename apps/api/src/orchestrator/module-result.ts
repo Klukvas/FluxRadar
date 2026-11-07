@@ -7,7 +7,7 @@
 // задним числом обесценить порождённые ею findings. Остаётся per-finding
 // targetUnreachable: отдельные страницы, не загрузившиеся на достижимом сайте.
 
-import type { ModuleName, Plan, Severity } from '@fluxradar/contracts';
+import type { ModuleName, Severity } from '@fluxradar/contracts';
 import { ruleById } from '@fluxradar/contracts';
 import type { IssueCandidate, ModuleRunResult } from '@fluxradar/rules';
 import type { ModuleOutputSignal } from '@fluxradar/scoring';
@@ -57,7 +57,7 @@ function outputSignals(result: ModuleRunResult): readonly ModuleOutputSignal[] {
   return [...findingSignals, { kind: 'score', hasEvidence: true }];
 }
 
-export function finalizeRuleModule(result: ModuleRunResult, plan: Plan): FinalizedModule {
+export function finalizeRuleModule(result: ModuleRunResult): FinalizedModule {
   const { applicableChecks, completedApplicableChecks } = result;
   const reason = statusReasonFor(applicableChecks, completedApplicableChecks);
   const coverage = computeCoverage({
@@ -66,9 +66,9 @@ export function finalizeRuleModule(result: ModuleRunResult, plan: Plan): Finaliz
     ...(reason !== undefined ? { statusReason: reason } : {}),
   });
 
-  // Free score не рассчитывается (§15); score существует только у Completed/Partial.
-  const scoreEligible =
-    plan !== 'Free' && (coverage.status === 'Completed' || coverage.status === 'Partial');
+  // Score существует только у Completed/Partial. Free тоже считает его — по
+  // своим homepage-правилам (D-236 отменяет «Free score не рассчитывается»).
+  const scoreEligible = coverage.status === 'Completed' || coverage.status === 'Partial';
   const scoreResult = scoreEligible ? computeModuleScore(result.findings) : null;
 
   const usableOutput = hasUsableOutput({

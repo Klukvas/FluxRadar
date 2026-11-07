@@ -152,6 +152,60 @@ describe('BILLING-006 NoUsableOutput resolution and refund', () => {
     expect(await db.prisma.refundRecord.count()).toBe(refundsBefore);
   });
 
+  // D-236: Free's GEO preview is shown but never decides the outcome.
+  it('keeps a healthy Free check Completed when its GEO preview could not run', async () => {
+    const { scan } = await seedScan(db.prisma, {
+      account,
+      status: 'Running',
+      plan: 'Free',
+      withPurchase: false,
+    });
+    await seedScanModule(db.prisma, {
+      scanId: scan.id,
+      module: 'SEO',
+      runtimeStatus: 'Completed',
+      usableOutput: true,
+      applicableChecks: 4,
+      completedApplicableChecks: 4,
+    });
+    await seedScanModule(db.prisma, {
+      scanId: scan.id,
+      module: 'AI SEO / GEO',
+      runtimeStatus: 'Unavailable',
+      usableOutput: false,
+      applicableChecks: 1,
+      completedApplicableChecks: 0,
+    });
+
+    expect((await resolveScanOutcome(db.prisma, scan.id)).kind).toBe('Completed');
+  });
+
+  it('does not let a Free GEO preview rescue an unreadable homepage check', async () => {
+    const { scan } = await seedScan(db.prisma, {
+      account,
+      status: 'Running',
+      plan: 'Free',
+      withPurchase: false,
+      moduleRetryCount: 1,
+    });
+    await seedScanModule(db.prisma, {
+      scanId: scan.id,
+      module: 'SEO',
+      runtimeStatus: 'Unavailable',
+      usableOutput: false,
+    });
+    await seedScanModule(db.prisma, {
+      scanId: scan.id,
+      module: 'AI SEO / GEO',
+      runtimeStatus: 'Completed',
+      usableOutput: true,
+      applicableChecks: 2,
+      completedApplicableChecks: 2,
+    });
+
+    expect((await resolveScanOutcome(db.prisma, scan.id)).kind).toBe('Failed');
+  });
+
   it('caps the platform retry at one (platform_retry_count <= 1)', async () => {
     const { scan } = await seedScan(db.prisma, { account, status: 'Failed' });
 

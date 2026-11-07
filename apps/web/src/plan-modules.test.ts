@@ -19,6 +19,7 @@ import {
   PLAN_CAPABILITIES,
   planIncludesWhiteLabel,
   PLAN_MODULES,
+  PLAN_PREVIEW_MODULES,
   PLAN_ORDER,
   PLAN_URL_LIMIT,
   SIDE_SCORE_MODULES,
@@ -41,6 +42,15 @@ function tariffModules(plan: string): readonly string[] {
   if (block === undefined) throw new Error(`tariffs.ts declares no ${plan} tariff`);
   const list = /modules: \[([\s\S]*?)\]/.exec(block)?.[1];
   if (list === undefined) throw new Error(`tariffs.ts gives ${plan} no module list`);
+  return [...list.matchAll(/'([^']+)'/g)].map((match) => match[1] as string);
+}
+
+/** `TARIFFS.<plan>.previewModules` as the contracts package declares it. */
+function tariffPreviewModules(plan: string): readonly string[] {
+  const block = new RegExp(`\\n  ${plan}: \\{([\\s\\S]*?)\\n  \\},`).exec(TARIFFS)?.[1];
+  if (block === undefined) throw new Error(`tariffs.ts declares no ${plan} tariff`);
+  const list = /previewModules: \[([\s\S]*?)\]/.exec(block)?.[1];
+  if (list === undefined) throw new Error(`tariffs.ts gives ${plan} no preview list`);
   return [...list.matchAll(/'([^']+)'/g)].map((match) => match[1] as string);
 }
 
@@ -99,6 +109,13 @@ describe('the plan/module mirror', () => {
     for (const module of SIDE_SCORE_MODULES) {
       expect(PLAN_MODULES.Complete).toContain(module);
     }
+  });
+
+  it('mirrors the tariff preview modules (D-236)', () => {
+    for (const plan of ['Free', 'Basic', 'Complete'] as const) {
+      expect(PLAN_PREVIEW_MODULES[plan]).toEqual(tariffPreviewModules(plan));
+    }
+    expect(PLAN_PREVIEW_MODULES.Free).toEqual(['AI SEO / GEO']);
   });
 
   it('reads the tariff table it is checked against', () => {

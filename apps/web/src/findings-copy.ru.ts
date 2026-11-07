@@ -13,7 +13,8 @@
 
 import type { FindingsCopy } from './findings-copy';
 import { ruCountForm, ruPagesAccusative, ruPagesOf, takesRuSingular } from './i18n.ru.grammar';
-import { BASIC_PRICE } from './tariff-prices';
+import { FREE_CHECK_COUNT } from './free-score-copy';
+import { COMPLETE_PRICE } from './tariff-prices';
 
 /** Locative, after «на»: «на 1 странице», «на 21 странице», «на 5 страницах». */
 const ruPagesOn = (count: number): string => (takesRuSingular(count) ? 'странице' : 'страницах');
@@ -158,21 +159,21 @@ export const russianFindingsCopy: FindingsCopy = {
     lead: (domain, problems) => {
       const rest = 'Другие страницы сайта ещё не проверены.';
       if (problems === null)
-        return `Проверка посмотрела четыре пункта на главной странице ${domain}. ${rest}`;
+        return `Проверка посмотрела ${FREE_CHECK_COUNT} ${ruCountForm(FREE_CHECK_COUNT, 'пункт', 'пункта', 'пунктов')} на главной странице ${domain}. ${rest}`;
       if (problems === 0)
-        return `На главной странице ${domain} в четырёх пунктах, которые смотрит эта проверка, проблем нет. ${rest}`;
-      return `Проверка нашла на главной странице ${domain} ${problems} ${ruProblems(problems)} в четырёх пунктах, которые смотрит. ${rest}`;
+        return `На главной странице ${domain} в пунктах, которые смотрит эта проверка (их ${FREE_CHECK_COUNT}), проблем нет. ${rest}`;
+      return `Проверка нашла на главной странице ${domain} ${problems} ${ruProblems(problems)} в пунктах, которые смотрит (их ${FREE_CHECK_COUNT}). ${rest}`;
     },
-    listIntro: 'Полный отчёт Basic проверит на всех страницах:',
+    listIntro: 'Полная проверка охватит на всех страницах:',
     points: [
-      'Битые ссылки: клиент нажимает и попадает в никуда',
-      'Страницы без описания, с одинаковыми заголовками или дубликатами',
-      'Какие страницы Google не может показать, и почему',
-      'Знают ли о вашем бизнесе ИИ-помощники вроде ChatGPT',
+      'Битые ссылки, страницы без описания, дубликаты и какие страницы Google не может показать',
+      'Что говорят о вашем бизнесе ChatGPT и Claude и кого называют вместо вас',
+      'Безопасность: сертификаты, заголовки и то, что открыто браузеру посетителя',
+      'Скорость и доступность: как быстро грузятся страницы и кто не может ими пользоваться',
     ],
-    price: `Basic стоит ${BASIC_PRICE}, оплата один раз, без подписки.`,
-    action: `Проверить весь сайт за ${BASIC_PRICE}`,
-    compare: 'Нужны ещё безопасность, скорость и доступность? Сравнить тарифы',
+    price: `Complete стоит ${COMPLETE_PRICE}, оплата один раз, без подписки.`,
+    action: `Запустить полную проверку за ${COMPLETE_PRICE}`,
+    compare: 'Нужны только поиск и видимость в ИИ? Сравнить тарифы',
   },
   download: {
     pdf: 'Скачать полный отчёт (PDF)',

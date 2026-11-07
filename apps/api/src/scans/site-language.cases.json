@@ -1,0 +1,23 @@
+{
+  "//": "Shared by apps/api/src/scans/site-language.test.ts and apps/web/src/site-language.test.ts: both resolveSiteLanguage implementations must give the same answer for every row (D-237).",
+  "cases": [
+    { "targetLanguages": "Ukrainian", "language": null, "expected": "uk" },
+    { "targetLanguages": "English", "language": null, "expected": "en" },
+    { "targetLanguages": "Russian, Ukrainian", "language": null, "expected": "uk" },
+    { "targetLanguages": "English, Ukrainian", "language": "uk", "expected": "en" },
+    { "targetLanguages": "ukrainian; english", "language": null, "expected": "uk" },
+    { "targetLanguages": "Українська", "language": null, "expected": "uk" },
+    { "targetLanguages": "англійська", "language": null, "expected": "en" },
+    { "targetLanguages": "uk", "language": null, "expected": "uk" },
+    { "targetLanguages": "uk-UA", "language": null, "expected": "uk" },
+    { "targetLanguages": "en_GB", "language": null, "expected": "en" },
+    { "targetLanguages": "Ukrainian\nEnglish", "language": null, "expected": "uk" },
+    { "targetLanguages": null, "language": "uk", "expected": "uk" },
+    { "targetLanguages": "Russian", "language": "English", "expected": "en" },
+    { "targetLanguages": "Russian", "language": "ru", "expected": null },
+    { "targetLanguages": "Polish, German", "language": null, "expected": null },
+    { "targetLanguages": "Русский", "language": null, "expected": null },
+    { "targetLanguages": null, "language": null, "expected": null },
+    { "targetLanguages": "", "language": "", "expected": null }
+  ]
+}
