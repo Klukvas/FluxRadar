@@ -8,8 +8,8 @@ import {
   FREE_AI_PROCESSING_PROVIDERS,
 } from './ai-processing-notice';
 import type { AiProcessingOptInProvider } from './ai-processing-notice';
-import type { Language } from './i18n';
 import type { Plan } from './plan-modules';
+import type { AiLanguage } from './site-language';
 import type { ScanScopePayload } from './scan-scope';
 
 /**
@@ -46,7 +46,7 @@ export interface ScanRequest {
    * question is asked, and the server derives the language from the profile
    * itself should it ever need one. Paid requests do not send it.
    */
-  readonly language?: Language;
+  readonly language?: AiLanguage;
   readonly internalFreeAccess: boolean;
   /**
    * The per-draft idempotency key the form minted for this launch. Sent on the

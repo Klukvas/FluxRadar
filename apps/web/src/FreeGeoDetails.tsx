@@ -10,6 +10,7 @@ import { aiTextLang, evidenceLabel } from './free-geo-claims';
 import { freePreviewCopy } from './free-preview-copy';
 import { safeHttpUrl, sourceOriginLabel } from './GeoEvaluation';
 import { copy, type Language } from './i18n';
+import type { AiLanguage } from './site-language';
 
 /** The paid block's chip classes: same look, and the word inside carries the fact. */
 export const STATUS_CHIP_CLASS: Readonly<Record<GeoClaimVerdict, string>> = {
@@ -47,7 +48,7 @@ function ClaimDetail(props: {
   claim: GeoEvaluatedClaim;
   evidence: GeoEvidence | null;
   language: Language;
-  answerLanguage: Language | null;
+  answerLanguage: AiLanguage | null;
 }) {
   const t = freePreviewCopy[props.language].preview;
   const { claim } = props;
@@ -86,7 +87,7 @@ export function FreeGeoDetails(props: {
   claims: readonly GeoEvaluatedClaim[];
   evidence: GeoEvidence | null;
   language: Language;
-  answerLanguage: Language | null;
+  answerLanguage: AiLanguage | null;
 }) {
   const t = freePreviewCopy[props.language].preview;
   return (

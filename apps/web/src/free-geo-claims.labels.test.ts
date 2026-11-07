@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { PROFILE_LABELS_UK, evidenceLabel } from './free-geo-claims';
+import { PROFILE_LABELS_RU, PROFILE_LABELS_UK, evidenceLabel } from './free-geo-claims';
 
 // The API names profile evidence in English (packages/ai/src/geo-evidence.ts
 // PROFILE_FIELDS) and the Free report translates those names for a Ukrainian
@@ -66,6 +66,13 @@ describe('Ukrainian names for profile evidence labels', () => {
     expect(Object.keys(PROFILE_LABELS_UK).sort()).toEqual([...profileFieldLabels(SOURCE)].sort());
     for (const label of profileFieldLabels(SOURCE)) {
       expect(evidenceLabel('profile', label, 'uk')).not.toBe(label);
+    }
+  });
+
+  it('has a Russian name for every label too', () => {
+    expect(Object.keys(PROFILE_LABELS_RU).sort()).toEqual([...profileFieldLabels(SOURCE)].sort());
+    for (const label of profileFieldLabels(SOURCE)) {
+      expect(evidenceLabel('profile', label, 'ru')).not.toBe(label);
     }
   });
 });

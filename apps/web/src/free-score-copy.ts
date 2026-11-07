@@ -12,6 +12,7 @@
 
 import type { ScanModule } from './api';
 import { ukCountForm, type Language } from './i18n';
+import { ruCountForm } from './i18n.ru.grammar';
 import type { PaidPlan } from './plan-modules';
 
 /** Mirrors `FULL_SCORE_MAX` in packages/contracts/src/free-score.ts: the full audit's scale. */
@@ -52,6 +53,10 @@ export function freeCheckCountOf(modules: readonly ScanModule[]): number {
 /** Counted after a colon: «1 легка перевірка», «2 легкі перевірки», «6 легких перевірок». */
 const ukLightChecks = (count: number): string =>
   ukCountForm(count, 'легка перевірка', 'легкі перевірки', 'легких перевірок');
+
+/** Counted after a colon: «1 лёгкая проверка», «2 лёгкие проверки», «6 лёгких проверок». */
+const ruLightChecks = (count: number): string =>
+  ruCountForm(count, 'лёгкая проверка', 'лёгкие проверки', 'лёгких проверок');
 
 /** «з 40», but «зі 100» — the preposition the number is read with. */
 const ukOutOf = (max: number): string => (max === 100 ? 'зі' : 'з');
@@ -104,6 +109,17 @@ export const freeScoreCopy: Readonly<Record<Language, FreeScoreCopy>> = {
     upgrade: (fullMax) =>
       `Повна перевірка: перевірити весь сайт (оцінка ${ukOutOf(fullMax)} ${fullMax})`,
     homepageOnly: 'Оцінка лише головної сторінки, а не всього сайту.',
+  },
+  ru: {
+    homepageScore: 'Оценка главной страницы',
+    valueOverMax: (value, max) => `${value} / ${max}`,
+    valueOfMax: (value, max) => `${value} из ${max}`,
+    capRule: (checks, max, fullMax) =>
+      `Проверка Free быстрая: ${checks} ${ruLightChecks(checks)} только главной страницы с оценкой из ${max}. Проверено не всё. Полный аудит проверяет весь сайт и оценивает его по шкале из ${fullMax}.`,
+    capDisclosure: (checks) =>
+      `Быстрая проверка: ${checks} ${ruLightChecks(checks)} только главной страницы. Проверено не всё.`,
+    upgrade: (fullMax) => `Полная проверка: проверить весь сайт (оценка из ${fullMax})`,
+    homepageOnly: 'Оценка только главной страницы, а не всего сайта.',
   },
 };
 

@@ -1,4 +1,5 @@
 import { FREE_CHECK_COUNT } from './free-score-copy';
+import { ruCountForm } from './i18n.ru.grammar';
 import { ukCountForm, type Language } from './i18n';
 import { BASIC_PRICE } from './tariff-prices';
 
@@ -170,7 +171,7 @@ export const desktopCopy: Record<Language, DesktopCopy> = {
         noProfiles: () =>
           'Введите адрес главной страницы. Сохранение сайта ничего не стоит и ничего не запускает.',
         noScans: (domain) =>
-          `Четыре проверки главной страницы ${domain}: title, описание, заголовки и индексация. Около минуты, оплата не нужна.`,
+          `${FREE_CHECK_COUNT} ${ruCountForm(FREE_CHECK_COUNT, 'проверка', 'проверки', 'проверок')} главной страницы ${domain}: title, описание, заголовки, индексация, превью ссылки для соцсетей и alt-текст изображений, с оценкой главной страницы. Отметьте галочку на следующем экране, чтобы получить ещё и один ответ ИИ о вашем бизнесе. Около минуты, оплата не нужна.`,
         running: (domain) =>
           `FluxRadar читает ${domain}. Можно уйти с этой страницы: отчёт вас дождётся.`,
         partial: (domain) =>

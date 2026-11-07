@@ -39,7 +39,15 @@ describe('the pricing page free-check note', () => {
     expect(copy.uk.pricing.freeNote).toContain(
       `Це швидка перевірка з оцінкою головної сторінки з ${FREE_SCORE_MAX}; перевірено не все. Повний аудит перевіряє весь сайт і оцінює його за шкалою зі ${FULL_SCORE_MAX}.`,
     );
-    for (const note of [copy.en.pricing.freeNote, copy.uk.pricing.freeNote]) {
+    expect(copy.ru.pricing.freeNote).toContain('шесть проверок');
+    expect(copy.ru.pricing.freeNote).toContain(
+      `Это быстрая проверка с оценкой главной страницы из ${FREE_SCORE_MAX}; проверено не всё. Полный аудит проверяет весь сайт и оценивает его по шкале из ${FULL_SCORE_MAX}.`,
+    );
+    for (const note of [
+      copy.en.pricing.freeNote,
+      copy.uk.pricing.freeNote,
+      copy.ru.pricing.freeNote,
+    ]) {
       expect(note).not.toMatch(/by design|за задумом|up to 40|до 40|\b80\b/);
     }
   });

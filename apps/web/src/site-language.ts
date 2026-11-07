@@ -4,15 +4,25 @@
 // Ukrainian even when its owner reads the app in English. A site whose profile
 // names no supported language (Russian, Polish, nothing at all) falls back to
 // the UI language at launch. The owner's explicit choice beats both.
+//
+// The AI is asked only in Ukrainian or English. Russian is an interface
+// language (the UI can be read in it) but not an AI language: a Russian UI
+// with no supported site language preselects English, and the hint says why.
 
 import type { Language } from './i18n';
 import { parseTargetLanguages, targetLanguageCodes } from './target-languages';
 
-const SUPPORTED: readonly Language[] = ['uk', 'en'];
+/** The languages the Free AI question can be asked in (the API's `reportLanguageSchema`). */
+export type AiLanguage = 'uk' | 'en';
 
-function isSupported(code: string): code is Language {
-  return (SUPPORTED as readonly string[]).includes(code);
+export const AI_LANGUAGES: readonly AiLanguage[] = ['uk', 'en'];
+
+export function isAiLanguage(code: unknown): code is AiLanguage {
+  return (AI_LANGUAGES as readonly unknown[]).includes(code);
 }
+
+/** The AI language when the interface language is not one: English. */
+const AI_FALLBACK_LANGUAGE: AiLanguage = 'en';
 
 /** "uk-UA" or "en_GB" as its primary subtag; anything else unchanged. */
 function primarySubtag(token: string): string {
@@ -34,36 +44,41 @@ function codesOf(value: string | null | undefined): readonly string[] {
  */
 export function resolveSiteLanguage(
   profile: { readonly targetLanguages?: string | null; readonly language?: string | null } | null,
-): Language | null {
+): AiLanguage | null {
   if (profile === null) return null;
   const codes = [...codesOf(profile.targetLanguages), ...codesOf(profile.language)];
-  return codes.find(isSupported) ?? null;
+  return codes.find(isAiLanguage) ?? null;
 }
 
-/** Why the default is what it is: the hint under the selector says so. */
-export type AiLanguageSource = 'site' | 'interface';
+/**
+ * Why the default is what it is, said by the hint under the selector: the
+ * site's language, the interface language, or English because the interface
+ * language (Russian) is not an AI language.
+ */
+export type AiLanguageSource = 'site' | 'interface' | 'fallback';
 
 export interface AiLanguageDefault {
-  readonly language: Language;
+  readonly language: AiLanguage;
   readonly source: AiLanguageSource;
 }
 
-/** The site's language when the profile names one, else the UI language at launch. */
+/** The site's language when the profile names one, else the UI language, else English. */
 export function defaultAiLanguage(
   profile: Parameters<typeof resolveSiteLanguage>[0],
   interfaceLanguage: Language,
 ): AiLanguageDefault {
   const site = resolveSiteLanguage(profile);
-  return site === null
+  if (site !== null) return { language: site, source: 'site' };
+  return isAiLanguage(interfaceLanguage)
     ? { language: interfaceLanguage, source: 'interface' }
-    : { language: site, source: 'site' };
+    : { language: AI_FALLBACK_LANGUAGE, source: 'fallback' };
 }
 
 /** The language the question is asked in: the owner's choice, else the default. */
 export function effectiveAiLanguage(
-  choice: Language | null,
+  choice: AiLanguage | null,
   profile: Parameters<typeof resolveSiteLanguage>[0],
   interfaceLanguage: Language,
-): Language {
+): AiLanguage {
   return choice ?? defaultAiLanguage(profile, interfaceLanguage).language;
 }

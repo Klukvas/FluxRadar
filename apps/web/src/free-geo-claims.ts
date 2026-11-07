@@ -4,6 +4,7 @@
 
 import type { GeoClaimVerdict, GeoEvaluatedClaim, GeoEvaluation, ScanModule } from './api';
 import type { Language } from './i18n';
+import type { AiLanguage } from './site-language';
 
 /** Contradictions first: they are the one thing an owner may need to act on. */
 export const CLAIM_ORDER: readonly GeoClaimVerdict[] = ['contradicted', 'matched', 'unverified'];
@@ -45,7 +46,7 @@ export function freeGeoHeadline(evaluation: GeoEvaluation | null): FreeGeoHeadli
  * (`language`, written by the API since W1/D-237) — or null for a row that
  * predates it or holds anything else. Never guessed from the text.
  */
-export function aiAnswerLanguage(module: ScanModule | undefined): Language | null {
+export function aiAnswerLanguage(module: ScanModule | undefined): AiLanguage | null {
   const language = module?.metadata?.language;
   return language === 'uk' || language === 'en' ? language : null;
 }
@@ -54,7 +55,7 @@ export function aiAnswerLanguage(module: ScanModule | undefined): Language | nul
  * The `lang` attribute for model-written text, so a screen reader voices a
  * Ukrainian answer in Ukrainian on an English report; nothing when unknown.
  */
-export function aiTextLang(answerLanguage: Language | null): { lang?: Language } {
+export function aiTextLang(answerLanguage: AiLanguage | null): { lang?: AiLanguage } {
   return answerLanguage === null ? {} : { lang: answerLanguage };
 }
 
@@ -75,7 +76,26 @@ export const PROFILE_LABELS_UK: Readonly<Record<string, string>> = {
   'Target languages': 'Цільові мови',
 };
 
+/** The same labels for the Russian interface, worded as the Ukrainian ones are. */
+export const PROFILE_LABELS_RU: Readonly<Record<string, string>> = {
+  'Brand name': 'Название бренда',
+  'Business description': 'Описание бизнеса',
+  'Services or products': 'Услуги или товары',
+  'Industry or site type': 'Отрасль или тип сайта',
+  'Operating region': 'Регион работы',
+  'Target audience': 'Целевая аудитория',
+  'Primary language': 'Основной язык',
+  'Target languages': 'Целевые языки',
+};
+
+const PROFILE_LABELS: Readonly<Record<Language, Readonly<Record<string, string>> | null>> = {
+  en: null,
+  uk: PROFILE_LABELS_UK,
+  ru: PROFILE_LABELS_RU,
+};
+
 export function evidenceLabel(kind: string, label: string, language: Language): string {
-  if (language !== 'uk' || kind !== 'profile') return label;
-  return PROFILE_LABELS_UK[label] ?? label;
+  const names = PROFILE_LABELS[language];
+  if (names === null || kind !== 'profile') return label;
+  return names[label] ?? label;
 }

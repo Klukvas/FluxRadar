@@ -23,6 +23,7 @@ import { FreeGeoClaims } from './FreeGeoClaims';
 import { freePreviewCopy } from './free-preview-copy';
 import { geoEvaluationNote, safeHttpUrl } from './GeoEvaluation';
 import type { Language } from './i18n';
+import type { AiLanguage } from './site-language';
 
 /** The evidence label the API gives the owner's saved brand (packages/ai geo-evidence). */
 const BRAND_SOURCE_LABEL = 'Brand name';
@@ -55,7 +56,7 @@ function answerOpensByDefault(evaluation: GeoEvaluation | null): boolean {
 function CitedSources(props: {
   citations: readonly string[];
   language: Language;
-  answerLanguage: Language | null;
+  answerLanguage: AiLanguage | null;
 }) {
   const t = freePreviewCopy[props.language].preview;
   const citations = [
@@ -88,7 +89,7 @@ function Verdict(props: {
   observation: GeoObservation;
   evidence: GeoEvidence | null;
   language: Language;
-  answerLanguage: Language | null;
+  answerLanguage: AiLanguage | null;
 }) {
   const t = freePreviewCopy[props.language].preview;
   const evaluation = props.observation.evaluation ?? null;
@@ -120,7 +121,7 @@ export function FreeGeoAnswer(props: {
    * The language the question was asked in (GEO row metadata), or null when
    * the row does not say. Its model-written text is marked with it.
    */
-  answerLanguage: Language | null;
+  answerLanguage: AiLanguage | null;
 }) {
   const t = freePreviewCopy[props.language].preview;
   const { observation, answerLanguage } = props;

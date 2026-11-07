@@ -5,6 +5,7 @@
 import type { GeoClaimVerdict } from './api';
 import type { FreeGeoHeadline } from './free-geo-claims';
 import type { Language } from './i18n';
+import type { AiLanguage } from './site-language';
 
 export interface FreePreviewCopy {
   /**
@@ -31,7 +32,7 @@ export interface FreePreviewCopy {
      * Added to the lead only when the question was asked in a language other
      * than the one the report is read in: the language's name, never the question.
      */
-    readonly askedIn: (asked: Language) => string;
+    readonly askedIn: (asked: AiLanguage) => string;
     /** One plain sentence leading the block: the verdict, before any detail. */
     readonly headline: Readonly<Record<FreeGeoHeadline, string>>;
     /** A claim's state, in the chips and in the count row (the words carry it, not colour). */
@@ -195,6 +196,73 @@ export const freePreviewCopy: Readonly<Record<Language, FreePreviewCopy>> = {
       unlockLead: 'Ви можете відкрити це, запустивши повну перевірку.',
       unlockAction: 'Відкрити повною перевіркою',
       decoyTitles: ['ChatGPT · OpenAI', 'Питання клієнта', 'Безпека', 'Швидкодія', 'Доступність'],
+    },
+  },
+  // Russian interface: the same honesty rules as the other two; the AI answer
+  // itself is asked only in Ukrainian or English (D-237).
+  ru: {
+    scopePreview: 'Превью в этом отчёте, полный раздел в платной проверке',
+    consent: {
+      eyebrow: 'ИИ-ПРЕВЬЮ · НЕОБЯЗАТЕЛЬНО',
+      title: 'Добавить один ответ ИИ о вашем бизнесе',
+      mode: 'Выключено по умолчанию',
+      lead: 'Отметьте, чтобы увидеть, что один ИИ-помощник (Claude от Anthropic) говорит о вашем бизнесе. Если не отмечать, ни один ИИ-сервис ничего не получит.',
+      body: 'Если вы отметите, FluxRadar задаст Anthropic (Claude) один вопрос, который называет ваш бизнес или домен, в режиме closed-book, без просмотра веба и инструментов. Затем Anthropic отдельным запросом сверит этот ответ с ограниченным снимком этой проверки: полями профиля, которые вы сохранили, и текстом вашей главной страницы. Ни один другой ИИ-провайдер ничего не получает. ИИ может ошибаться или не упомянуть вас. Данные аккаунта, оплаты и доступы Google или Bing никогда не отправляются.',
+      checkbox: 'Задать Anthropic (Claude) один вопрос о моём бизнесе',
+    },
+    preview: {
+      heading: 'Что ИИ говорит о вашем бизнесе',
+      lead: 'Один настоящий ответ одного ИИ-помощника. Он показан для информации и не меняет оценку главной страницы.',
+      answerLead: (brand) =>
+        `Один ответ одного ИИ-помощника, которого без поиска в интернете спросили, что он знает о ${brand === null ? 'вашем бизнесе' : `«${brand}»`}. Только для информации: на оценку главной страницы это не влияет.`,
+      askedIn: (asked) => `Спрашивали ${asked === 'uk' ? 'по-украински' : 'по-английски'}.`,
+      headline: {
+        mismatch: 'ИИ говорит о вас что-то, что не совпадает с вашим сайтом.',
+        confirmed: 'То, что ИИ говорит о вас, совпадает с вашим сайтом.',
+        partial: 'Часть сказанного ИИ совпадает с вашим сайтом, остальное подтвердить не удалось.',
+        unconfirmed: 'Ваш сайт не подтверждает и не опровергает то, что говорит ИИ.',
+        'nothing-checkable': 'В ответе ИИ нет ничего о вас, что можно было бы проверить.',
+        'not-checked': 'Этот ответ не сверяли с вашим сайтом.',
+      },
+      claimStatus: {
+        contradicted: 'Противоречит',
+        matched: 'Подтверждено',
+        unverified: 'Не подтверждено',
+      },
+      countsLabel: 'Утверждения по результату',
+      claimsLabel: 'Что ИИ сказал о вас',
+      showMoreClaims: (hidden) => `Показать ещё ${hidden}`,
+      showFewerClaims: 'Показать меньше',
+      showDetails: 'Показать подробности',
+      detailsAnswerQuote: 'Из ответа',
+      detailsComparedWith: 'Сверено с',
+      detailsNoEvidence: 'Эта проверка не нашла ничего, что это подтверждает или опровергает.',
+      detailsScope:
+        'Проверены только перечисленные здесь утверждения и только по тому, что эта проверка прочитала на вашем сайте и в профиле. Если утверждение ничем не подтверждено, это ещё не значит, что оно ложное.',
+      showAnswer: 'Показать полный ответ ИИ',
+      answerHeading: 'Ответ ИИ',
+      evaluationUnavailable:
+        'Оценку для этого ответа выполнить не удалось, поэтому он остаётся неподтверждённым. Ответ показан ниже так, как его дала модель.',
+      answerCitations: 'Источники, на которые сослался ответ',
+      notRunConsent: 'Вопрос ИИ не задавался: запуская проверку, вы решили не добавлять ответ ИИ.',
+      notRunAllowlisted:
+        'Вопрос ИИ не задавался: этот сайт в списке оператора для повторных проверок Free, а они никогда не включают ответ ИИ.',
+      notRunAlreadyRequested:
+        'В этот раз вопрос ИИ не задавался: предыдущий запуск этой проверки уже дошёл до шага ИИ, а для одной проверки Free ответ ИИ дважды не запрашивают.',
+      notRunOther:
+        'В этот раз ответ ИИ получить не удалось. Проверка главной страницы и оценка от этого не изменились.',
+      lockedHeading: 'Больше в полной проверке',
+      lockedDescription:
+        'Закрыто в проверке Free: ответы ChatGPT и других ИИ-помощников, вопросы клиентов без упоминания вашего названия, а также проверки безопасности, скорости и доступности.',
+      unlockLead: 'Вы можете открыть это, запустив полную проверку.',
+      unlockAction: 'Открыть полной проверкой',
+      decoyTitles: [
+        'ChatGPT · OpenAI',
+        'Вопрос клиента',
+        'Безопасность',
+        'Скорость',
+        'Доступность',
+      ],
     },
   },
 };

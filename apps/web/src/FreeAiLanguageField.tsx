@@ -13,9 +13,10 @@ import { useId } from 'react';
 
 import { freeAiLanguageCopy } from './free-ai-language-copy';
 import type { Language } from './i18n';
+import { AI_LANGUAGES } from './site-language';
 import type { FreeAiLanguage } from './use-free-ai-language';
 
-const ORDER: readonly Language[] = ['uk', 'en'];
+const ORDER = AI_LANGUAGES;
 
 export function FreeAiLanguageField(props: { language: Language; aiLanguage: FreeAiLanguage }) {
   const t = freeAiLanguageCopy[props.language];

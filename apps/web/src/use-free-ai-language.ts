@@ -8,21 +8,21 @@ import { useEffect, useState } from 'react';
 
 import type { SiteProfile } from './api';
 import type { Language } from './i18n';
-import { defaultAiLanguage, type AiLanguageSource } from './site-language';
+import { defaultAiLanguage, type AiLanguage, type AiLanguageSource } from './site-language';
 
 export interface FreeAiLanguage {
   /** The language the question will be asked in. */
-  readonly language: Language;
+  readonly language: AiLanguage;
   /** Why: the site's language, the interface language, or the owner's choice. */
   readonly source: AiLanguageSource | 'choice';
-  readonly choose: (language: Language) => void;
+  readonly choose: (language: AiLanguage) => void;
 }
 
 export function useFreeAiLanguage(
   profile: SiteProfile | null,
   interfaceLanguage: Language,
 ): FreeAiLanguage {
-  const [choice, setChoice] = useState<Language | null>(null);
+  const [choice, setChoice] = useState<AiLanguage | null>(null);
   const profileId = profile?.id ?? null;
   useEffect(() => {
     setChoice(null);

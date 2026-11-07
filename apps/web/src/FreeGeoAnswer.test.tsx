@@ -35,28 +35,42 @@ const CITATION = 'https://smile.example/about';
 const HEADING: Readonly<Record<Language, string>> = {
   en: 'What AI says about your business',
   uk: 'Що ШІ каже про ваш бізнес',
+  ru: 'Что ИИ говорит о вашем бизнесе',
 };
 const SHOW_ANSWER: Readonly<Record<Language, string>> = {
   en: 'Show the AI’s full answer',
   uk: 'Показати повну відповідь ШІ',
+  ru: 'Показать полный ответ ИИ',
 };
 const ANSWER_HEADING: Readonly<Record<Language, string>> = {
   en: 'The AI’s answer',
   uk: 'Відповідь ШІ',
+  ru: 'Ответ ИИ',
 };
 const SHOW_DETAILS: Readonly<Record<Language, string>> = {
   en: 'Show details',
   uk: 'Показати подробиці',
+  ru: 'Показать подробности',
 };
-const CONFIRMED: Readonly<Record<Language, string>> = { en: 'Confirmed', uk: 'Підтверджено' };
-const CONTRADICTS: Readonly<Record<Language, string>> = { en: 'Contradicts', uk: 'Суперечить' };
+const CONFIRMED: Readonly<Record<Language, string>> = {
+  en: 'Confirmed',
+  uk: 'Підтверджено',
+  ru: 'Подтверждено',
+};
+const CONTRADICTS: Readonly<Record<Language, string>> = {
+  en: 'Contradicts',
+  uk: 'Суперечить',
+  ru: 'Противоречит',
+};
 const NOT_CONFIRMED: Readonly<Record<Language, string>> = {
   en: 'Not confirmed',
   uk: 'Не підтверджено',
+  ru: 'Не подтверждено',
 };
 const PROVIDER_LABEL: Readonly<Record<Language, string>> = {
   en: 'Provider/model',
   uk: 'Постачальник/модель',
+  ru: 'Провайдер и модель',
 };
 
 const SCAN = {
@@ -347,7 +361,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe.each<Language>(['en', 'uk'])('the Free GEO block (%s)', (language) => {
+describe.each<Language>(['en', 'uk', 'ru'])('the Free GEO block (%s)', (language) => {
   const t = freePreviewCopy[language].preview;
 
   it('shows the verdict and claims, and hides the answer until it is opened', async () => {
@@ -444,7 +458,9 @@ describe.each<Language>(['en', 'uk'])('the Free GEO block (%s)', (language) => {
     const block = await renderFreeBlock(answered(EVALUATED), language);
     open(disclosureNamed(block, SHOW_DETAILS[language]));
     const origin = block.querySelector('.free-geo-detail__origin')?.textContent ?? '';
-    expect(origin).toContain(language === 'en' ? 'Brand name' : 'Назва бренду');
+    expect(origin).toContain(
+      { en: 'Brand name', uk: 'Назва бренду', ru: 'Название бренда' }[language],
+    );
     expect(origin).toContain(copy[language].report.geoSourceProfile);
   });
 
@@ -511,7 +527,9 @@ describe.each<Language>(['en', 'uk'])('the Free GEO block (%s)', (language) => {
     cleanup();
     const unnamed = await renderFreeBlock(answered(EVALUATED), language, null);
     const lead = unnamed.querySelector('.free-geo-answer__lead');
-    expect(lead?.textContent).toMatch(language === 'en' ? /your business/ : /ваш бізнес/);
+    expect(lead?.textContent).toMatch(
+      { en: /your business/, uk: /ваш бізнес/, ru: /вашем бизнесе/ }[language],
+    );
   });
 
   it.each<[string, GeoEvaluation | null]>([
@@ -583,16 +601,20 @@ describe('the printed report', () => {
 // question follows the site's language). The lead says so in one clause, and
 // the model-written text carries `lang` so a screen reader voices it right.
 describe('the language the AI question was asked in', () => {
-  const askedIn = (language: Language): ScanModule => ({
+  const askedIn = (language: 'uk' | 'en'): ScanModule => ({
     ...GEO,
     metadata: { ...GEO.metadata, language },
   });
   const leadOf = (block: HTMLElement): string =>
     block.querySelector('.free-geo-answer__lead')?.textContent ?? '';
 
-  it.each<[Language, Language, string]>([
+  it.each<[Language, 'uk' | 'en', string]>([
     ['en', 'uk', 'It was asked in Ukrainian.'],
     ['uk', 'en', 'Запитали англійською.'],
+    // Russian is an interface language only: the answer is always uk or en,
+    // so a Russian reader always gets the clause.
+    ['ru', 'uk', 'Спрашивали по-украински.'],
+    ['ru', 'en', 'Спрашивали по-английски.'],
   ])('a %s report of a %s answer says so in the lead', async (reader, asked, clause) => {
     const block = await renderFreeBlock(answered(MISMATCH), reader, EVIDENCE, askedIn(asked));
     expect(leadOf(block).endsWith(` ${clause}`)).toBe(true);
@@ -601,7 +623,7 @@ describe('the language the AI question was asked in', () => {
     expect(block.textContent).not.toContain(REAL_QUESTION);
   });
 
-  it.each<Language>(['en', 'uk'])('says nothing when the languages match (%s)', async (lang) => {
+  it.each<'en' | 'uk'>(['en', 'uk'])('says nothing when the languages match (%s)', async (lang) => {
     const block = await renderFreeBlock(answered(MISMATCH), lang, EVIDENCE, askedIn(lang));
     expect(leadOf(block)).not.toMatch(/asked in|Запитали/);
   });

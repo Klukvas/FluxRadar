@@ -67,12 +67,29 @@ const EN_RULE =
 const UK_RULE =
   'Безкоштовна перевірка — це швидка перевірка: 6 легких перевірок лише головної сторінки з оцінкою з 40. Перевірено не все. Повний аудит перевіряє весь сайт і оцінює його за шкалою зі 100.';
 
+const RU_DIAL_NOTE =
+  'Быстрая проверка: 6 лёгких проверок только главной страницы. Проверено не всё.';
+const RU_RULE =
+  'Проверка Free быстрая: 6 лёгких проверок только главной страницы с оценкой из 40. Проверено не всё. Полный аудит проверяет весь сайт и оценивает его по шкале из 100.';
+
 describe('the Free score disclosure', () => {
   it('states the quick check in the agreed words: one short line in the dial, the rule in help', () => {
     expect(freeScoreCopy.en.capDisclosure(6)).toBe(EN_DIAL_NOTE);
     expect(freeScoreCopy.uk.capDisclosure(6)).toBe(UK_DIAL_NOTE);
     expect(freeScoreCopy.en.capRule(6, 40, 100)).toBe(EN_RULE);
     expect(freeScoreCopy.uk.capRule(6, 40, 100)).toBe(UK_RULE);
+    expect(freeScoreCopy.ru.capDisclosure(6)).toBe(RU_DIAL_NOTE);
+    expect(freeScoreCopy.ru.capRule(6, 40, 100)).toBe(RU_RULE);
+    expect(freeScoreCopy.ru.valueOfMax(39, 40)).toBe('39 из 40');
+    expect(freeScoreCopy.ru.upgrade(100)).toBe(
+      'Полная проверка: проверить весь сайт (оценка из 100)',
+    );
+  });
+
+  it('counts the light checks in the right Russian form', () => {
+    expect(freeScoreCopy.ru.capRule(1, 40, 100)).toContain(': 1 лёгкая проверка только');
+    expect(freeScoreCopy.ru.capRule(3, 40, 100)).toContain(': 3 лёгкие проверки только');
+    expect(freeScoreCopy.ru.capDisclosure(5)).toContain(': 5 лёгких проверок только');
   });
 
   it('counts the light checks in the right Ukrainian form', () => {
@@ -86,31 +103,33 @@ describe('the Free score disclosure', () => {
   // note is one line with no scale and no full-audit sentence; those live in
   // the help's rule and on the button.
   it('keeps the dial note short: no scale, no full-audit sentence', () => {
-    for (const language of ['en', 'uk'] as const) {
+    for (const language of ['en', 'uk', 'ru'] as const) {
       const note = freeScoreCopy[language].capDisclosure(6);
       expect(note).not.toMatch(
-        /\b40\b|\b100\b|full audit|Повний аудит|Homepage score|Оцінка головної/,
+        /\b40\b|\b100\b|full audit|Повний аудит|Полный аудит|Homepage score|Оцінка головної|Оценка главной/,
       );
       expect(note.length).toBeLessThan(90);
-      expect(note).toMatch(/Not everything is checked\.$|Перевірено не все\.$/);
+      expect(note).toMatch(/Not everything is checked\.$|Перевірено не все\.$|Проверено не всё\.$/);
     }
   });
 
   // The quick-check wording replaced the "at most 40 points by design" rule: no
   // claimed loss, no ceiling, never 80, and 100 only as the full audit's scale.
   it('claims no loss or ceiling, and names 100 only as the full audit scale', () => {
-    for (const language of ['en', 'uk'] as const) {
+    for (const language of ['en', 'uk', 'ru'] as const) {
       const t = freeScoreCopy[language];
       for (const text of [t.capDisclosure(6), t.capRule(6, 40, 100)]) {
-        expect(text).toMatch(/Not everything is checked\.|Перевірено не все\./);
-        expect(text).toMatch(/quick check|швидка перевірка/i);
+        expect(text).toMatch(/Not everything is checked\.|Перевірено не все\.|Проверено не всё\./);
+        expect(text).toMatch(/quick check|швидка перевірка|быстрая( проверка)?/i);
         expect(text).not.toMatch(
-          /lost|втрач|by design|за задумом|at most|щонайбільше|\b80\b|\/ ?100/i,
+          /lost|втрач|потер|by design|за задумом|по замыслу|at most|щонайбільше|не более|\b80\b|\/ ?100/i,
         );
       }
       const rule = t.capRule(6, 40, 100);
       expect(rule.match(/\b100\b/g) ?? []).toHaveLength(1);
-      expect(rule).toMatch(/scores it out of 100\.$|оцінює його за шкалою зі 100\.$/);
+      expect(rule).toMatch(
+        /scores it out of 100\.$|оцінює його за шкалою зі 100\.$|оценивает его по шкале из 100\.$/,
+      );
     }
   });
 

@@ -1,5 +1,6 @@
 import type { Language } from './i18n';
 
+/** The languages a browser preference may select; Russian is opt-in only (see below). */
 const SUPPORTED: readonly Language[] = ['en', 'uk'];
 
 /**
@@ -8,7 +9,9 @@ const SUPPORTED: readonly Language[] = ['en', 'uk'];
  * Standard negotiation over the browser's preference list, in order: the first
  * entry whose primary subtag is a supported language decides. Unsupported
  * entries — Russian included — are skipped, and a list with nothing supported
- * falls back to English. Safe on the server and in prerendering, where
+ * falls back to English. Russian is an interface language, but only by an
+ * explicit choice (the switcher, a `/ru` path or `?lang=ru`); it is never
+ * negotiated from the browser. Safe on the server and in prerendering, where
  * `navigator` does not exist.
  */
 export function resolveBrowserLanguage(

@@ -9,6 +9,7 @@ import { CLAIM_ORDER, aiTextLang, claimCounts, orderedClaims } from './free-geo-
 import { FreeGeoDetails, STATUS_CHIP_CLASS } from './FreeGeoDetails';
 import { freePreviewCopy } from './free-preview-copy';
 import type { Language } from './i18n';
+import type { AiLanguage } from './site-language';
 
 /** Up to this many statements are listed in full; a longer list shows the first few. */
 const FULL_LIST_LIMIT = 6;
@@ -33,7 +34,7 @@ function CountRow(props: { claims: readonly GeoEvaluatedClaim[]; language: Langu
 function ClaimList(props: {
   claims: readonly GeoEvaluatedClaim[];
   language: Language;
-  answerLanguage: Language | null;
+  answerLanguage: AiLanguage | null;
 }) {
   const t = freePreviewCopy[props.language].preview;
   const [isExpanded, setIsExpanded] = useState(false);
@@ -73,7 +74,7 @@ export function FreeGeoClaims(props: {
   evidence: GeoEvidence | null;
   language: Language;
   /** The language the model wrote in (GEO row metadata), or null when unknown. */
-  answerLanguage: Language | null;
+  answerLanguage: AiLanguage | null;
 }) {
   const claims = orderedClaims(props.claims);
   return (
