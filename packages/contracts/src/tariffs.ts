@@ -73,6 +73,13 @@ export interface TariffDefinition {
    * Analytics stay outside the overall score (§15) and never appear here.
    */
   readonly scoreWeights: Readonly<Partial<Record<ModuleName, number>>>;
+  /**
+   * Modules this plan runs as a single-sample preview of a paid module: the
+   * report shows what they found, but they carry no score weight and never
+   * decide the scan outcome. A preview that could not run is a missing teaser,
+   * not a failed check — it must not turn a healthy scan Partial (D-236).
+   */
+  readonly previewModules: readonly ModuleName[];
   readonly urlLimit: number;
   /**
    * The most AI requests one scan of this plan may spend — a ceiling that stops
@@ -87,11 +94,16 @@ export interface TariffDefinition {
 export const SIDE_SCORE_MODULES: readonly ModuleName[] = ['UX/Conversion', 'Analytics'];
 
 // §18: the fixed Free check runs these rules against the homepage only, in this order.
+// D-237 adds social preview metadata and image alt: both read the one static
+// homepage snapshot and nothing else, with the paid module's own severity and
+// penalty. Every count of Free checks is derived from this list.
 export const FREE_CHECK_RULE_IDS = [
   'SEO-ONPAGE-001',
   'SEO-ONPAGE-003',
   'SEO-ONPAGE-002',
   'SEO-TECH-008',
+  'SEO-SOCIAL-001',
+  'SEO-ONPAGE-005',
 ] as const;
 
 export const COMPLETE_SCORE_WEIGHTS: Readonly<Partial<Record<ModuleName, number>>> = {
@@ -131,9 +143,18 @@ export const TARIFFS: Readonly<Record<Plan, TariffDefinition>> = {
     label: 'Free',
     priceUsd: 0,
     modules: ['SEO'],
-    scoreWeights: {},
+    // D-236: a homepage score from the Free rules (FREE_CHECK_RULE_IDS) alone,
+    // shown out of 40 (free-score.ts, D-237). The GEO preview is informational
+    // (D-109) and stays out of it.
+    scoreWeights: { SEO: 1 },
+    previewModules: ['AI SEO / GEO'],
     urlLimit: 1,
-    aiRequestLimit: 0,
+    // D-236: exactly what the GEO preview spends — one closed-book question to
+    // Anthropic and one evaluation of that answer against the homepage evidence.
+    // The tracker enforces it per attempt; apps/api/src/orchestrator/free-geo.ts
+    // never asks again once an attempt reached the provider stage, so it also
+    // holds per scan across platform and external retries.
+    aiRequestLimit: 2,
     retentionDays: 30,
     capabilities: NO_CAPABILITIES,
   },
@@ -143,6 +164,7 @@ export const TARIFFS: Readonly<Record<Plan, TariffDefinition>> = {
     priceUsd: 39,
     modules: ['SEO', 'AI SEO / GEO'],
     scoreWeights: { SEO: 0.6, 'AI SEO / GEO': 0.4 },
+    previewModules: [],
     urlLimit: 5000,
     aiRequestLimit: 50,
     retentionDays: 30,
@@ -165,6 +187,7 @@ export const TARIFFS: Readonly<Record<Plan, TariffDefinition>> = {
       'Analytics',
     ],
     scoreWeights: COMPLETE_SCORE_WEIGHTS,
+    previewModules: [],
     urlLimit: 50_000,
     aiRequestLimit: 500,
     retentionDays: 365,
@@ -187,4 +210,13 @@ export function planSupports(plan: string, capability: TariffCapability): boolea
 export function planRunsModule(plan: string, module: ModuleName): boolean {
   const tariff = TARIFFS[plan as Plan] as TariffDefinition | undefined;
   return tariff?.modules.includes(module) ?? false;
+}
+
+/**
+ * The plan's preview modules (see `TariffDefinition.previewModules`); empty for
+ * an unknown or retired plan string, which previews nothing.
+ */
+export function planPreviewModules(plan: string): readonly ModuleName[] {
+  const tariff = TARIFFS[plan as Plan] as TariffDefinition | undefined;
+  return tariff?.previewModules ?? [];
 }

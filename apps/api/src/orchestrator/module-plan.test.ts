@@ -21,6 +21,19 @@ describe('module plan per tariff', () => {
       runnable: ['SEO'],
       external: [],
       geo: true,
+      geoScope: 'full',
+      ux: false,
+      stubs: [],
+    });
+  });
+
+  // D-236: Free used to run SEO alone (geo: false).
+  it('runs the homepage SEO check and a one-question GEO preview on Free', () => {
+    expect(modulePlanFor('Free')).toEqual({
+      runnable: ['SEO'],
+      external: [],
+      geo: true,
+      geoScope: 'free-preview',
       ux: false,
       stubs: [],
     });
@@ -31,6 +44,7 @@ describe('module plan per tariff', () => {
       runnable: ['SEO', 'Security', 'Accessibility', 'Reliability', 'Content Quality', 'Privacy'],
       external: ['Performance'],
       geo: true,
+      geoScope: 'full',
       ux: true,
       stubs: [],
     });

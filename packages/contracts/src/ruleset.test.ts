@@ -135,4 +135,19 @@ describe('rules-mvp-0.1 registry', () => {
       expect(ruleById(ruleId)?.module).toBe('SEO');
     }
   });
+
+  // D-237: a Free rule is a paid SEO page rule run as is. One that scores
+  // nothing, carries no severity or reads more than a page could not be part
+  // of an honest homepage score.
+  it('keeps every Free-check rule a scored, severity-bearing SEO page rule', () => {
+    for (const ruleId of FREE_CHECK_RULE_IDS) {
+      const descriptor = ruleById(ruleId);
+      expect(descriptor, ruleId).toBeDefined();
+      expect(descriptor?.module, ruleId).toBe('SEO');
+      expect(descriptor?.targetKind, ruleId).toBe('page');
+      expect(descriptor?.scoring, ruleId).toBe('scored');
+      expect(descriptor?.severity ?? null, ruleId).not.toBeNull();
+    }
+    expect(new Set(FREE_CHECK_RULE_IDS).size).toBe(FREE_CHECK_RULE_IDS.length);
+  });
 });

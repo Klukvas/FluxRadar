@@ -7,8 +7,9 @@ import { AiModuleError, QuotaExceededError } from './errors.js';
 import { AiQuotaTracker } from './quota.js';
 
 describe('AiQuotaTracker', () => {
-  it('берёт лимит из тарифа: Free 0, Basic 50, Complete 500', () => {
-    expect(AiQuotaTracker.forPlan('Free').limit).toBe(0);
+  it('берёт лимит из тарифа: Free 2, Basic 50, Complete 500', () => {
+    // Free (D-236): один closed-book вопрос и одна оценка его ответа.
+    expect(AiQuotaTracker.forPlan('Free').limit).toBe(2);
     expect(AiQuotaTracker.forPlan('Basic').limit).toBe(50);
     expect(AiQuotaTracker.forPlan('Complete').limit).toBe(500);
   });
@@ -18,7 +19,12 @@ describe('AiQuotaTracker', () => {
     expect(() => quota.reserve('k2')).toThrow(QuotaExceededError);
   });
 
-  it('лимит 0 (Free) отклоняет первый же резерв', () => {
+  it('Free: третий платный запрос скана отклоняется', () => {
+    const spent = AiQuotaTracker.forPlan('Free').reserve('q1').commit('q1').reserve('e1');
+    expect(() => spent.reserve('q2')).toThrow(QuotaExceededError);
+  });
+
+  it('лимит 0 отклоняет первый же резерв', () => {
     expect(() => AiQuotaTracker.withLimit(0).reserve('k1')).toThrow(QuotaExceededError);
   });
 

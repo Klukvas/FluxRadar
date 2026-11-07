@@ -22,11 +22,22 @@ export interface StubModule {
   readonly applicableChecks: number;
 }
 
+/**
+ * How much of the GEO module a plan runs.
+ *
+ * `full` — discovery-question generation plus direct and discovery questions
+ * to every default provider (and any opt-in one the consent names).
+ * `free-preview` — D-236: one closed-book direct question to Anthropic and the
+ * evaluation of its answer; no generation request, no other provider.
+ */
+export type GeoScope = 'full' | 'free-preview';
+
 export interface ModulePlan {
   /** Порядок фиксирован реестром MODULE_NAMES — детерминированный прогон. */
   readonly runnable: readonly ModuleName[];
   readonly external: readonly ModuleName[];
   readonly geo: boolean;
+  readonly geoScope: GeoScope;
   readonly ux: boolean;
   readonly stubs: readonly StubModule[];
 }
@@ -35,13 +46,22 @@ export interface ModulePlan {
 // строку модуля пишет orchestrator/analytics-module.ts по реальным данным
 // Google (или по честному состоянию подключения), в той же пост-outcome фазе.
 const PLANS_TO_MODULES: Readonly<Record<Plan, ModulePlan>> = {
-  // Free — фиксированная SEO-проверка homepage (§18), без GEO и score.
-  Free: { runnable: ['SEO'], external: [], geo: false, ux: false, stubs: [] },
-  Basic: { runnable: ['SEO'], external: [], geo: true, ux: false, stubs: [] },
+  // Free — фиксированная SEO-проверка homepage (§18) с homepage-score и
+  // GEO-превью из одного вопроса (D-236).
+  Free: {
+    runnable: ['SEO'],
+    external: [],
+    geo: true,
+    geoScope: 'free-preview',
+    ux: false,
+    stubs: [],
+  },
+  Basic: { runnable: ['SEO'], external: [], geo: true, geoScope: 'full', ux: false, stubs: [] },
   Complete: {
     runnable: ['SEO', 'Security', 'Accessibility', 'Reliability', 'Content Quality', 'Privacy'],
     external: ['Performance'],
     geo: true,
+    geoScope: 'full',
     ux: true,
     stubs: [],
   },

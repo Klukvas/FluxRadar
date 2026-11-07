@@ -32,6 +32,7 @@ import {
 
 import type { IntegrationConfig } from '../integrations/config.ts';
 import { readIntegrationConfig } from '../integrations/config.ts';
+import { ukrainianGeoFixtures } from './geo-fixtures-uk.ts';
 
 /**
  * The providers a paid scan asks its visibility questions, in execution order.
@@ -526,6 +527,9 @@ function evaluationBody(payload: Record<string, unknown>): MockAiFixture['respon
 export function defaultGeoFixtures(brand: string, siteHostname: string): readonly MockAiFixture[] {
   const answers = defaultGeoAnswers(brand, siteHostname);
   return [
+    // First: a Ukrainian judge request quotes no English answer phrase, but it
+    // does quote the Ukrainian question back (geo-fixtures-uk.ts).
+    ...ukrainianGeoFixtures(brand, siteHostname),
     {
       questionIncludes: 'I have no reliable information about the business',
       response: evaluationBody({

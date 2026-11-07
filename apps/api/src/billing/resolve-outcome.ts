@@ -1,4 +1,4 @@
-import { parseCrawlSummary, siteReachStatusReason } from '@fluxradar/contracts';
+import { parseCrawlSummary, planPreviewModules, siteReachStatusReason } from '@fluxradar/contracts';
 import type { PrismaClient, RefundRecord, ScanModule } from '@prisma/client';
 
 import { STATUS_REASONS } from './constants.ts';
@@ -53,7 +53,14 @@ export async function resolveScanOutcome(
 
   // Fully Not-applicable modules neither block Completed nor count as usable;
   // when ALL modules are N/A the scan falls through to NoUsableOutput (D-027).
-  const relevant = scan.modules.filter((module) => module.runtimeStatus !== 'Not applicable');
+  // A plan's preview module (Free's one-question GEO, D-236) is shown in the
+  // report but decides nothing here: a teaser that could not run must not turn
+  // a healthy Free check Partial, and it cannot rescue a check whose own
+  // module produced nothing either.
+  const previews: readonly string[] = planPreviewModules(scan.plan);
+  const relevant = scan.modules.filter(
+    (module) => module.runtimeStatus !== 'Not applicable' && !previews.includes(module.module),
+  );
   const usable = relevant.filter((module) => module.usableOutput);
 
   if (usable.length === 0) {
