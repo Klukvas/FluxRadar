@@ -31,6 +31,7 @@ import {
   type ConfigurationState,
 } from './new-scan-configuration';
 import { usePlanSelected } from './funnel-analytics';
+import { useFreeAiLanguage, type FreeAiLanguage } from './use-free-ai-language';
 import { requestScan } from './new-scan-request';
 import { PAID_PLAN_ORDER, PLAN_MODULES, type PaidPlan, type Plan } from './plan-modules';
 import {
@@ -162,6 +163,11 @@ export interface NewScanForm {
    */
   readonly offeredOptInAiProviders: readonly AiProcessingOptInProvider[];
   readonly optInAiProviders: readonly AiProcessingOptInProvider[];
+  /** Free only: whether the owner opted in to the one-question AI preview. */
+  readonly freeAiConsent: boolean;
+  readonly setFreeAiConsent: (selected: boolean) => void;
+  /** Free only: the language the AI question is asked in (site's first, D-237). */
+  readonly freeAiLanguage: FreeAiLanguage;
   /** What the submit button says right now, including while it is working. */
   readonly launchLabel: string;
   readonly paidAvailable: boolean;
@@ -293,6 +299,13 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   // never builds a request for it.
   const [optInAiProviders, setOptInAiProviders] = useState<readonly AiProcessingOptInProvider[]>(
     [],
+  );
+  // Off until the owner ticks it: a Free check sends nothing to an AI service
+  // on its own (D-236).
+  const [freeAiConsent, setFreeAiConsent] = useState(false);
+  const freeAiLanguage = useFreeAiLanguage(
+    props.profiles.find((profile) => profile.id === target) ?? null,
+    props.language,
   );
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   // A profile switch loads a fresh persisted configuration. Its fields must not
@@ -682,6 +695,8 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
         // record consent to a recipient this scan never asks — the same
         // inaccuracy as the notice promising a transfer that does not happen.
         optInAiProviders: selectedOptInAiProviders,
+        freeAiConsent: plan === 'Free' && freeAiConsent,
+        language: freeAiLanguage.language,
         internalFreeAccess: props.internalFreeAccess,
         idempotencyKey: checkoutKey,
         onCheckoutStarted: props.onCheckoutStarted,
@@ -797,6 +812,9 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     apiCheckProblems,
     offeredOptInAiProviders,
     optInAiProviders,
+    freeAiConsent,
+    setFreeAiConsent,
+    freeAiLanguage,
     launchLabel,
     paidAvailable,
     paidScopeControls,

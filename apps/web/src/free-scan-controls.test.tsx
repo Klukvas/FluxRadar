@@ -126,8 +126,18 @@ describe('free plan controls', () => {
     expect(screen.getAllByText('Homepage only').length).toBeGreaterThan(0);
     expect(screen.getByText('Always respected')).toBeInTheDocument();
     expect(
-      screen.getByText(/belong to the paid plans and are not available on Free/),
+      screen.getByText(/full AI visibility check belong to the paid plans/),
     ).toBeInTheDocument();
+  });
+
+  // D-236: the one-question AI preview is an opt-in, off until ticked.
+  it('offers the AI preview as an unticked opt-in naming Anthropic', async () => {
+    renderNewScan(account);
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
+
+    const box = screen.getByLabelText('Ask Anthropic (Claude) one question about my business');
+    expect(box).not.toBeChecked();
+    expect(box).toHaveAccessibleDescription(/No other AI provider receives anything/);
   });
 
   it('explains it in Ukrainian too', async () => {
@@ -137,7 +147,9 @@ describe('free plan controls', () => {
     expect(screen.getByText('Що робить безкоштовна перевірка')).toBeInTheDocument();
     expect(screen.getByText(/читає лише головну сторінку/)).toBeInTheDocument();
     expect(screen.getAllByText('Лише головна').length).toBeGreaterThan(0);
-    expect(screen.getByText(/недоступні на Free/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/повна перевірка AI-видимості належать до платних тарифів/),
+    ).toBeInTheDocument();
     expect(screen.queryByLabelText(/Включати піддомени/)).not.toBeInTheDocument();
   });
 
@@ -167,7 +179,27 @@ describe('free plan controls', () => {
         robotsOverrideConfirmed: false,
         userAgent: 'desktop',
       },
+      // No AI consent, so no question and no language (D-237).
     });
+  });
+
+  // A profile naming no site language: the AI preview asks in the UI language (D-237).
+  it('sends the Ukrainian UI language as the AI language when the site names none', async () => {
+    const fetchMock = renderNewScan(account, 'uk');
+    await screen.findByText('Нова перевірка', { selector: '.window__titlebar > span' });
+    fireEvent.click(
+      screen.getByLabelText('Поставити Anthropic (Claude) одне питання про мій бізнес'),
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Запустити безкоштовну перевірку' }));
+
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some(([input]) => pathOf(input).endsWith('/free-check'))).toBe(
+        true,
+      ),
+    );
+    const call = fetchMock.mock.calls.find(([input]) => pathOf(input).endsWith('/free-check'));
+    expect(bodyOf(call?.[1] as RequestInit)).toMatchObject({ language: 'uk' });
   });
 });
 
@@ -394,6 +426,7 @@ describe('paid plan controls', () => {
         robotsOverrideConfirmed: false,
         userAgent: 'desktop',
       },
+      // No AI consent, so no question and no language (D-237).
     });
   });
 });
