@@ -64,11 +64,7 @@ describe('Complete catalog presentation', () => {
         expect(row).toHaveTextContent(completeCatalogCopy[language].available);
       }
       expect(container.querySelector('[data-locked-rule] button, [data-locked-rule] a')).toBeNull();
-      for (const blur of container.querySelectorAll('.complete-check-catalog__blur')) {
-        expect(blur).toHaveAttribute('aria-hidden', 'true');
-        expect(blur.textContent).toBe('');
-        expect(blur.querySelector('button, a, [tabindex]')).toBeNull();
-      }
+      expect(container.querySelector('.complete-check-catalog__blur')).toBeNull();
       expect(container).not.toHaveTextContent(/\b(?:88|93|100)\b/);
     },
   );

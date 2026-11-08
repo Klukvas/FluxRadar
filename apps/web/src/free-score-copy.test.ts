@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { FREE_UNLOCK_PLAN } from './FreeAiPreview';
 import { FREE_UPSELL_PLAN } from './FreeUpsell';
 import { faqCopyEn, faqCopyUk } from './faq-copy';
 import {
@@ -53,8 +52,7 @@ describe('Free score mirrors of the contract', () => {
     expect(FULL_SCORE_MAX).toBe(contractNumber('FULL_SCORE_MAX'));
   });
 
-  it('sends the score call to action where every other Free upgrade goes', () => {
-    expect(FREE_SCORE_UPGRADE_PLAN).toBe(FREE_UNLOCK_PLAN);
+  it('sends the score call to action to the primary Complete audit', () => {
     expect(FREE_SCORE_UPGRADE_PLAN).toBe(FREE_UPSELL_PLAN);
   });
 });

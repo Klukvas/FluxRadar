@@ -111,7 +111,11 @@ describe('Free report distinguishes points, performed checks and paid catalog', 
     const { card } = await openReport();
     expect(within(card).getByText('Homepage score: 40 / 40 points')).toBeInTheDocument();
     expect(within(card).getByText('Checks in this report: 6')).toBeInTheDocument();
-    expect(within(card).getByText('Rounded to a whole number.')).toBeInTheDocument();
+    expect(
+      within(card).getByText(
+        'Rounded homepage points from a limited check. A maximum score can still include issues.',
+      ),
+    ).toBeInTheDocument();
     expect(document.querySelector('.free-score')).not.toHaveTextContent(
       '100% of the checks were done',
     );
@@ -133,7 +137,7 @@ describe('Free report distinguishes points, performed checks and paid catalog', 
 
   it('offers real unrun checks without result badges or focusable fake results', async () => {
     const { panel, onUpgrade } = await openReport();
-    const locked = screen.getByRole('region', { name: 'What Complete adds' });
+    const locked = screen.getByRole('region', { name: 'What a new paid audit can check' });
     expect(
       within(locked).getByText(/These checks were not run in this Free report/),
     ).toBeInTheDocument();

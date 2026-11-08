@@ -10,7 +10,7 @@
 // static copy needs before any scan exists are mirrored here and held to the
 // contract by `free-score-copy.test.ts`, which reads the contract source.
 
-import { ruleChecksOf } from './module-metadata';
+import { ruleCheckResult, ruleChecksOf } from './module-metadata';
 import type { ScanModule } from './api';
 import { ukCountForm, type Language } from './i18n';
 import { ruCountForm } from './i18n.ru.grammar';
@@ -52,6 +52,14 @@ export function freeCheckCountOf(modules: readonly ScanModule[]): number {
   if (recorded.length > 0) return recorded.length;
   const checks = metadata?.checks;
   return Array.isArray(checks) && checks.length > 0 ? checks.length : FREE_CHECK_COUNT;
+}
+
+/** Only saved per-check outcomes can say how many checks found issues. */
+export function freeIssueCheckCountOf(modules: readonly ScanModule[]): number | null {
+  const checks = ruleChecksOf(modules.find((module) => module.module === 'SEO')?.metadata);
+  return checks.length === 0
+    ? null
+    : checks.filter((check) => ruleCheckResult(check) === 'issues').length;
 }
 
 /** Counted after a colon: «1 легка перевірка», «2 легкі перевірки», «6 легких перевірок». */

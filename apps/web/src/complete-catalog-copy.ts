@@ -3,9 +3,9 @@ import { ukrainianReportCopy } from './report-language';
 
 export const completeCatalogCopy = {
   en: {
-    heading: 'What Complete adds',
+    heading: 'What a new paid audit can check',
     scope:
-      'These checks were not run in this Free report. Complete can run the checks that apply to your site and connected services.',
+      'These checks were not run in this Free report. Basic includes SEO and AI/GEO; Complete includes all ten sections. A new audit runs applicable checks, subject to the plan’s page limit and available services. These are check names, not hidden results.',
     available: 'Not run in this report',
     labels: { SEO: 'Additional SEO checks', 'AI SEO / GEO': 'Expanded AI analysis' },
     benefits: {
@@ -42,9 +42,9 @@ export const completeCatalogCopy = {
     },
   },
   uk: {
-    heading: 'Що додає Complete',
+    heading: 'Що може перевірити новий платний аудит',
     scope:
-      'Ці перевірки не виконувалися в цьому Free-звіті. Complete може виконати перевірки, застосовні до вашого сайту та підключених сервісів.',
+      'Ці перевірки не виконувалися в цьому Free-звіті. Basic включає SEO та AI/GEO; Complete — усі десять розділів. Новий аудит виконує застосовні перевірки в межах ліміту сторінок тарифу й доступних сервісів. Це назви перевірок, а не приховані результати.',
     available: 'Не виконувались у цьому звіті',
     labels: { SEO: 'Додаткові SEO-перевірки', 'AI SEO / GEO': 'Розширений AI-аналіз' },
     benefits: {
@@ -81,9 +81,9 @@ export const completeCatalogCopy = {
     },
   },
   ru: {
-    heading: 'Что добавляет Complete',
+    heading: 'Что может проверить новый платный аудит',
     scope:
-      'Эти проверки не выполнялись в этом Free-отчёте. Complete может выполнить проверки, применимые к вашему сайту и подключённым сервисам.',
+      'Эти проверки не выполнялись в этом Free-отчёте. Basic включает SEO и AI/GEO; Complete — все десять разделов. Новый аудит выполняет применимые проверки в пределах лимита страниц тарифа и доступных сервисов. Это названия проверок, а не скрытые результаты.',
     available: 'Не выполнялись в этом отчёте',
     labels: { SEO: 'Дополнительные SEO-проверки', 'AI SEO / GEO': 'Расширенный ИИ-анализ' },
     benefits: {

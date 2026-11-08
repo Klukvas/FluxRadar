@@ -1,9 +1,3 @@
-/* The Free report's AI block (FreeAiPreview.tsx, D-236).
-
-   The locked stage is a grid of decoy cards under a solid overlay. The blur is
-   decoration only: the cards are static skeletons that never carry scan data,
-   so nothing here is "hidden" content. Colours come from tokens.css. */
-
 /* The one answer, verdict first (FreeGeoAnswer.tsx, D-237): a lead, a
    headline, a count row, one line per statement, then two closed disclosures
    (details; the model's own words). Spacing does the grouping — no extra rules
@@ -228,94 +222,9 @@
   margin-top: var(--sp-3);
 }
 
-.free-ai-preview__locked {
-  margin-top: var(--sp-4);
-}
-
-.free-ai-preview__locked-heading {
-  margin: 0 0 var(--sp-2);
-}
-
-.free-ai-preview__stage {
-  position: relative;
-  /* Clips the blurred edge of the decoys so it never widens the page. */
-  overflow: hidden;
-  margin-top: var(--sp-3);
-  border: 1px solid var(--plat-400);
-  background: var(--plat-50);
-}
-
-.free-ai-preview__decoys {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr));
-  gap: var(--sp-3);
-  padding: var(--sp-3);
-  filter: blur(3px);
-  opacity: 0.6;
-  pointer-events: none;
-  user-select: none;
-}
-
-.free-ai-preview__decoy {
-  display: grid;
-  gap: var(--sp-2);
-  min-width: 0;
-  padding: var(--sp-3);
-  border: 1px solid var(--plat-400);
-  background: #fff;
-}
-
-.free-ai-preview__decoy-title {
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
-.free-ai-preview__bar {
-  display: block;
-  height: 10px;
-  background: var(--plat-300);
-}
-
-.free-ai-preview__bar--short {
-  width: 60%;
-}
-
-.free-ai-preview__overlay {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  /* One track no wider than the stage, so a long button label wraps instead
-     of being clipped at 375px. */
-  grid-template-columns: minmax(0, 1fr);
-  align-content: center;
-  justify-items: center;
-  gap: var(--sp-3);
-  padding: var(--sp-4);
-  text-align: center;
-  /* Platinum at ~80% opacity, from the --plat-50 token's own value. */
-  background: rgb(239 239 239 / 82%);
-}
-
-.free-ai-preview__unlock-lead {
-  margin: 0;
-  max-width: 36ch;
-  font-weight: 600;
-  color: var(--plat-900);
-}
-
-/* On a phone the five decoys stack into a tall column; two rows are enough to
-   say "there is more", and the overlay needs room for its sentence and button. */
-@media (max-width: 699px) {
-  .free-ai-preview__decoy:nth-child(n + 3) {
-    display: none;
-  }
-}
-
 /* Nothing here moves; the rule is explicit so a later transition cannot creep
    in unguarded. */
 @media (prefers-reduced-motion: reduce) {
-  .free-ai-preview__decoys,
-  .free-ai-preview__overlay,
   .free-geo-answer__details,
   .free-geo-claims__toggle {
     transition: none;

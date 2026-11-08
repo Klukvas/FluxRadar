@@ -432,7 +432,6 @@ export function ResultsScreen(props: {
             observations={geoObservations}
             evidence={geoEvidence}
             language={props.language}
-            onUpgrade={(plan) => props.onUpgrade?.(scan, plan)}
           />
         ) : null}
         {scan.plan === 'Free' && siteFailure === null && !checkedNothing ? (

@@ -1,4 +1,4 @@
-// The words of the Free check's AI preview and consent (D-236), in both report
+// The words of the Free check's AI preview and consent (D-236), in all interface
 // languages. Kept beside the components that read them, the way
 // geo-digest-copy.ts and new-scan-copy.ts are, rather than added to i18n.ts.
 
@@ -24,8 +24,6 @@ export interface FreePreviewCopy {
   };
   readonly preview: {
     readonly heading: string;
-    /** Shown only when no answer was produced; the answer has its own lead. */
-    readonly lead: string;
     /** What was done, without the question or the model: the brand, when one was saved. */
     readonly answerLead: (brand: string | null) => string;
     /**
@@ -61,13 +59,7 @@ export interface FreePreviewCopy {
     readonly notRunAllowlisted: string;
     readonly notRunAlreadyRequested: string;
     readonly notRunOther: string;
-    readonly lockedHeading: string;
-    /** The overlay's accessible text: what is locked, in words, not in pictures. */
-    readonly lockedDescription: string;
-    readonly unlockLead: string;
-    readonly unlockAction: string;
-    /** Labels drawn inside the decoy cards; never scan data. */
-    readonly decoyTitles: readonly string[];
+    readonly pending: string;
   };
 }
 
@@ -84,7 +76,6 @@ export const freePreviewCopy: Readonly<Record<Language, FreePreviewCopy>> = {
     },
     preview: {
       heading: 'What AI says about your business',
-      lead: 'One real answer from one AI assistant. It is shown for information and does not change your homepage score.',
       answerLead: (brand) =>
         `One answer from one AI assistant, asked without web search what it knows about ${brand ?? 'your business'}. For information only — it does not change your homepage score.`,
       askedIn: (asked) =>
@@ -125,18 +116,7 @@ export const freePreviewCopy: Readonly<Record<Language, FreePreviewCopy>> = {
         'No AI question was asked on this run: an earlier run of this check already reached the AI step, and the AI answer is never requested twice for one free check.',
       notRunOther:
         'The AI answer could not be produced this time. Your homepage check and score are not affected.',
-      lockedHeading: 'More in the complete verification',
-      lockedDescription:
-        'Locked in the free check: answers from ChatGPT and other AI assistants, questions customers ask without naming you, and the Security, Performance and Accessibility checks.',
-      unlockLead: 'You could unlock this by running the complete verification.',
-      unlockAction: 'Unlock with the complete verification',
-      decoyTitles: [
-        'ChatGPT · OpenAI',
-        'Discovery question',
-        'Security',
-        'Performance',
-        'Accessibility',
-      ],
+      pending: 'The AI step is not finished yet. No answer is available in this report yet.',
     },
   },
   uk: {
@@ -151,7 +131,6 @@ export const freePreviewCopy: Readonly<Record<Language, FreePreviewCopy>> = {
     },
     preview: {
       heading: 'Що ШІ каже про ваш бізнес',
-      lead: 'Одна справжня відповідь одного ШІ-помічника. Вона показана для інформації й не змінює оцінку головної сторінки.',
       answerLead: (brand) =>
         `Одна відповідь одного ШІ-помічника, якого без пошуку в інтернеті запитали, що він знає про ${brand === null ? 'ваш бізнес' : `«${brand}»`}. Лише для інформації — на оцінку головної сторінки це не впливає.`,
       askedIn: (asked) =>
@@ -192,12 +171,7 @@ export const freePreviewCopy: Readonly<Record<Language, FreePreviewCopy>> = {
         'Цього разу питання ШІ не ставилося: попередній запуск цієї перевірки вже дійшов до кроку ШІ, а для однієї безкоштовної перевірки відповідь ШІ двічі не запитують.',
       notRunOther:
         'Цього разу відповідь ШІ отримати не вдалося. Перевірка головної сторінки й оцінка від цього не змінилися.',
-      lockedHeading: 'Більше — у повній перевірці',
-      lockedDescription:
-        'Закрито в безкоштовній перевірці: відповіді ChatGPT та інших ШІ-помічників, питання клієнтів без згадки вашої назви, а також перевірки безпеки, швидкодії та доступності.',
-      unlockLead: 'Ви можете відкрити це, запустивши повну перевірку.',
-      unlockAction: 'Відкрити повною перевіркою',
-      decoyTitles: ['ChatGPT · OpenAI', 'Питання клієнта', 'Безпека', 'Швидкодія', 'Доступність'],
+      pending: 'Крок ШІ ще не завершено. Відповіді в цьому звіті поки немає.',
     },
   },
   // Russian chrome and saved AI texts use their own recorded language.
@@ -213,7 +187,6 @@ export const freePreviewCopy: Readonly<Record<Language, FreePreviewCopy>> = {
     },
     preview: {
       heading: 'Что ИИ говорит о вашем бизнесе',
-      lead: 'Один настоящий ответ одного ИИ-помощника. Он показан для информации и не меняет оценку главной страницы.',
       answerLead: (brand) =>
         `Один ответ одного ИИ-помощника, которого без поиска в интернете спросили, что он знает о ${brand === null ? 'вашем бизнесе' : `«${brand}»`}. Только для информации: на оценку главной страницы это не влияет.`,
       askedIn: (asked) =>
@@ -253,18 +226,7 @@ export const freePreviewCopy: Readonly<Record<Language, FreePreviewCopy>> = {
         'В этот раз вопрос ИИ не задавался: предыдущий запуск этой проверки уже дошёл до шага ИИ, а для одной проверки Free ответ ИИ дважды не запрашивают.',
       notRunOther:
         'В этот раз ответ ИИ получить не удалось. Проверка главной страницы и оценка от этого не изменились.',
-      lockedHeading: 'Больше в полной проверке',
-      lockedDescription:
-        'Закрыто в проверке Free: ответы ChatGPT и других ИИ-помощников, вопросы клиентов без упоминания вашего названия, а также проверки безопасности, скорости и доступности.',
-      unlockLead: 'Вы можете открыть это, запустив полную проверку.',
-      unlockAction: 'Открыть полной проверкой',
-      decoyTitles: [
-        'ChatGPT · OpenAI',
-        'Вопрос клиента',
-        'Безопасность',
-        'Скорость',
-        'Доступность',
-      ],
+      pending: 'Шаг ИИ ещё не завершён. Ответа в этом отчёте пока нет.',
     },
   },
 };

@@ -20,6 +20,16 @@
   min-width: min(180px, 100%);
   max-width: min(300px, 100%);
 }
+.free-score__cta {
+  display: grid;
+  gap: var(--sp-2);
+}
+.free-score__issues {
+  margin: 0;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
 .free-score__cta .button {
   width: 100%;
   min-height: 44px;

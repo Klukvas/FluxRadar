@@ -21,7 +21,7 @@ import {
   ukProblemsAccusative,
   type Language,
 } from './i18n';
-import { COMPLETE_PRICE } from './tariff-prices';
+import { BASIC_PRICE, COMPLETE_PRICE, TARIFF_PRICES_USD } from './tariff-prices';
 import { russianFindingsCopy } from './findings-copy.ru';
 
 export type FindingsCopy = {
@@ -170,6 +170,9 @@ export type FindingsCopy = {
     readonly heading: string;
     /** `problems` is null while the issue summary is loading: no number is said then. */
     readonly lead: (domain: string, problems: number | null, checks?: number) => string;
+    readonly basic: string;
+    readonly basicAction: string;
+    readonly difference: string;
     readonly listIntro: string;
     readonly points: readonly string[];
     readonly price: string;
@@ -365,16 +368,19 @@ export const findingsCopy: Readonly<Record<Language, FindingsCopy>> = {
           return `On the homepage of ${domain}, the free check found no problems in the ${checks} things it looks at. ${rest}`;
         return `The free check found ${problems} ${problems === 1 ? 'problem' : 'problems'} on the homepage of ${domain}, in the ${checks} things it looks at. ${rest}`;
       },
-      listIntro: 'The complete verification checks every page for:',
+      basic: `Basic — ${BASIC_PRICE}: SEO and AI/GEO for search and AI visibility, plus an AI action plan.`,
+      basicAction: `Choose Basic for ${BASIC_PRICE}`,
+      difference: `Complete adds the checks below, exports and history for $${TARIFF_PRICES_USD.Complete - TARIFF_PRICES_USD.Basic} more than Basic. Both plans include SEO and AI/GEO.`,
+      listIntro: 'Complete adds to Basic:',
       points: [
-        'Broken links, pages with no description, duplicates — and which pages Google cannot show',
-        'What ChatGPT and Claude say about your business, and who they name instead',
-        'Security: certificates, headers and what a visitor’s browser is exposed to',
-        'Speed and accessibility: how fast pages load and who cannot use them',
+        'Security, performance and accessibility checks',
+        'Reliability, content quality and privacy checks',
+        'UX/conversion and analytics checks; connected data is required where applicable',
+        'Report exports, scan history and issue history for tracking fixes across scans',
       ],
       price: `Complete — ${COMPLETE_PRICE}, paid once, no subscription.`,
       action: `Run the complete verification for ${COMPLETE_PRICE}`,
-      compare: 'Only need search and AI visibility? Compare plans',
+      compare: 'Compare all plan features',
     },
     download: {
       pdf: 'Download full report (PDF)',
@@ -538,16 +544,19 @@ export const findingsCopy: Readonly<Record<Language, FindingsCopy>> = {
           return `На головній сторінці ${domain} у ${checks} речах, які дивиться безкоштовна перевірка, проблем немає. ${rest}`;
         return `Безкоштовна перевірка знайшла на головній сторінці ${domain} ${problems} ${ukProblemsAccusative(problems)} у ${checks} речах, які вона дивиться. ${rest}`;
       },
-      listIntro: 'Повна перевірка охопить на всіх сторінках:',
+      basic: `Basic — ${BASIC_PRICE}: SEO та AI/GEO для пошуку й видимості в ШІ, а також AI-план дій.`,
+      basicAction: `Обрати Basic за ${BASIC_PRICE}`,
+      difference: `Complete додає перелічені нижче перевірки, експорт та історію за додаткові $${TARIFF_PRICES_USD.Complete - TARIFF_PRICES_USD.Basic} до Basic. Обидва тарифи включають SEO та AI/GEO.`,
+      listIntro: 'Complete додає до Basic:',
       points: [
-        'Биті посилання, сторінки без опису, дублікати — і які сторінки Google не може показати',
-        'Що кажуть про ваш бізнес ChatGPT і Claude та кого називають замість вас',
-        'Безпеку: сертифікати, заголовки й те, що відкрито браузеру відвідувача',
-        'Швидкість і доступність: як швидко вантажаться сторінки і хто не може ними користуватися',
+        'Перевірки безпеки, швидкодії та доступності',
+        'Перевірки надійності, якості контенту й приватності',
+        'Перевірки UX/конверсії та аналітики; де потрібно, необхідні підключені дані',
+        'Експорт звітів, історію сканувань і проблем для відстеження виправлень між скануваннями',
       ],
       price: `Complete — ${COMPLETE_PRICE}, оплата один раз, без підписки.`,
       action: `Запустити повну перевірку за ${COMPLETE_PRICE}`,
-      compare: 'Потрібні лише пошук і видимість у ШІ? Порівняти тарифи',
+      compare: 'Порівняти всі можливості тарифів',
     },
     download: {
       pdf: 'Завантажити повний звіт (PDF)',

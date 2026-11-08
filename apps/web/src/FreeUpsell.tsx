@@ -1,10 +1,4 @@
-// The last block of a Free report: what the free check found on the homepage,
-// and the complete verification that reads the rest of the site.
-//
-// It sold Basic for a while. The owner decided (D-236) that every upgrade on a
-// Free report leads to one place — the complete verification — so this block
-// and the locked-preview button (FreeAiPreview.tsx) sell the same plan. It
-// still opens with the real result of the check the owner just ran.
+// The next audit is a new run: Basic covers SEO and AI/GEO; Complete adds broader checks.
 
 import type { Scan } from './api';
 import { Button } from './components';
@@ -34,6 +28,8 @@ export function FreeUpsell(props: {
     <section className="report-block upsell" aria-labelledby="upsell-heading">
       <h3 id="upsell-heading">{f.heading}</h3>
       <p>{f.lead(displayDomain(props.scan.domain), props.openProblems, props.checks)}</p>
+      <p>{f.basic}</p>
+      <p>{f.difference}</p>
       <p className="upsell__intro">{f.listIntro}</p>
       <ul>
         {f.points.map((point) => (
@@ -45,6 +41,7 @@ export function FreeUpsell(props: {
         <Button variant="primary" onClick={() => props.onUpgrade(FREE_UPSELL_PLAN)}>
           {f.action}
         </Button>
+        <Button onClick={() => props.onUpgrade('Basic')}>{f.basicAction}</Button>
         <a href="/plans">{f.compare}</a>
       </div>
     </section>

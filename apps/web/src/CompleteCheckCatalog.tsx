@@ -81,7 +81,6 @@ export function CompleteCheckCatalog(props: CatalogProps) {
                     >
                       {check.title}
                     </span>
-                    <span className="complete-check-catalog__blur" aria-hidden="true" />
                   </li>
                 ))}
                 {capabilities.map(([id, title]) => (
@@ -96,7 +95,6 @@ export function CompleteCheckCatalog(props: CatalogProps) {
                     >
                       {title}
                     </span>
-                    <span className="complete-check-catalog__blur" aria-hidden="true" />
                   </li>
                 ))}
               </ul>

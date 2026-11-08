@@ -1,4 +1,4 @@
-// The Free report's last block, which sells Basic with the free check's own result.
+// The Free report's next audit choices, with the free check's own result.
 //
 // What it may say is narrow: how many problems the free check left open on the
 // homepage — counted as "Fix these first" counts them, one per rule — and
@@ -11,7 +11,6 @@ import { resolve } from 'node:path';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { FREE_UNLOCK_PLAN } from './FreeAiPreview';
 import { FREE_UPSELL_PLAN } from './FreeUpsell';
 import { ReportNextSteps } from './ReportNextSteps';
 import { FREE_CHECK_COUNT } from './free-score-copy';
@@ -232,26 +231,23 @@ describe('Free upsell → what the free check found', () => {
   });
 });
 
-// Owner decision (D-236): every upgrade on a Free report sells Complete. This
-// block used to sell Basic — those expectations were intentionally replaced.
+// The primary action runs Complete; a separate Basic action covers search and AI.
 describe('Free upsell → what the complete verification adds', () => {
   it('lists what Complete checks on every page, with the Complete price', async () => {
     stubFetch(summaryWithOpenProblems(1));
     renderNextSteps();
 
     const block = await upsellBlock(EN_HEADING);
-    expect(
-      within(block).getByText('The complete verification checks every page for:'),
-    ).toBeVisible();
+    expect(within(block).getByText('Complete adds to Basic:')).toBeVisible();
     expect(
       within(block)
         .getAllByRole('listitem')
         .map((item) => item.textContent),
     ).toEqual([
-      'Broken links, pages with no description, duplicates — and which pages Google cannot show',
-      'What ChatGPT and Claude say about your business, and who they name instead',
-      'Security: certificates, headers and what a visitor’s browser is exposed to',
-      'Speed and accessibility: how fast pages load and who cannot use them',
+      'Security, performance and accessibility checks',
+      'Reliability, content quality and privacy checks',
+      'UX/conversion and analytics checks; connected data is required where applicable',
+      'Report exports, scan history and issue history for tracking fixes across scans',
     ]);
     expect(
       within(block).getByText(`Complete — ${COMPLETE_PRICE}, paid once, no subscription.`),
@@ -262,7 +258,7 @@ describe('Free upsell → what the complete verification adds', () => {
       }),
     ).toBeInTheDocument();
     const compare = within(block).getByRole('link', {
-      name: 'Only need search and AI visibility? Compare plans',
+      name: 'Compare all plan features',
     });
     expect(compare).toHaveAttribute('href', '/plans');
   });
@@ -272,16 +268,16 @@ describe('Free upsell → what the complete verification adds', () => {
     renderNextSteps({ language: 'uk' });
 
     const block = await upsellBlock(UK_HEADING);
-    expect(within(block).getByText('Повна перевірка охопить на всіх сторінках:')).toBeVisible();
+    expect(within(block).getByText('Complete додає до Basic:')).toBeVisible();
     expect(
       within(block)
         .getAllByRole('listitem')
         .map((item) => item.textContent),
     ).toEqual([
-      'Биті посилання, сторінки без опису, дублікати — і які сторінки Google не може показати',
-      'Що кажуть про ваш бізнес ChatGPT і Claude та кого називають замість вас',
-      'Безпеку: сертифікати, заголовки й те, що відкрито браузеру відвідувача',
-      'Швидкість і доступність: як швидко вантажаться сторінки і хто не може ними користуватися',
+      'Перевірки безпеки, швидкодії та доступності',
+      'Перевірки надійності, якості контенту й приватності',
+      'Перевірки UX/конверсії та аналітики; де потрібно, необхідні підключені дані',
+      'Експорт звітів, історію сканувань і проблем для відстеження виправлень між скануваннями',
     ]);
     expect(
       within(block).getByText(`Complete — ${COMPLETE_PRICE}, оплата один раз, без підписки.`),
@@ -291,7 +287,7 @@ describe('Free upsell → what the complete verification adds', () => {
     ).toBeInTheDocument();
     expect(
       within(block).getByRole('link', {
-        name: 'Потрібні лише пошук і видимість у ШІ? Порівняти тарифи',
+        name: 'Порівняти всі можливості тарифів',
       }),
     ).toHaveAttribute('href', '/plans');
   });
@@ -305,12 +301,12 @@ describe('Free upsell → what the complete verification adds', () => {
     expect(upsells).toHaveLength(2);
     for (const body of upsells) {
       expect(body).toContain('${COMPLETE_PRICE}');
-      expect(body).not.toContain('BASIC_PRICE');
+      expect(body).toContain('${BASIC_PRICE}');
       expect(body).not.toMatch(/\$\d/);
     }
   });
 
-  it('opens the upgrade on Complete, the same plan as the locked-preview button', async () => {
+  it('opens the upgrade on Complete, with the requested full-audit scope', async () => {
     stubFetch(summaryWithOpenProblems(1));
     const onUpgrade = vi.fn();
     renderNextSteps({ onUpgrade });
@@ -322,7 +318,7 @@ describe('Free upsell → what the complete verification adds', () => {
 
     expect(onUpgrade).toHaveBeenCalledTimes(1);
     expect(onUpgrade).toHaveBeenCalledWith('Complete');
-    expect(FREE_UPSELL_PLAN).toBe(FREE_UNLOCK_PLAN);
+    expect(FREE_UPSELL_PLAN).toBe('Complete');
   });
 });
 

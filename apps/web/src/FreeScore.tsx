@@ -3,6 +3,7 @@
 // out of 100 — kept together so the note is read with the number (D-237). Paid
 // reports use `ScoreDial` directly and see none of this.
 
+import { findingsCopy } from './findings-copy';
 import { freeReportCopy } from './free-report-copy';
 import type { Dashboard, ScanModule } from './api';
 import { Button, ScoreDial } from './components';
@@ -10,6 +11,7 @@ import {
   FREE_SCORE_UPGRADE_PLAN,
   FULL_SCORE_MAX,
   freeDialProps,
+  freeIssueCheckCountOf,
   freeScoreCopy,
   isFreeScale,
 } from './free-score-copy';
@@ -36,6 +38,7 @@ export function FreeScore(props: {
           seo.applicableChecks,
         )
       : undefined;
+  const issues = freeIssueCheckCountOf(props.modules);
   const freeScale = isFreeScale(overall.scoreMax);
   return (
     <div className="free-score">
@@ -54,6 +57,9 @@ export function FreeScore(props: {
               }
         }
       />
+      {issues === null ? null : (
+        <p className="free-score__issues">{freeReportCopy[props.language].issueChecks(issues)}</p>
+      )}
       {freeScale && overall.score !== null ? (
         <p className="free-score__rounding">{freeReportCopy[props.language].rounding}</p>
       ) : null}
@@ -70,6 +76,14 @@ export function FreeScore(props: {
             }}
           >
             {freeScoreCopy[props.language].upgrade(FULL_SCORE_MAX)}
+          </Button>
+          <Button
+            onClick={() => {
+              trackUpgradeClicked('Basic', 'free_score');
+              onUpgrade('Basic');
+            }}
+          >
+            {findingsCopy[props.language].upsell.basicAction}
           </Button>
         </div>
       ) : null}

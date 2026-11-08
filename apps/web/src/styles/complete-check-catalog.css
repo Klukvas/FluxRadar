@@ -95,7 +95,7 @@
 }
 .complete-check-catalog__list li {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 36px;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--sp-2);
   align-items: center;
   padding: var(--sp-2) 0;
@@ -104,12 +104,6 @@
 }
 .complete-check-catalog__availability {
   grid-column: 1 / -1;
-}
-.complete-check-catalog__blur {
-  height: 8px;
-  margin: 0 4px;
-  background: var(--plat-400);
-  filter: blur(3px);
 }
 @media (max-width: 700px) {
   .complete-check-catalog__modules {

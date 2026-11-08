@@ -1,6 +1,12 @@
 import type { GeoObservation, ScanModule } from './api';
+import { hasFreeAiAnswer } from './free-geo-claims';
 import { freeReportCopy } from './free-report-copy';
-import { freeCheckCountOf, freeScoreCopy, isFreeScale } from './free-score-copy';
+import {
+  freeCheckCountOf,
+  freeIssueCheckCountOf,
+  freeScoreCopy,
+  isFreeScale,
+} from './free-score-copy';
 import type { Language } from './i18n';
 import { ruleChecksOf } from './module-metadata';
 import { moduleScoreLabel } from './scan-status';
@@ -12,6 +18,7 @@ export function FreeModuleSummary(props: {
 }) {
   const { module, language } = props;
   const t = freeReportCopy[language];
+  const issues = freeIssueCheckCountOf([module]);
   const count = freeCheckCountOf([module]);
   const hasChecks =
     ruleChecksOf(module.metadata).length > 0 ||
@@ -33,15 +40,15 @@ export function FreeModuleSummary(props: {
       </div>
       {module.module === 'SEO' ? (
         <>
+          {issues === null ? null : (
+            <small className="module-card__meta">{t.issueChecks(issues)}</small>
+          )}
           {module.score !== null && isFreeScale(module.scoreMax) ? (
             <small className="module-card__meta">{t.rounding}</small>
           ) : null}
           {hasChecks ? <small className="module-card__meta">{t.checks(count)}</small> : null}
         </>
-      ) : module.module === 'AI SEO / GEO' &&
-        props.observations.some(
-          (observation) => observation.status === 'answered' && observation.answer !== null,
-        ) ? (
+      ) : module.module === 'AI SEO / GEO' && props.observations.some(hasFreeAiAnswer) ? (
         <small className="module-card__meta">{t.aiExcluded}</small>
       ) : null}
     </>

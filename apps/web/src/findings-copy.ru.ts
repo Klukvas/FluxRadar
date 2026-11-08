@@ -14,7 +14,7 @@
 import type { FindingsCopy } from './findings-copy';
 import { ruCountForm, ruPagesAccusative, ruPagesOf, takesRuSingular } from './i18n.ru.grammar';
 import { FREE_CHECK_COUNT } from './free-score-copy';
-import { COMPLETE_PRICE } from './tariff-prices';
+import { BASIC_PRICE, COMPLETE_PRICE, TARIFF_PRICES_USD } from './tariff-prices';
 
 /** Locative, after «на»: «на 1 странице», «на 21 странице», «на 5 страницах». */
 const ruPagesOn = (count: number): string => (takesRuSingular(count) ? 'странице' : 'страницах');
@@ -164,16 +164,19 @@ export const russianFindingsCopy: FindingsCopy = {
         return `На главной странице ${domain} в пунктах, которые смотрит эта проверка (их ${checks}), проблем нет. ${rest}`;
       return `Проверка нашла на главной странице ${domain} ${problems} ${ruProblems(problems)} в пунктах, которые смотрит (их ${checks}). ${rest}`;
     },
-    listIntro: 'Полная проверка охватит на всех страницах:',
+    basic: `Basic за ${BASIC_PRICE}: SEO и AI/GEO для поиска и видимости в ИИ, а также ИИ-план действий.`,
+    basicAction: `Выбрать Basic за ${BASIC_PRICE}`,
+    difference: `Complete добавляет перечисленные ниже проверки, экспорт и историю за дополнительные $${TARIFF_PRICES_USD.Complete - TARIFF_PRICES_USD.Basic} к Basic. Оба тарифа включают SEO и AI/GEO.`,
+    listIntro: 'Complete добавляет к Basic:',
     points: [
-      'Битые ссылки, страницы без описания, дубликаты и какие страницы Google не может показать',
-      'Что говорят о вашем бизнесе ChatGPT и Claude и кого называют вместо вас',
-      'Безопасность: сертификаты, заголовки и то, что открыто браузеру посетителя',
-      'Скорость и доступность: как быстро грузятся страницы и кто не может ими пользоваться',
+      'Проверки безопасности, скорости и доступности',
+      'Проверки надёжности, качества контента и приватности',
+      'Проверки UX/конверсии и аналитики; где требуется, необходимы подключённые данные',
+      'Экспорт отчётов, историю сканирований и проблем для отслеживания исправлений между сканированиями',
     ],
     price: `Complete стоит ${COMPLETE_PRICE}, оплата один раз, без подписки.`,
     action: `Запустить полную проверку за ${COMPLETE_PRICE}`,
-    compare: 'Нужны только поиск и видимость в ИИ? Сравнить тарифы',
+    compare: 'Сравнить все возможности тарифов',
   },
   download: {
     pdf: 'Скачать полный отчёт (PDF)',

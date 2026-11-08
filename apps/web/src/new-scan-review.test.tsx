@@ -150,19 +150,14 @@ afterEach(() => {
 });
 
 describe('report upgrade navigation', () => {
-  it.each(['preview', 'upsell', 'seo'] as const)(
+  it.each(['upsell', 'seo'] as const)(
     'opens the form at the top from the real %s CTA without resetting control changes',
     async (caller) => {
       const scroll = vi.spyOn(window, 'scrollTo');
       open('/scans/scan-1');
       if (caller === 'seo')
         fireEvent.click(await screen.findByRole('button', { name: copy.en.report.checks.show }));
-      const label =
-        caller === 'seo'
-          ? freeReportCopy.en.upgrade
-          : caller === 'preview'
-            ? freePreviewCopy.en.preview.unlockAction
-            : findingsCopy.en.upsell.action;
+      const label = caller === 'seo' ? freeReportCopy.en.upgrade : findingsCopy.en.upsell.action;
       const button = await screen.findByRole('button', { name: label });
       scroll.mockClear();
       fireEvent.click(button);
