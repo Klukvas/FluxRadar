@@ -24,9 +24,16 @@
   display: grid;
   gap: var(--sp-2);
 }
+.free-score__context {
+  width: 100%;
+  margin: var(--sp-2) 0;
+  padding: var(--sp-2) 0;
+  border-top: 1px solid var(--plat-300);
+  border-bottom: 1px solid var(--plat-300);
+}
 .free-score__issues {
   margin: 0;
-  font-weight: 700;
+  font: bold 14px/1.4 var(--ui-font);
   font-variant-numeric: tabular-nums;
   text-align: center;
 }
@@ -38,7 +45,7 @@
 }
 
 .free-score__rounding {
-  margin: 0;
+  margin: var(--sp-1) 0 0;
   color: var(--plat-600);
   font: 11px/1.45 var(--mono-font);
   text-align: center;

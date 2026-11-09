@@ -3,7 +3,6 @@
 // out of 100 — kept together so the note is read with the number (D-237). Paid
 // reports use `ScoreDial` directly and see none of this.
 
-import { findingsCopy } from './findings-copy';
 import { freeReportCopy } from './free-report-copy';
 import type { Dashboard, ScanModule } from './api';
 import { Button, ScoreDial } from './components';
@@ -18,6 +17,7 @@ import {
 import { trackUpgradeClicked } from './funnel-analytics';
 import type { Language } from './i18n';
 import type { PaidPlan } from './plan-modules';
+import { BASIC_PRICE } from './tariff-prices';
 
 export function FreeScore(props: {
   overall: Dashboard['overall'];
@@ -48,6 +48,18 @@ export function FreeScore(props: {
         verdict={overall.verdict}
         coverageText={completion}
         {...dial}
+        scoreContext={
+          <div className="free-score__context">
+            <p className="free-score__issues">
+              {issues === null
+                ? freeReportCopy[props.language].issueResultsUnknown
+                : freeReportCopy[props.language].issueChecks(issues)}
+            </p>
+            {freeScale && overall.score !== null ? (
+              <p className="free-score__rounding">{freeReportCopy[props.language].rounding}</p>
+            ) : null}
+          </div>
+        }
         scale={
           dial.scale === undefined
             ? undefined
@@ -57,12 +69,6 @@ export function FreeScore(props: {
               }
         }
       />
-      {issues === null ? null : (
-        <p className="free-score__issues">{freeReportCopy[props.language].issueChecks(issues)}</p>
-      )}
-      {freeScale && overall.score !== null ? (
-        <p className="free-score__rounding">{freeReportCopy[props.language].rounding}</p>
-      ) : null}
       {freeScale && onUpgrade !== undefined ? (
         <div className="free-score__cta">
           {/* Primary: the dial's note is now one short line, so this button
@@ -83,7 +89,7 @@ export function FreeScore(props: {
               onUpgrade('Basic');
             }}
           >
-            {findingsCopy[props.language].upsell.basicAction}
+            {freeReportCopy[props.language].basicAction(BASIC_PRICE)}
           </Button>
         </div>
       ) : null}

@@ -761,6 +761,8 @@ export function ScoreDial(props: {
    * by `suffix` ("/ 100") and announced as a meter with that maximum.
    */
   scale?: { readonly max: number; readonly suffix: string; readonly valueText: string };
+  /** Plan-specific context immediately beside the score, before execution status. */
+  scoreContext?: ReactNode;
   /** A sentence kept next to the number, such as the rule that caps it. */
   note?: string;
 }) {
@@ -815,6 +817,7 @@ export function ScoreDial(props: {
       <div className="score-dial__label">
         {props.score === null ? t.insufficientData : (props.label ?? t.helpScoreTerm)}
       </div>
+      {props.scoreContext}
       {verdictLabel ? <StatusChip status={chipStatus} label={verdictLabel} /> : null}
       {props.coverageText !== undefined || props.coverage !== undefined ? (
         <div className="score-dial__coverage">

@@ -15,6 +15,7 @@ import type { ScanModule } from './api';
 import { ukCountForm, type Language } from './i18n';
 import { ruCountForm } from './i18n.ru.grammar';
 import type { PaidPlan } from './plan-modules';
+import { COMPLETE_PRICE } from './tariff-prices';
 
 /** Mirrors `FULL_SCORE_MAX` in packages/contracts/src/free-score.ts: the full audit's scale. */
 export const FULL_SCORE_MAX = 100;
@@ -56,10 +57,19 @@ export function freeCheckCountOf(modules: readonly ScanModule[]): number {
 
 /** Only saved per-check outcomes can say how many checks found issues. */
 export function freeIssueCheckCountOf(modules: readonly ScanModule[]): number | null {
-  const checks = ruleChecksOf(modules.find((module) => module.module === 'SEO')?.metadata);
-  return checks.length === 0
-    ? null
-    : checks.filter((check) => ruleCheckResult(check) === 'issues').length;
+  const seo = modules.find((module) => module.module === 'SEO');
+  const checks = ruleChecksOf(seo?.metadata);
+  const recorded = seo?.metadata?.ruleChecks;
+  if (
+    seo?.status !== 'Completed' ||
+    !seo.usableOutput ||
+    checks.length === 0 ||
+    !Array.isArray(recorded) ||
+    recorded.length !== checks.length ||
+    (seo.completedApplicableChecks !== null && checks.length < seo.completedApplicableChecks)
+  )
+    return null;
+  return checks.filter((check) => ruleCheckResult(check) === 'issues').length;
 }
 
 /** Counted after a colon: «1 легка перевірка», «2 легкі перевірки», «6 легких перевірок». */
@@ -107,7 +117,7 @@ export const freeScoreCopy: Readonly<Record<Language, FreeScoreCopy>> = {
     capDisclosure: (checks) =>
       `Quick check: ${checks} light checks on the homepage only. Not everything is checked.`,
     upgrade: (fullMax) =>
-      `Run the complete verification to check the whole site (scored out of ${fullMax})`,
+      `Complete · ${COMPLETE_PRICE} one-time: whole-site audit (scored out of ${fullMax})`,
     homepageOnly: 'A rating of your homepage only, not of the whole site.',
   },
   uk: {
@@ -119,7 +129,7 @@ export const freeScoreCopy: Readonly<Record<Language, FreeScoreCopy>> = {
     capDisclosure: (checks) =>
       `Швидка перевірка: ${checks} ${ukLightChecks(checks)} лише головної сторінки. Перевірено не все.`,
     upgrade: (fullMax) =>
-      `Повна перевірка: перевірити весь сайт (оцінка ${ukOutOf(fullMax)} ${fullMax})`,
+      `Complete · ${COMPLETE_PRICE} разово: перевірити весь сайт (оцінка ${ukOutOf(fullMax)} ${fullMax})`,
     homepageOnly: 'Оцінка лише головної сторінки, а не всього сайту.',
   },
   ru: {
@@ -130,7 +140,8 @@ export const freeScoreCopy: Readonly<Record<Language, FreeScoreCopy>> = {
       `Проверка Free быстрая: ${checks} ${ruLightChecks(checks)} только главной страницы с оценкой из ${max}. Проверено не всё. Полный аудит проверяет весь сайт и оценивает его по шкале из ${fullMax}.`,
     capDisclosure: (checks) =>
       `Быстрая проверка: ${checks} ${ruLightChecks(checks)} только главной страницы. Проверено не всё.`,
-    upgrade: (fullMax) => `Полная проверка: проверить весь сайт (оценка из ${fullMax})`,
+    upgrade: (fullMax) =>
+      `Complete · ${COMPLETE_PRICE} разово: проверить весь сайт (оценка из ${fullMax})`,
     homepageOnly: 'Оценка только главной страницы, а не всего сайта.',
   },
 };

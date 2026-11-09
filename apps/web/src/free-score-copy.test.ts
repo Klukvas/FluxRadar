@@ -80,7 +80,7 @@ describe('the Free score disclosure', () => {
     expect(freeScoreCopy.ru.capRule(6, 40, 100)).toBe(RU_RULE);
     expect(freeScoreCopy.ru.valueOfMax(39, 40)).toBe('39 из 40');
     expect(freeScoreCopy.ru.upgrade(100)).toBe(
-      'Полная проверка: проверить весь сайт (оценка из 100)',
+      'Complete · $87 разово: проверить весь сайт (оценка из 100)',
     );
   });
 
@@ -133,10 +133,10 @@ describe('the Free score disclosure', () => {
 
   it('puts the full-audit promise on the call to action', () => {
     expect(freeScoreCopy.en.upgrade(100)).toBe(
-      'Run the complete verification to check the whole site (scored out of 100)',
+      'Complete · $87 one-time: whole-site audit (scored out of 100)',
     );
     expect(freeScoreCopy.uk.upgrade(100)).toBe(
-      'Повна перевірка: перевірити весь сайт (оцінка зі 100)',
+      'Complete · $87 разово: перевірити весь сайт (оцінка зі 100)',
     );
   });
 
