@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { EGRESS_LOCATIONS } from '../integrations/crawl-egress-locations.ts';
 import { OPENAI_ENV_VARS } from '../integrations/openai-config.ts';
 import { GEMINI_ENV_VARS, PERPLEXITY_ENV_VARS } from '../integrations/opt-in-ai-config.ts';
 import { API_PACKAGE_ROOT } from '../test-utils/template-db.ts';
@@ -397,6 +398,28 @@ describe('DEPLOY-002 production env file parity', () => {
       expect(source, `${key} is never written into the release env file`).toBeDefined();
       // ...and the secret/variable it copies from is declared on the step.
       expect(workflow).toContain(`${source as string}: `);
+    }
+  });
+
+  // A country in the registry whose proxy the deploy never writes is a country
+  // the launch screen silently never offers. Kyiv keeps its variables in
+  // PRODUCTION_ENV_FILE and its own legacy secret; every later country is
+  // wired here, so registering one fails until the workflow ships it.
+  it('ships the proxy and expected address of every egress location', () => {
+    const workflow = readFileSync(WORKFLOW_PATH, 'utf8');
+    const wired = new Map(
+      [...workflow.matchAll(/^\s*upsert_env (\S+) (\S+)\s*$/gm)].map((match) => [
+        match[1] as string,
+        match[2] as string,
+      ]),
+    );
+
+    for (const location of EGRESS_LOCATIONS.filter((entry) => entry.id !== 'ua')) {
+      for (const key of [location.proxyEnvVar, location.expectedIpEnvVar]) {
+        const source = wired.get(key);
+        expect(source, `${key} is never written into the release env file`).toBeDefined();
+        expect(workflow).toContain(`${source as string}: `);
+      }
     }
   });
 
