@@ -8,6 +8,8 @@ export const APPROVED_CAMPAIGN_PAIRS = {
   perplexity: ['referral'],
   claude: ['referral'],
   newsletter: ['email'],
+  // Cold outreach sent from Instantly; the links carry utm_source=email.
+  email: ['outreach'],
 } as const satisfies Record<string, readonly string[]>;
 
 type ApprovedSource = keyof typeof APPROVED_CAMPAIGN_PAIRS;
