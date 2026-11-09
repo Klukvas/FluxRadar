@@ -95,6 +95,28 @@ export const EGRESS_LOCATIONS: readonly EgressLocationDefinition[] = [
     proxyEnvVar: 'CRAWL_EGRESS_PROXY_URL',
     expectedIpEnvVar: 'CRAWL_EGRESS_EXPECTED_IP',
   },
+  // The rest are rented dedicated ISP addresses, not VPSes of our own, each
+  // checked before it was registered: Cloudflare's trace, ipinfo and ip-api
+  // all place it in the country and city named here. Their plans have no
+  // traffic cap, so the default allowance only sets when the 80% warning fires.
+  egressLocation({
+    id: 'us',
+    countryCode: 'US',
+    city: 'Mesa',
+    label: { en: 'United States, Mesa (Arizona)', uk: 'США, Меса (Аризона)' },
+  }),
+  egressLocation({
+    id: 'gb',
+    countryCode: 'GB',
+    city: 'London',
+    label: { en: 'United Kingdom, London', uk: 'Велика Британія, Лондон' },
+  }),
+  egressLocation({
+    id: 'ca',
+    countryCode: 'CA',
+    city: 'Montreal',
+    label: { en: 'Canada, Montreal', uk: 'Канада, Монреаль' },
+  }),
 ];
 
 export function findEgressLocation(

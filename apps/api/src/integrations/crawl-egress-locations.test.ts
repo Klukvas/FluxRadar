@@ -46,6 +46,18 @@ describe('the egress location registry', () => {
     expect(ukraine?.expectedIpEnvVar).toBe('CRAWL_EGRESS_EXPECTED_IP');
   });
 
+  it.each([
+    ['us', 'US'],
+    ['gb', 'GB'],
+    ['ca', 'CA'],
+  ])('names %s by the variable convention', (id, suffix) => {
+    const location = findEgressLocation(id);
+
+    expect(location?.countryCode).toBe(suffix);
+    expect(location?.proxyEnvVar).toBe(`CRAWL_EGRESS_PROXY_URL_${suffix}`);
+    expect(location?.expectedIpEnvVar).toBe(`CRAWL_EGRESS_EXPECTED_IP_${suffix}`);
+  });
+
   it('refuses an entry whose id a scan scope would not accept', () => {
     expect(() =>
       egressLocation({
