@@ -15,6 +15,7 @@
       perplexity: ['referral'],
       claude: ['referral'],
       newsletter: ['email'],
+      email: ['outreach'],
     };
     var params = new URLSearchParams(search);
     var sources = params.getAll('utm_source');

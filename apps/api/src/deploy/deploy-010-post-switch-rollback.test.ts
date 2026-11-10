@@ -246,6 +246,7 @@ function makeRelease(appDir: string, releaseId: string, caddyfile: string): stri
   writeFileSync(join(releaseDir, 'docker-compose.yml'), 'services: {}\n');
   writeFileSync(join(releaseDir, '.env.production'), 'POSTGRES_DB=fluxradar\n');
   writeFileSync(join(releaseDir, 'deploy', 'Caddyfile'), caddyfile);
+  writeFileSync(join(releaseDir, 'deploy', 'postgres-init.sql'), '-- init\n');
   for (const probe of ['rollback-readonly-probe.cjs', 'rollback-schema-probe.cjs']) {
     writeFileSync(join(releaseDir, 'deploy', probe), '// probe\n');
   }
