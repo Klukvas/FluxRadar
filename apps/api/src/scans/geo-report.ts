@@ -7,6 +7,7 @@ import {
   MENTION_SIGNALS,
   deriveGeoVerdict,
   quoteOccursIn,
+  quoteOccursInSource,
   type GeoAnswerPosition,
   type GeoClaimVerdict,
   type GeoEvaluationVerdict,
@@ -358,7 +359,7 @@ function claimFrom(
   // as "supported by your site's evidence". A scan written before evaluations
   // existed has no `evaluation` key at all and never reaches this function.
   const source = evidence?.sources.find((entry) => entry.id === sourceId) ?? null;
-  if (source === null || !quoteOccursIn(source.excerpt, sourceQuote)) return null;
+  if (source === null || !quoteOccursInSource(source, sourceQuote, record.claim)) return null;
   return {
     claim: record.claim,
     verdict: claimVerdict,

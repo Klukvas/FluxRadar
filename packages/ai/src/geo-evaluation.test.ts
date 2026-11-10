@@ -366,6 +366,48 @@ describe('geo evaluation validation', () => {
     );
   });
 
+  // A judge backing "the site is smile.example" with the page address it was
+  // shown lost its verdict in a live report; the address is that page's own.
+  // Only for a claim that names that address: an address says which site this
+  // is and nothing about what the business does.
+  it('accepts the cited page’s own address as its source quote', () => {
+    const output = JSON.stringify({
+      answerDescribesSubject: true,
+      claims: [
+        {
+          claim: 'The official website is smile.example.',
+          verdict: 'matched',
+          answerQuote: 'Smile Clinic',
+          sourceId: 'page-1',
+          sourceQuote: 'https://smile.example/',
+        },
+      ],
+      overall: 'matches-evidence',
+    });
+
+    expect(parseGeoEvaluation(output, ANSWER, EVIDENCE).claims[0]?.sourceQuote).toBe(
+      'https://smile.example/',
+    );
+  });
+
+  it('refuses the address as support for a claim that does not name it', () => {
+    const output = JSON.stringify({
+      answerDescribesSubject: true,
+      claims: [
+        {
+          claim: 'The business is a dental clinic in Kyiv.',
+          verdict: 'matched',
+          answerQuote: 'a dental clinic in Kyiv',
+          sourceId: 'page-1',
+          sourceQuote: 'https://smile.example/',
+        },
+      ],
+      overall: 'matches-evidence',
+    });
+
+    expect(() => parseGeoEvaluation(output, ANSWER, EVIDENCE)).toThrow(/not in "page-1"/);
+  });
+
   it('still refuses a claim list far past the limit', () => {
     const claim = { claim: 'x', verdict: 'unverified', answerQuote: 'a dental clinic in Kyiv' };
     const output = JSON.stringify({
