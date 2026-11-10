@@ -66,7 +66,7 @@ export function storedToneFrom(
     typeof label === 'string' &&
     (GEO_TONE_LABELS as readonly string[]).includes(label) &&
     typeof quote === 'string' &&
-    quoteOccursIn(answer, quote);
+    quoteOccursIn(answer, quote, { allowElision: false });
   return valid
     ? { toneEvaluated: true, tone: { label: label as GeoToneLabel, quote }, toneAdjusted: adjusted }
     : { toneEvaluated: true, tone: null, toneAdjusted: true };

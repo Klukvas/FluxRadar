@@ -240,7 +240,9 @@ describe('geo evaluation validation', () => {
     expect(() => parseGeoEvaluation(output, ANSWER, EVIDENCE)).toThrow(/overall verdict/);
   });
 
-  it('rejects a claim cited against an unverified verdict', () => {
+  // The cited source supports nothing on an unverified claim, so it is dropped;
+  // throwing it away cost the whole evaluation (two answers in a live report).
+  it('drops the source cited against an unverified verdict and keeps the claim', () => {
     const output = JSON.stringify({
       answerDescribesSubject: true,
       claims: [
@@ -255,7 +257,13 @@ describe('geo evaluation validation', () => {
       overall: 'unverified',
     });
 
-    expect(() => parseGeoEvaluation(output, ANSWER, EVIDENCE)).toThrow(/unverified claim/);
+    const payload = parseGeoEvaluation(output, ANSWER, EVIDENCE);
+    expect(payload.claims[0]).toMatchObject({
+      verdict: 'unverified',
+      sourceId: null,
+      sourceQuote: null,
+    });
+    expect(payload.overall).toBe('unverified');
   });
 
   it('rejects claims attached to an answer that describes nothing', () => {
