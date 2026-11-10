@@ -502,6 +502,13 @@ code,
     inset 1px 1px 0 var(--plat-300),
     inset -1px -1px 0 #fff;
 }
+/* iPhone browsers zoom focused fields below 16px. Include touch screens wider
+   than the phone breakpoint, such as landscape phones and tablets. */
+@media (max-width: 699px), (any-pointer: coarse) {
+  .auth-modal input.control {
+    font-size: 16px;
+  }
+}
 /* Monospace marks a technical value — a domain, a URL, a pattern, a count — and
    nothing else. It used to be applied to whichever field happened to come first
    in its container, which put a person's chosen profile name in Monaco and left
@@ -2155,7 +2162,7 @@ code,
 .plan-scope__detail {
   color: var(--plat-600);
   /* A check title is a technical value (DESIGN_SYSTEM §2) and these lines are
-     mostly check titles; they wrap because a Free row names four of them. */
+     mostly check titles; they wrap because a Free row names several of them. */
   font: 11px/1.4 var(--mono-font);
   overflow-wrap: anywhere;
 }
