@@ -77,7 +77,20 @@ fi
 # Resolve actual active images: a host patch may differ from the current release tag.
 PREVIOUS_API_IMAGE="fluxradar-api:$PREVIOUS_RELEASE_ID"
 PREVIOUS_WEB_IMAGE="fluxradar-web:$PREVIOUS_RELEASE_ID"
-if [ -n "$PREVIOUS_API_CONTAINER" ] || [ -n "$PREVIOUS_WEB_CONTAINER" ]; then
+PREVIOUS_CONTAINERS_EXIST=true
+for previous_container in "$PREVIOUS_API_CONTAINER" "$PREVIOUS_WEB_CONTAINER"; do
+  if [ -n "$previous_container" ] && ! docker container inspect "$previous_container" >/dev/null 2>&1; then
+    PREVIOUS_CONTAINERS_EXIST=false
+  fi
+done
+if [ "$PREVIOUS_CONTAINERS_EXIST" = false ]; then
+  # The state file names containers that are gone — production is already
+  # down (a rerun of the live commit removed them on 2026-11-09). Refusing
+  # here made every later deploy fail before it could start the release that
+  # repairs it. The release tags are the rollback target instead; the gate
+  # below still refuses when those images are missing too.
+  echo "WARNING: the active release's containers ($PREVIOUS_API_CONTAINER, $PREVIOUS_WEB_CONTAINER) no longer exist; using the $PREVIOUS_RELEASE_ID image tags as the rollback target." >&2
+elif [ -n "$PREVIOUS_API_CONTAINER" ] || [ -n "$PREVIOUS_WEB_CONTAINER" ]; then
   PREVIOUS_API_IMAGE="$(docker inspect --format '{{.Image}}' "$PREVIOUS_API_CONTAINER")"
   PREVIOUS_WEB_IMAGE="$(docker inspect --format '{{.Image}}' "$PREVIOUS_WEB_CONTAINER")"
   if ! [[ "$PREVIOUS_API_IMAGE" =~ ^sha256:[a-f0-9]{64}$ && "$PREVIOUS_WEB_IMAGE" =~ ^sha256:[a-f0-9]{64}$ ]]; then
