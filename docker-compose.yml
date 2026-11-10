@@ -10,7 +10,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     volumes:
       - fluxradar_postgres:/var/lib/postgresql/data
-      - ./deploy/postgres-init.sql:/docker-entrypoint-initdb.d/01-test-database.sql:ro
+      # Production exports FLUXRADAR_POSTGRES_INIT (runtime/, see deploy/release.sh)
+      # so this source never changes between releases and deploys never recreate
+      # the database. Export it before any manual `docker compose up` on the server.
+      - ${FLUXRADAR_POSTGRES_INIT:-./deploy/postgres-init.sql}:/docker-entrypoint-initdb.d/01-test-database.sql:ro
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U fluxradar -d fluxradar']
       interval: 5s
