@@ -14,6 +14,8 @@
 /** Country-code top-level domains, by the egress location id that serves them. */
 const LOCATION_BY_TLD: Readonly<Record<string, string>> = {
   ua: 'ua',
+  // .укр, as `new URL` hands it over (punycode).
+  'xn--j1amh': 'ua',
   uk: 'gb',
   gb: 'gb',
   ca: 'ca',

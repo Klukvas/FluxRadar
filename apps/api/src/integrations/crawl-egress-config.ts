@@ -88,8 +88,8 @@ export function readCrawlEgressLocations(
 }
 
 /**
- * Where a scan goes when nobody chose — a Free check, an older client, a scan
- * that predates the choice: the default location when it is configured, else
+ * Where a scan goes when nobody chose and no country was suggested for the
+ * site (`chosenOrSuggestedEgress`), or that predates the choice: the default location when it is configured, else
  * the first one that is, else null for a deployment that crawls directly.
  */
 export function defaultEgressLocation(

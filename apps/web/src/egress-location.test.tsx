@@ -14,6 +14,7 @@ import { EgressLocationField } from './EgressLocationField';
 import {
   effectiveEgressLocation,
   egressLocationLabel,
+  ownerEgressChoice,
   suggestedEgressLocationId,
   type LaunchConfigState,
 } from './egress-location';
@@ -92,6 +93,17 @@ describe('which location a launch asks for', () => {
     expect(effectiveEgressLocation('', proxyConfig([KYIV, FRANKFURT]), 'de')).toEqual(FRANKFURT);
     expect(effectiveEgressLocation('ua', proxyConfig([KYIV, FRANKFURT]), 'de')).toEqual(KYIV);
     expect(effectiveEgressLocation('', proxyConfig([KYIV]), 'de')).toEqual(KYIV);
+  });
+
+  // Every profile saved before there was a choice says Kyiv without anyone
+  // having chosen it; a UK site among them is offered London instead.
+  it('reads an auto-saved Kyiv as no choice, until the owner picks it here', () => {
+    expect(ownerEgressChoice('ua', false)).toBe('');
+    expect(ownerEgressChoice('ua', true)).toBe('ua');
+    expect(ownerEgressChoice('gb', false)).toBe('gb');
+    expect(
+      effectiveEgressLocation(ownerEgressChoice('ua', false), proxyConfig([KYIV, LONDON]), 'gb'),
+    ).toEqual(LONDON);
   });
 
   it('suggests the country a site’s domain points to, among those answering', () => {

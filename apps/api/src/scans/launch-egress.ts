@@ -16,7 +16,11 @@
 // and only `resolveLaunchEgressLocation` makes one. A new caller cannot hand
 // them an id nobody checked.
 
-import { suggestEgressLocationId, type ScanScopeInput } from '@fluxradar/contracts';
+import {
+  localesFromAcceptLanguage,
+  suggestEgressLocationId,
+  type ScanScopeInput,
+} from '@fluxradar/contracts';
 
 import { ApiError } from '../http/errors.ts';
 import type { ConfiguredEgressLocation } from '../integrations/crawl-egress-config.ts';
@@ -41,8 +45,9 @@ export interface LaunchEgress {
 
 /**
  * The configured location a launch leaves from, or null for a deployment that
- * crawls directly. `requested` absent means "the default" — what a Free check
- * and an older client get; it never means "any location that happens to be up".
+ * crawls directly. `requested` absent means "the default"; it never means "any
+ * location that happens to be up". Launch routes pass `chosenOrSuggestedEgress`
+ * here, so absent reaches this only when no suggestion is on offer either.
  */
 export async function resolveLaunchEgressLocation(
   monitor: EgressLocationMonitor,
@@ -69,18 +74,26 @@ export async function resolveLaunchEgressLocation(
 }
 
 /**
- * The location a launch that named none should ask for: the one the site's
- * domain and the visitor's locales point to, among the locations answering
- * now — or undefined, which `resolveLaunchEgressLocation` reads as the default.
+ * The location a launch asks for: the one the request named, else the one the
+ * site's domain and the visitor's Accept-Language point to among the locations
+ * answering now. Undefined — a direct deployment, or no suggestion on offer —
+ * is what `resolveLaunchEgressLocation` reads as the default.
+ *
+ * Every launch path calls this, so a client that names no country (an older
+ * one, or the API used directly) gets the country the launch screen would
+ * have shown, not Kyiv.
  */
-export async function suggestedLaunchEgressLocation(
+export async function chosenOrSuggestedEgress(
   monitor: EgressLocationMonitor,
+  requested: string | undefined,
   site: string,
-  visitorLocales: readonly string[],
+  acceptLanguage: string | undefined,
 ): Promise<string | undefined> {
-  if (monitor.configured.length === 0) return undefined;
+  if (requested !== undefined || monitor.configured.length === 0) return requested;
   const available = (await monitor.available()).map(({ location }) => location.id);
-  return suggestEgressLocationId(site, available, visitorLocales) ?? undefined;
+  return (
+    suggestEgressLocationId(site, available, localesFromAcceptLanguage(acceptLanguage)) ?? undefined
+  );
 }
 
 function checked(location: ConfiguredEgressLocation | null): LaunchEgress {

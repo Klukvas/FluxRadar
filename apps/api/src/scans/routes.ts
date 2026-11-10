@@ -7,7 +7,6 @@ import { computeStoredScanOverallScore } from '@fluxradar/scoring';
 import {
   RULESET_VERSION,
   aiLanguageSchema,
-  localesFromAcceptLanguage,
   reportLanguageSchema,
   scanRequestInputSchema,
   scanScopeSchema,
@@ -53,7 +52,7 @@ import type { EgressLocationMonitor } from '../integrations/crawl-egress-monitor
 import {
   egressLaunchConfig,
   resolveLaunchEgressLocation,
-  suggestedLaunchEgressLocation,
+  chosenOrSuggestedEgress,
   scopeWithEgressLocation,
   type LaunchEgress,
 } from './launch-egress.ts';
@@ -126,12 +125,12 @@ export function scansRouter(deps: ScansRouterDeps): Router {
       aiLanguage: body?.aiLanguage,
       egress: await resolveLaunchEgressLocation(
         deps.egress,
-        body?.scope?.egressLocation ??
-          (await suggestedLaunchEgressLocation(
-            deps.egress,
-            profile.domain,
-            localesFromAcceptLanguage(req.get('accept-language')),
-          )),
+        await chosenOrSuggestedEgress(
+          deps.egress,
+          body?.scope?.egressLocation,
+          profile.domain,
+          req.get('accept-language'),
+        ),
       ),
     });
     deps.enqueueScan(created.id);
@@ -161,12 +160,12 @@ export function scansRouter(deps: ScansRouterDeps): Router {
       requestedScope: input.scope,
       egress: await resolveLaunchEgressLocation(
         deps.egress,
-        input.scope?.egressLocation ??
-          (await suggestedLaunchEgressLocation(
-            deps.egress,
-            profile.domain,
-            localesFromAcceptLanguage(req.get('accept-language')),
-          )),
+        await chosenOrSuggestedEgress(
+          deps.egress,
+          input.scope?.egressLocation,
+          profile.domain,
+          req.get('accept-language'),
+        ),
       ),
     });
     deps.enqueueScan(scan.id);
@@ -398,7 +397,7 @@ export interface CreateFreeScanParams {
   /** Legacy EN/UK client field; aiLanguage takes priority. */
   readonly language?: ReportLanguage | undefined;
   readonly aiLanguage?: AiLanguage | undefined;
-  /** The default egress location, checked at launch (`resolveLaunchEgressLocation`). */
+  /** The egress location the route chose, checked at launch (`resolveLaunchEgressLocation`). */
   readonly egress: LaunchEgress;
 }
 
@@ -414,7 +413,7 @@ export interface CreateFreeScanParams {
  *
  * `requestedScope` is what the caller asked for, not what is stored: Free runs a
  * fixed homepage check, so the row records the settings that check will actually
- * apply (see free-scan-scope.ts), plus the default egress location checked at
+ * apply (see free-scan-scope.ts), plus the egress location checked at
  * launch, which the route chose (the owner's, or the suggested one).
  */
 export async function createFreeScan(

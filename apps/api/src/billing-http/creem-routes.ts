@@ -62,7 +62,8 @@ import { requiredParam } from '../http/params.ts';
 import { parseInput } from '../http/validate.ts';
 import type { EgressLocationMonitor } from '../integrations/crawl-egress-monitor.ts';
 import { availableOptInAiProviders } from '../integrations/opt-in-ai-config.ts';
-import { resolveLaunchEgressLocation } from '../scans/launch-egress.ts';
+import { findOwnProfile } from '../profiles/routes.ts';
+import { chosenOrSuggestedEgress, resolveLaunchEgressLocation } from '../scans/launch-egress.ts';
 
 export const CREEM_SIGNATURE_HEADER_NAME = CREEM_SIGNATURE_HEADER;
 
@@ -218,7 +219,16 @@ export function creemRouter(deps: CreemRouterDeps): Router {
     assertOptInProvidersAvailable(input.aiConsent, optInAiProviders);
     // Before a session row exists or the provider is called: a buyer must not
     // pay for a scan from a country whose network is down right now.
-    const egress = await resolveLaunchEgressLocation(deps.egress, input.scope.egressLocation);
+    const profile = await findOwnProfile(deps.prisma, accountId, input.siteProfileId);
+    const egress = await resolveLaunchEgressLocation(
+      deps.egress,
+      await chosenOrSuggestedEgress(
+        deps.egress,
+        input.scope.egressLocation,
+        profile.domain,
+        req.get('accept-language'),
+      ),
+    );
     let session: CreemCheckoutSessionView;
     try {
       session = await createCreemCheckoutSession(

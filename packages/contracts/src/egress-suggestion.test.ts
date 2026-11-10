@@ -11,6 +11,7 @@ describe('suggestEgressLocationId', () => {
     ['https://clinic.com.ua', 'ua'],
     ['https://city.gov.us', 'us'],
     ['https://CLINIC.KIEV.UA.', 'ua'],
+    ['https://магазин.укр', 'ua'],
   ])('reads the country from the domain of %s', (site, expected) => {
     expect(suggestEgressLocationId(site, ALL, ['uk-UA'])).toBe(expected);
   });

@@ -126,6 +126,19 @@ export function effectiveEgressLocation(
 }
 
 /**
+ * The country every profile saved before the choice existed carries without
+ * anyone having chosen it: Kyiv was the only location, and new profiles were
+ * written with it. Read as "not chosen" until the owner picks it here, so an
+ * old UK or US site is offered its own country instead of staying on Kyiv.
+ */
+const AUTO_SAVED_EGRESS_LOCATION = 'ua';
+
+/** The owner's choice of country, with the auto-saved Kyiv read as none. */
+export function ownerEgressChoice(saved: string, pickedOnThisScreen: boolean): string {
+  return !pickedOnThisScreen && saved === AUTO_SAVED_EGRESS_LOCATION ? '' : saved;
+}
+
+/**
  * The country a site with no saved choice is checked from: the one its domain
  * points to (.co.uk, .ca), else the browser's locale, else the United States —
  * among the locations answering now.

@@ -24,7 +24,7 @@ import { paymentRequired, unauthorized } from '../http/errors.ts';
 import { parseInput } from '../http/validate.ts';
 import { findOwnProfile } from '../profiles/routes.ts';
 import type { EgressLocationMonitor } from '../integrations/crawl-egress-monitor.ts';
-import { resolveLaunchEgressLocation } from '../scans/launch-egress.ts';
+import { chosenOrSuggestedEgress, resolveLaunchEgressLocation } from '../scans/launch-egress.ts';
 import { RequestRateLimiter, scanActionRules } from '../auth/rate-limit.ts';
 
 const internalCheckoutInputSchema = z
@@ -90,7 +90,15 @@ export function internalCheckoutRouter(deps: InternalCheckoutRouterDeps): Router
       );
     }
     const profile = await findOwnProfile(deps.prisma, accountId, input.siteProfileId);
-    const egress = await resolveLaunchEgressLocation(deps.egress, input.scope.egressLocation);
+    const egress = await resolveLaunchEgressLocation(
+      deps.egress,
+      await chosenOrSuggestedEgress(
+        deps.egress,
+        input.scope.egressLocation,
+        profile.domain,
+        req.get('accept-language'),
+      ),
+    );
     const scan = await createInternalFreeScan({
       prisma: deps.prisma,
       accountId,

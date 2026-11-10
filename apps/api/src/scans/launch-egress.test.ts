@@ -229,6 +229,33 @@ describe('launching a scan from a chosen egress location', () => {
     expect(free.body.data.executionConfig.scope.egressLocation).toBe('gb');
   });
 
+  it('refuses a Free check from a country this deployment does not have', async () => {
+    const { agent, profileId } = await signedIn([KYIV], ['ua']);
+
+    const free = await agent
+      .post(`/profiles/${profileId}/free-check`)
+      .send({ scope: { includeSubdomains: false, egressLocation: 'de' } });
+
+    expect(free.status).toBe(400);
+    expect(free.body.error.code).toBe('EGRESS_LOCATION_UNKNOWN');
+    const account = await db.prisma.account.findUniqueOrThrow({ where: { email: OWNER } });
+    expect(account.freeCheckUsedAt).toBeNull();
+  });
+
+  // A client that names no country is given the one the screen would show.
+  it('picks a paid launch’s country from the visitor when none was named', async () => {
+    const { agent, profileId } = await signedIn([KYIV, LONDON], ['ua', 'gb']);
+
+    const launched = await agent
+      .post('/billing/internal-checkout')
+      .set('accept-language', 'en-GB')
+      .send({ siteProfileId: profileId, plan: 'Complete', scope: { includeSubdomains: false } });
+
+    expect(launched.status).toBe(201);
+    const scan = await agent.get(`/scans/${launched.body.data.scanId as string}`);
+    expect(scan.body.data.executionConfig.scope.egressLocation).toBe('gb');
+  });
+
   it('refuses a Free check from a country that is down, and spends nothing', async () => {
     const { agent, profileId } = await signedIn([KYIV, FRANKFURT], ['ua']);
 
