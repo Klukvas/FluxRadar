@@ -52,6 +52,16 @@ if [ -L "$APP_DIR/current" ] || [ -e "$APP_DIR/current" ]; then
   fi
   PREVIOUS_RELEASE_ID="${PREVIOUS_RELEASE##*/}"
 fi
+# Containers are named by commit, so deploying the commit that is already live
+# would `docker rm -f` the containers serving production before starting their
+# replacements, with that same commit as the only rollback target. A re-run of
+# the live commit's deploy took production down this way on 2026-11-09. Stop
+# before anything is touched; a new commit gets a new id.
+if [ -n "${RELEASE_ID:-}" ] && [ "${RELEASE_ID:-}" = "$PREVIOUS_RELEASE_ID" ]; then
+  echo "ERROR: $RELEASE_ID is already the live release; redeploying it would remove the containers serving production." >&2
+  echo "Nothing was changed. To redeploy, push a new commit to main (an empty commit is enough)." >&2
+  exit 1
+fi
 # fluxradar:end-rollback-target-detection
 API_IMAGE="fluxradar-api:$RELEASE_ID"
 WEB_IMAGE="fluxradar-web:$RELEASE_ID"
