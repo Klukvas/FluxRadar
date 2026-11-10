@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildGeoEvidenceSnapshot,
   evidenceSourceById,
+  quoteOccursInSource,
   renderGeoEvidence,
   type GeoEvidenceInput,
 } from './geo-evidence.js';
@@ -277,5 +278,53 @@ describe('geo evidence snapshot', () => {
       expect(evidenceSourceById(snapshot, source.id)).toBe(source);
     }
     expect(evidenceSourceById(snapshot, 'page-99')).toBeNull();
+  });
+});
+
+// The evaluator is shown each page's address beside its text, and backs claims
+// like "the official site is gov.uk" with it. The address counts as a quote of
+// that page — whole, never a fragment of it or a different page.
+describe('quoteOccursInSource', () => {
+  const page = { url: 'https://www.gov.uk/', excerpt: 'Welcome to GOV.UK · Benefits' };
+
+  const identity = 'The official website is gov.uk.';
+
+  it('finds a quote in the excerpt, as before', () => {
+    expect(quoteOccursInSource(page, 'Welcome to GOV.UK', 'anything')).toBe(true);
+  });
+
+  it('accepts the address only for a claim that names it', () => {
+    expect(quoteOccursInSource(page, 'https://www.gov.uk/', identity)).toBe(true);
+    expect(
+      quoteOccursInSource(page, 'https://www.gov.uk/', 'It offers Universal Credit accounts.'),
+    ).toBe(false);
+  });
+
+  it.each([
+    'https://www.gov.uk/',
+    'https://www.gov.uk',
+    'www.gov.uk',
+    'gov.uk',
+    'HTTPS://WWW.GOV.UK/',
+  ])('accepts the page address written as %s', (quote) => {
+    expect(quoteOccursInSource(page, quote, identity)).toBe(true);
+  });
+
+  it('refuses part of the address, another page, or an address on a profile field', () => {
+    // Not in the excerpt either, so only the address rule could accept them.
+    expect(quoteOccursInSource(page, 'www.gov', identity)).toBe(false);
+    expect(quoteOccursInSource(page, 'https://www.gov.uk/evisa', identity)).toBe(false);
+    expect(quoteOccursInSource(page, 'https://evil.example/', identity)).toBe(false);
+    // The address is compared whole, query string included.
+    expect(
+      quoteOccursInSource(
+        { url: 'https://shop.example/?ref=ad', excerpt: 'Shop' },
+        'shop.example',
+        'The site is shop.example.',
+      ),
+    ).toBe(false);
+    expect(
+      quoteOccursInSource({ url: null, excerpt: 'Government portal' }, 'gov.uk', identity),
+    ).toBe(false);
   });
 });

@@ -31,7 +31,12 @@ import {
   geoEvaluationSystemInstructionsFor,
   type GeoAnswerLanguage,
 } from './geo-evaluation-language.js';
-import { renderGeoEvidence, evidenceSourceById, type GeoEvidenceSnapshot } from './geo-evidence.js';
+import {
+  renderGeoEvidence,
+  evidenceSourceById,
+  quoteOccursInSource,
+  type GeoEvidenceSnapshot,
+} from './geo-evidence.js';
 import {
   GEO_TONE_NOT_JUDGED,
   GEO_TONE_RESPONSE_SCHEMA,
@@ -473,7 +478,7 @@ function parseClaim(
     'sourceQuote',
     GEO_EVALUATION_MAX_QUOTE_CHARS,
   );
-  if (!quoteOccursIn(source.excerpt, sourceQuote)) {
+  if (!quoteOccursInSource(source, sourceQuote, claim)) {
     throw new AiModuleError(
       `ai: GEO evaluation quoted text that is not in "${sourceId}": ${quoteForDiagnosis(sourceQuote)}`,
     );
