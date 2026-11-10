@@ -80,10 +80,14 @@ function makeAppDir(): string {
   return workspace;
 }
 
-function runDetection(appDir: string, options: { gnuReadlink: boolean }): Detection {
+function runDetection(
+  appDir: string,
+  options: { gnuReadlink: boolean; releaseId?: string },
+): Detection {
   const script = [
     'set -eu',
     'APP_DIR="$1"',
+    options.releaseId === undefined ? '' : `RELEASE_ID='${options.releaseId}'`,
     options.gnuReadlink ? GNU_READLINK_STUB : '',
     extractDetectionBlock(),
     // Exactly the condition the deploy uses to decide "first deploy".
@@ -119,9 +123,9 @@ function runDetection(appDir: string, options: { gnuReadlink: boolean }): Detect
 }
 
 /** Both readlink flavours must decide identically; returns the shared result. */
-function detect(appDir: string): Detection {
-  const bsd = runDetection(appDir, { gnuReadlink: false });
-  const gnu = runDetection(appDir, { gnuReadlink: true });
+function detect(appDir: string, releaseId?: string): Detection {
+  const bsd = runDetection(appDir, { gnuReadlink: false, releaseId });
+  const gnu = runDetection(appDir, { gnuReadlink: true, releaseId });
   expect(gnu.previousReleaseId, 'GNU and BSD readlink disagree on the rollback target').toBe(
     bsd.previousReleaseId,
   );
@@ -177,6 +181,32 @@ describe('DEPLOY-001 rollback target detection', () => {
 
     expect(result.previousReleaseId).not.toBe('');
     expect(result.isFirstDeploy).toBe(false);
+  });
+
+  // A rerun of the live commit's deploy removed the containers serving
+  // production on 2026-11-09: they are named by commit, so "replace" deleted
+  // the live ones, and the only rollback target was that same commit.
+  it('refuses to redeploy the commit that is already live', () => {
+    const appDir = makeAppDir();
+    mkdirSync(join(appDir, 'releases', 'release-a'));
+    symlinkSync(join(appDir, 'releases', 'release-a'), join(appDir, 'current'));
+
+    const result = detect(appDir, 'release-a');
+
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain('already the live release');
+    expect(result.stderr).toContain('push a new commit');
+  });
+
+  it('deploys a different commit over the live one', () => {
+    const appDir = makeAppDir();
+    mkdirSync(join(appDir, 'releases', 'release-a'));
+    symlinkSync(join(appDir, 'releases', 'release-a'), join(appDir, 'current'));
+
+    const result = detect(appDir, 'release-b');
+
+    expect(result.exitCode).toBe(0);
+    expect(result.previousReleaseId).toBe('release-a');
   });
 
   it('keeps the deploy gate keyed to the extracted variables', () => {
