@@ -50,3 +50,97 @@ describe('quoteOccursIn for Ukrainian text', () => {
     expect(quoteOccursIn(ANSWER_UK, "пов'язана з мер'жею")).toBe(false);
   });
 });
+
+// Evidence is text pulled out of a page's DOM, where blocks run together, and
+// answers arrive as markdown. A judge quoting either the way a person reads it
+// lost the whole verdict — 6 of 12 answers in one live gov.uk report.
+describe('quoteOccursIn across layout', () => {
+  const EXCERPT =
+    'Cookies on GOV.UK We use some essential cookies to make this website work.We’d like to set ' +
+    'additional cookies · Popular on GOV.UK · Benefits · Births, deaths, marriages and care';
+  const MARKDOWN_ANSWER =
+    'The only official channel is **GOV.UK** (www.gov.uk) — all digital services are accessed there.';
+
+  it('matches a sentence quoted with the space the excerpt lost', () => {
+    expect(
+      quoteOccursIn(EXCERPT, 'make this website work. We’d like to set additional cookies'),
+    ).toBe(true);
+  });
+
+  it('matches across the separators a DOM excerpt joins blocks with', () => {
+    expect(quoteOccursIn(EXCERPT, 'Popular on GOV.UK Benefits Births, deaths')).toBe(true);
+  });
+
+  it('matches an answer quoted without its markdown emphasis', () => {
+    expect(quoteOccursIn(MARKDOWN_ANSWER, 'The only official channel is GOV.UK (www.gov.uk)')).toBe(
+      true,
+    );
+  });
+
+  it('matches an elided quote whose parts appear in order, and not out of order', () => {
+    expect(quoteOccursIn(MARKDOWN_ANSWER, 'The only official channel … all digital services')).toBe(
+      true,
+    );
+    expect(
+      quoteOccursIn(MARKDOWN_ANSWER, 'all digital services ... The only official channel'),
+    ).toBe(false);
+  });
+
+  it('still rejects words that are not in the text', () => {
+    expect(quoteOccursIn(EXCERPT, 'make this website work. We sell cookies')).toBe(false);
+    expect(quoteOccursIn(MARKDOWN_ANSWER, 'The only official channel is gov.com')).toBe(false);
+    expect(quoteOccursIn(MARKDOWN_ANSWER, ' … ')).toBe(false);
+  });
+});
+
+// The looser matching above must not let a judge build a quote the text does
+// not say: by joining words, by stitching fragments, or by reaching across
+// the page.
+describe('quoteOccursIn guards', () => {
+  it('does not match inside or across words', () => {
+    expect(quoteOccursIn('A family therapist in Leeds.', 'the rapist')).toBe(false);
+    expect(quoteOccursIn('We do no tax returns.', 'we do not')).toBe(false);
+    expect(quoteOccursIn('Our therapist is in Leeds.', 'therapist is in Leeds')).toBe(true);
+  });
+
+  it('refuses an elided quote made of short fragments', () => {
+    expect(quoteOccursIn('We sell data. Do not ask.', 'we ... not ... sell ... data')).toBe(false);
+    expect(quoteOccursIn('We sell data. Do not ask.', 'We sell … ask')).toBe(false);
+  });
+
+  it('refuses more than three elided parts', () => {
+    const text =
+      'alpha phrase one here, beta phrase two here, gamma phrase three here, delta phrase four here';
+    expect(quoteOccursIn(text, 'alpha phrase one … beta phrase two … gamma phrase three')).toBe(
+      true,
+    );
+    expect(
+      quoteOccursIn(
+        text,
+        'alpha phrase one … beta phrase two … gamma phrase three … delta phrase four',
+      ),
+    ).toBe(false);
+  });
+
+  it('refuses parts that are far apart', () => {
+    const text = `We never share your data. ${'Filler sentence about opening hours. '.repeat(10)}with partners for marketing.`;
+    expect(quoteOccursIn(text, 'We never share your data … with partners for marketing')).toBe(
+      false,
+    );
+  });
+
+  it('refuses elision where the caller asks for one contiguous phrase', () => {
+    const answer =
+      'The only official channel is GOV.UK, and all digital services are accessed there.';
+    expect(quoteOccursIn(answer, 'The only official channel … all digital services')).toBe(true);
+    expect(
+      quoteOccursIn(answer, 'The only official channel … all digital services', {
+        allowElision: false,
+      }),
+    ).toBe(false);
+  });
+
+  it('refuses a quote made only of separators and emphasis', () => {
+    expect(quoteOccursIn('Free | Paid', ' * | · ')).toBe(false);
+  });
+});

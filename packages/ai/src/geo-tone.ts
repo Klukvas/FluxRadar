@@ -106,7 +106,10 @@ function validTone(value: unknown, answer: string, maxQuoteChars: number): GeoAn
   if (!isToneLabel(record.label) || typeof record.quote !== 'string') return null;
   const quote = record.quote.replace(/\s+/g, ' ').trim();
   if (quote === '' || [...quote].length > maxQuoteChars) return null;
-  return quoteOccursIn(answer, quote) ? { label: record.label, quote } : null;
+  // One contiguous phrase: a tone stitched from fragments is not what was said.
+  return quoteOccursIn(answer, quote, { allowElision: false })
+    ? { label: record.label, quote }
+    : null;
 }
 
 /**

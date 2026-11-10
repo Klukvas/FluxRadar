@@ -435,9 +435,9 @@ function parseClaim(
     throw new AiModuleError('ai: GEO evaluation quoted text that is not in the answer');
   }
   if (claimVerdict === 'unverified') {
-    if (record.sourceId !== undefined || record.sourceQuote !== undefined) {
-      throw new AiModuleError('ai: GEO evaluation cited a source for an unverified claim');
-    }
+    // A source beside "unverified" supports nothing, so it is dropped rather
+    // than costing the whole evaluation: the claim stands as unverified, and
+    // nothing the judge cited is ever shown as support for it.
     return { claim, verdict: claimVerdict, answerQuote, sourceId: null, sourceQuote: null };
   }
   const sourceId = boundedString(record.sourceId, 'sourceId', 64);
