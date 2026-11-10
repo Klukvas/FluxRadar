@@ -394,11 +394,16 @@ function quoteIsAddressOf(url: string | null, quote: string): boolean {
   return quoted !== '' && quoted === bareAddress(url);
 }
 
-/** `https://www.gov.uk/` and `gov.uk` are one address as a reader writes it. */
+/**
+ * `https://www.gov.uk/` and `gov.uk` are one address as a reader writes it —
+ * and so is `url=https://www.gov.uk/`, the field as the evaluator was shown it
+ * (`renderGeoEvidence`), which a judge copied label and all in a live report.
+ */
 function bareAddress(value: string): string {
   return value
     .trim()
     .toLowerCase()
+    .replace(/^url\s*=\s*/, '')
     .replace(/^https?:\/\//, '')
     .replace(/^www\./, '')
     .replace(/\/+$/, '');

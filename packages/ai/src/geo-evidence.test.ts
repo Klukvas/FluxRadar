@@ -301,6 +301,8 @@ describe('quoteOccursInSource', () => {
   });
 
   it.each([
+    // The field exactly as the evaluator was shown it, label and all.
+    'url=https://www.gov.uk/',
     'https://www.gov.uk/',
     'https://www.gov.uk',
     'www.gov.uk',
