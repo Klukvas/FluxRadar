@@ -336,6 +336,14 @@ trap on_exit EXIT
 
 mkdir -p "$RUNTIME_DIR"
 cd "$RELEASE_DIR"
+# Compose runs from a per-release directory, so a relative bind source would
+# resolve to a new path on every deploy; compose then sees a changed service
+# and recreates the database under the release still serving traffic. A fixed
+# source keeps the postgres config identical between deploys, and unlike
+# --no-recreate it never pins the container to a release that pruning deletes.
+cp "$RELEASE_DIR/deploy/postgres-init.sql" "$RUNTIME_DIR/postgres-init.sql"
+chmod 644 "$RUNTIME_DIR/postgres-init.sql"
+export FLUXRADAR_POSTGRES_INIT="$RUNTIME_DIR/postgres-init.sql"
 docker compose --env-file .env.production -p fluxradar up -d postgres
 POSTGRES_CONTAINER="$(docker compose --env-file .env.production -p fluxradar ps -q postgres)"
 if [ -z "$POSTGRES_CONTAINER" ]; then
