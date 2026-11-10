@@ -225,7 +225,7 @@ export function creemRouter(deps: CreemRouterDeps): Router {
       await chosenOrSuggestedEgress(
         deps.egress,
         input.scope.egressLocation,
-        profile.domain,
+        profile,
         req.get('accept-language'),
       ),
     );

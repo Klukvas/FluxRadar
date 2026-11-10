@@ -95,7 +95,7 @@ export function internalCheckoutRouter(deps: InternalCheckoutRouterDeps): Router
       await chosenOrSuggestedEgress(
         deps.egress,
         input.scope.egressLocation,
-        profile.domain,
+        profile,
         req.get('accept-language'),
       ),
     );

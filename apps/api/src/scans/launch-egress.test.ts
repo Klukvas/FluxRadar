@@ -229,6 +229,23 @@ describe('launching a scan from a chosen egress location', () => {
     expect(free.body.data.executionConfig.scope.egressLocation).toBe('gb');
   });
 
+  // A Kyiv studio on a .dev domain said where it works; an English browser
+  // must not move its check to London.
+  it('picks the country the profile says the business operates in, over the visitor', async () => {
+    const { agent } = await signedIn([KYIV, LONDON], ['ua', 'gb']);
+    const profile = await agent
+      .post('/profiles')
+      .send({ name: 'Studio', domain: 'https://studio.dev', region: 'Київ, Україна' });
+
+    const free = await agent
+      .post(`/profiles/${profile.body.data.id as string}/free-check`)
+      .set('accept-language', 'en-GB,en;q=0.9')
+      .send({});
+
+    expect(free.status).toBe(201);
+    expect(free.body.data.executionConfig.scope.egressLocation).toBe('ua');
+  });
+
   it('refuses a Free check from a country this deployment does not have', async () => {
     const { agent, profileId } = await signedIn([KYIV], ['ua']);
 
