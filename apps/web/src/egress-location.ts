@@ -140,19 +140,21 @@ export function ownerEgressChoice(saved: string, pickedOnThisScreen: boolean): s
 
 /**
  * The country a site with no saved choice is checked from: the one its domain
- * points to (.co.uk, .ca), else the browser's locale, else the United States —
+ * points to (.co.uk, .ca), else the profile's region, else the browser's
+ * locale, else the United States —
  * among the locations answering now.
  */
 export function suggestedEgressLocationId(
-  site: string | undefined,
+  profile: { readonly domain: string; readonly region?: string | null } | undefined,
   config: EgressLaunchConfig | null,
   visitorLocales: readonly string[] = browserLocales(),
 ): string | null {
-  if (config === null || site === undefined) return null;
+  if (config === null || profile === undefined) return null;
   return suggestEgressLocationId(
-    site,
+    profile.domain,
     config.locations.map((location) => location.id),
     visitorLocales,
+    profile.region ?? null,
   );
 }
 

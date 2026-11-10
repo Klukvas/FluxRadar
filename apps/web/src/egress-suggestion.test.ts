@@ -27,6 +27,58 @@ describe('suggestEgressLocationId', () => {
     expect(suggestEgressLocationId('example.io', ALL)).toBe('us');
   });
 
+  it('reads the country from the profile region when the domain says nothing', () => {
+    expect(
+      suggestEgressLocationId('https://studio.dev', ALL, ['ru', 'en-US'], 'Київ, Україна'),
+    ).toBe('ua');
+    expect(suggestEgressLocationId('https://shop.com', ALL, ['en-US'], 'Львов')).toBe('ua');
+    expect(suggestEgressLocationId('https://shop.com', ALL, ['uk'], 'London, UK')).toBe('gb');
+    expect(suggestEgressLocationId('https://shop.com', ALL, ['uk'], 'Toronto')).toBe('ca');
+    expect(suggestEgressLocationId('https://shop.com', ALL, ['uk'], 'United States')).toBe('us');
+  });
+
+  it('lets the domain outrank the profile region', () => {
+    expect(suggestEgressLocationId('https://plumber.co.uk', ALL, [], 'Київ')).toBe('gb');
+  });
+
+  it('ignores a region that names no country, or more than one', () => {
+    expect(suggestEgressLocationId('https://shop.com', ALL, ['en-GB'], 'Berlin')).toBe('gb');
+    expect(suggestEgressLocationId('https://shop.com', ALL, ['en-GB'], 'Ukraine and Canada')).toBe(
+      'gb',
+    );
+    expect(suggestEgressLocationId('https://shop.com', ALL, ['en-GB'], '  ')).toBe('gb');
+    expect(suggestEgressLocationId('https://shop.com', ALL, ['en-GB'], null)).toBe('gb');
+  });
+
+  it('matches region names as whole words, and stems in any case form', () => {
+    const fromRegion = (region: string): string | null =>
+      suggestEgressLocationId('https://shop.com', ALL, ['ru', 'en-US'], region);
+    expect(fromRegion('Працюємо по Україні')).toBe('ua');
+    expect(fromRegion('в Киеве и области')).toBe('ua');
+    expect(fromRegion('м. Львова')).toBe('ua');
+    expect(fromRegion('Харківська область')).toBe('ua');
+    expect(fromRegion('Kyivska oblast')).toBe('ua');
+    expect(fromRegion('Kyivstar office')).toBe('us');
+    expect(fromRegion('U.S.')).toBe('us');
+    expect(fromRegion('в Лондоне')).toBe('gb');
+    expect(fromRegion('по всей Канаде')).toBe('ca');
+    expect(fromRegion('Соединенные Штаты')).toBe('us');
+  });
+
+  it('ignores names that do not settle a country', () => {
+    const fromRegion = (region: string): string | null =>
+      suggestEgressLocationId('https://shop.com', ALL, ['en-GB'], region);
+    expect(fromRegion('Московская область')).toBe('gb');
+    expect(fromRegion('Latin America')).toBe('gb');
+    expect(fromRegion('London, Ontario')).toBe('gb');
+    expect(fromRegion('Odessa, Texas')).toBe('gb');
+    expect(fromRegion('Russia')).toBe('gb');
+  });
+
+  it('skips a region whose country is not on offer', () => {
+    expect(suggestEgressLocationId('https://shop.com', ['us', 'gb'], ['en-GB'], 'Київ')).toBe('gb');
+  });
+
   it('only suggests a location that is on offer', () => {
     expect(suggestEgressLocationId('https://plumber.co.uk', ['ua', 'us'], [])).toBe('us');
     expect(suggestEgressLocationId('https://plumber.co.uk', ['ua'], [])).toBeNull();

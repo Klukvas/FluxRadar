@@ -75,7 +75,8 @@ export async function resolveLaunchEgressLocation(
 
 /**
  * The location a launch asks for: the one the request named, else the one the
- * site's domain and the visitor's Accept-Language point to among the locations
+ * site's domain, the profile's region and the visitor's Accept-Language point
+ * to among the locations
  * answering now. Undefined — a direct deployment, or no suggestion on offer —
  * is what `resolveLaunchEgressLocation` reads as the default.
  *
@@ -86,14 +87,25 @@ export async function resolveLaunchEgressLocation(
 export async function chosenOrSuggestedEgress(
   monitor: EgressLocationMonitor,
   requested: string | undefined,
-  site: string,
+  profile: SuggestionProfile,
   acceptLanguage: string | undefined,
 ): Promise<string | undefined> {
   if (requested !== undefined || monitor.configured.length === 0) return requested;
   const available = (await monitor.available()).map(({ location }) => location.id);
   return (
-    suggestEgressLocationId(site, available, localesFromAcceptLanguage(acceptLanguage)) ?? undefined
+    suggestEgressLocationId(
+      profile.domain,
+      available,
+      localesFromAcceptLanguage(acceptLanguage),
+      profile.region,
+    ) ?? undefined
   );
+}
+
+/** What a suggestion reads from the site profile: its domain and where it operates. */
+export interface SuggestionProfile {
+  readonly domain: string;
+  readonly region: string | null;
 }
 
 function checked(location: ConfiguredEgressLocation | null): LaunchEgress {

@@ -83,7 +83,7 @@ export function reachabilityRouter(deps: ReachabilityRouterDeps): Router {
       (await chosenOrSuggestedEgress(
         deps.egress,
         query.egressLocation,
-        profile.domain,
+        profile,
         req.get('accept-language'),
       )) ??
       deps.egress.defaultLocation?.location.id ??
@@ -109,7 +109,7 @@ export function reachabilityRouter(deps: ReachabilityRouterDeps): Router {
       await chosenOrSuggestedEgress(
         deps.egress,
         body?.egressLocation,
-        profile.domain,
+        profile,
         req.get('accept-language'),
       ),
     );

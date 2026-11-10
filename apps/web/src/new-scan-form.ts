@@ -621,11 +621,12 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   };
 
   // The location this launch will actually ask for: the owner's choice while it
-  // is on offer, else the country the site's domain or the browser points to.
+  // is on offer, else the country the site's domain, region or the browser
+  // points to.
   const egressLocation = effectiveEgressLocation(
     ownerEgressChoice(scope.egressLocation, egressPicked),
     egressConfig,
-    suggestedEgressLocationId(selected?.domain, egressConfig),
+    suggestedEgressLocationId(selected, egressConfig),
   );
   // The server refuses such a launch anyway; this keeps the owner from meeting
   // that refusal at the button.

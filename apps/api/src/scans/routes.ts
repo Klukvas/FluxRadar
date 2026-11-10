@@ -128,7 +128,7 @@ export function scansRouter(deps: ScansRouterDeps): Router {
         await chosenOrSuggestedEgress(
           deps.egress,
           body?.scope?.egressLocation,
-          profile.domain,
+          profile,
           req.get('accept-language'),
         ),
       ),
@@ -163,7 +163,7 @@ export function scansRouter(deps: ScansRouterDeps): Router {
         await chosenOrSuggestedEgress(
           deps.egress,
           input.scope?.egressLocation,
-          profile.domain,
+          profile,
           req.get('accept-language'),
         ),
       ),

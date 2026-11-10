@@ -107,10 +107,16 @@ describe('which location a launch asks for', () => {
   });
 
   it('suggests the country a site’s domain points to, among those answering', () => {
-    expect(suggestedEgressLocationId('https://shop.co.uk', proxyConfig([KYIV, LONDON]), [])).toBe(
-      'gb',
-    );
-    expect(suggestedEgressLocationId('https://shop.co.uk', proxyConfig([KYIV]), [])).toBeNull();
+    const shop = { domain: 'https://shop.co.uk', region: null };
+    expect(suggestedEgressLocationId(shop, proxyConfig([KYIV, LONDON]), [])).toBe('gb');
+    expect(suggestedEgressLocationId(shop, proxyConfig([KYIV]), [])).toBeNull();
+    expect(
+      suggestedEgressLocationId(
+        { domain: 'https://studio.dev', region: 'Київ, Україна' },
+        proxyConfig([KYIV, LONDON]),
+        ['en-GB'],
+      ),
+    ).toBe('ua');
     expect(suggestedEgressLocationId(undefined, proxyConfig([KYIV, LONDON]), [])).toBeNull();
   });
 

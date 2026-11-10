@@ -3,9 +3,10 @@
 // A site answers the visitors it is built for: a London plumber's site is read
 // the way a London customer reads it, and a check from Kyiv can meet a geo
 // block, a captcha or a different storefront instead (D-228). So the country
-// nobody picked is guessed from the two things that say who the site serves:
-// its own domain (.co.uk, .ca, .com.ua), then the person launching it (their
-// browser's locale, or the request's Accept-Language). A generic .com with no
+// nobody picked is guessed from what says who the site serves: its own domain
+// (.co.uk, .ca, .com.ua), then where the profile says the business operates
+// ("Київ, Україна" for a Kyiv studio on a .dev domain), then the person
+// launching it (their browser's locale, or the request's Accept-Language). A generic .com with no
 // hint goes to the United States, the largest English-speaking market.
 //
 // Mirrors `suggestEgressLocationId` in @fluxradar/contracts, which the API uses
@@ -37,6 +38,192 @@ const LOCATION_BY_LANGUAGE: Readonly<Record<string, string>> = {
   uk: 'ua',
 };
 
+/**
+ * Country and city names an owner writes in the profile's "where does it
+ * operate" field, by the egress location id, in English, Ukrainian and
+ * Russian. Each name is a run of words; a word ending in `*` is a stem, so
+ * the inflected forms the field is written in ("по Україні", "в Киеве")
+ * match too. Any other word matches whole, so "Kyivstar" is not Kyiv.
+ * Provinces and states are listed so "London, Ontario" names two countries
+ * and is ignored rather than read as London, England.
+ */
+const LOCATION_BY_REGION_NAME: Readonly<Record<string, readonly string[]>> = {
+  ua: [
+    'ukraine',
+    'україн*',
+    'украин*',
+    'ua',
+    'kyiv',
+    'kiev',
+    'kyivska',
+    'київ*',
+    'києв*',
+    'киев*',
+    'lviv',
+    'львів*',
+    'львов*',
+    'kharkiv',
+    'харків*',
+    'харков*',
+    'харьков*',
+    'odesa',
+    'odessa',
+    'одес*',
+    'dnipro',
+    'дніпр*',
+    'днепр*',
+    'zaporizhzhia',
+    'запоріж*',
+    'запорож*',
+    'vinnytsia',
+    'вінниц*',
+    'винниц*',
+    'poltava',
+    'полтав*',
+    'chernihiv',
+    'черніг*',
+    'черниг*',
+    'zhytomyr',
+    'житомир*',
+    'rivne',
+    'рівне',
+    'рівному',
+    'ровно',
+    'lutsk',
+    'луцьк*',
+    'луцк*',
+    'ternopil',
+    'тернопіл*',
+    'тернопол*',
+    'uzhhorod',
+    'ужгород*',
+    'ivano frankivsk',
+    'франківськ*',
+    'франковск*',
+    'mykolaiv',
+    'миколаїв*',
+    'миколаєв*',
+    'николаев*',
+    'kherson',
+    'херсон*',
+    'chernivtsi',
+    'чернівц*',
+    'черновц*',
+    'cherkasy',
+    'черкас*',
+    'khmelnytskyi',
+    'хмельницьк*',
+    'хмельницк*',
+    'sumy',
+    'донецьк*',
+    'донецк*',
+    'donetsk',
+    'луганськ*',
+    'луганск*',
+    'luhansk',
+    'crimea',
+    'крим*',
+    'крым*',
+    'kryvyi rih',
+    'кривий ріг',
+    'кривой рог',
+    'kropyvnytskyi',
+    'кропивницьк*',
+    'mariupol',
+    'маріупол*',
+    'мариупол*',
+    'kremenchuk',
+    'кременчу*',
+    'bila tserkva',
+    'біла церква',
+  ],
+  gb: [
+    'united kingdom',
+    'great britain',
+    'britain',
+    'england',
+    'scotland',
+    'wales',
+    'northern ireland',
+    'uk',
+    'u k',
+    'gb',
+    'великобритан*',
+    'англія',
+    'англії',
+    'англия',
+    'англии',
+    'шотланд*',
+    'london',
+    'лондон*',
+    'manchester',
+    'манчестер*',
+    'birmingham',
+    'edinburgh',
+    'glasgow',
+    'liverpool',
+    'leeds',
+    'bristol',
+  ],
+  ca: [
+    'canada',
+    'канад*',
+    'ontario',
+    'онтаріо',
+    'онтарио',
+    'quebec',
+    'québec',
+    'british columbia',
+    'alberta',
+    'manitoba',
+    'nova scotia',
+    'toronto',
+    'торонт*',
+    'montreal',
+    'montréal',
+    'монреал*',
+    'vancouver',
+    'ванкувер*',
+    'ottawa',
+    'оттав*',
+    'calgary',
+    'калгар*',
+  ],
+  us: [
+    'united states',
+    'usa',
+    'u s a',
+    'u s',
+    'us',
+    'сша',
+    'сполучен* штат*',
+    'соединенн* штат*',
+    'new york',
+    'нью йорк*',
+    'california',
+    'каліфорні*',
+    'калифорни*',
+    'texas',
+    'техас*',
+    'florida',
+    'флорид*',
+    'chicago',
+    'чикаго',
+    'los angeles',
+    'washington',
+    'alabama',
+    'arizona',
+    'nevada',
+    'oregon',
+    'ohio',
+    'illinois',
+    'virginia',
+    'pennsylvania',
+    'massachusetts',
+    'new jersey',
+  ],
+};
+
 /** Where a site with no hint at all is checked from. */
 export const FALLBACK_EGRESS_LOCATION = 'us';
 
@@ -48,9 +235,11 @@ export function suggestEgressLocationId(
   site: string,
   available: readonly string[],
   visitorLocales: readonly string[] = [],
+  profileRegion: string | null = null,
 ): string | null {
   const candidates = [
     locationFromSite(site),
+    locationFromRegion(profileRegion),
     ...visitorLocales.map(locationFromLocale),
     FALLBACK_EGRESS_LOCATION,
   ];
@@ -72,6 +261,34 @@ function hostOf(site: string): string {
   } catch {
     return '';
   }
+}
+
+/**
+ * The country the profile says the business operates in, or null when the
+ * field is empty, names no country we check from, or names more than one.
+ */
+function locationFromRegion(region: string | null): string | null {
+  if (region === null) return null;
+  const words = region
+    .normalize('NFKC')
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((word) => word !== '');
+  const named = Object.entries(LOCATION_BY_REGION_NAME)
+    .filter(([, names]) => names.some((name) => namedIn(words, name.split(' '))))
+    .map(([id]) => id);
+  return named.length === 1 ? (named[0] ?? null) : null;
+}
+
+/** Whether the words contain `name`'s words in a row, stems matching by prefix. */
+function namedIn(words: readonly string[], name: readonly string[]): boolean {
+  return words.some((_, start) =>
+    name.every((part, offset) => {
+      const word = words[start + offset];
+      if (word === undefined) return false;
+      return part.endsWith('*') ? word.startsWith(part.slice(0, -1)) : word === part;
+    }),
+  );
 }
 
 function locationFromLocale(locale: string): string | null {
