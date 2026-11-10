@@ -184,6 +184,13 @@ export interface GeoAnswerEvaluation {
 }
 
 const MAX_CLAIMS = 8;
+/**
+ * The most claims a response may list before it is refused outright. Past
+ * MAX_CLAIMS the extra ones are read and then trimmed (`keptClaims`); past this
+ * the response is not a claim list any more.
+ */
+const MAX_LISTED_CLAIMS = 24;
+const DIAGNOSIS_QUOTE_CHARS = 120;
 const MAX_CLAIM_CHARS = 240;
 
 /**
@@ -408,6 +415,20 @@ function boundedString(value: unknown, field: string, maxChars: number): string 
   return normalized;
 }
 
+/**
+ * The start of a quote that did not match, for the stored reason. Without it a
+ * discarded verdict says only that something did not match, and the next
+ * mismatch of a new kind cannot be told from the last one.
+ */
+function quoteForDiagnosis(quote: string): string {
+  const characters = [...quote];
+  return JSON.stringify(
+    characters.length > DIAGNOSIS_QUOTE_CHARS
+      ? `${characters.slice(0, DIAGNOSIS_QUOTE_CHARS).join('')}…`
+      : quote,
+  );
+}
+
 function parseClaim(
   value: unknown,
   answer: string,
@@ -432,7 +453,9 @@ function parseClaim(
   // A judge that paraphrases, or invents, loses the evaluation rather than
   // getting a verdict nobody can check.
   if (!quoteOccursIn(answer, answerQuote)) {
-    throw new AiModuleError('ai: GEO evaluation quoted text that is not in the answer');
+    throw new AiModuleError(
+      `ai: GEO evaluation quoted text that is not in the answer: ${quoteForDiagnosis(answerQuote)}`,
+    );
   }
   if (claimVerdict === 'unverified') {
     // A source beside "unverified" supports nothing, so it is dropped rather
@@ -451,7 +474,9 @@ function parseClaim(
     GEO_EVALUATION_MAX_QUOTE_CHARS,
   );
   if (!quoteOccursIn(source.excerpt, sourceQuote)) {
-    throw new AiModuleError(`ai: GEO evaluation quoted text that is not in "${sourceId}"`);
+    throw new AiModuleError(
+      `ai: GEO evaluation quoted text that is not in "${sourceId}": ${quoteForDiagnosis(sourceQuote)}`,
+    );
   }
   return { claim, verdict: claimVerdict, answerQuote, sourceId, sourceQuote };
 }
@@ -495,6 +520,38 @@ export interface ParseGeoEvaluationOptions {
   readonly judgeTone?: boolean;
 }
 
+/** Which claims are dropped first when a judge lists too many: the supported ones. */
+const TRIM_PRIORITY: Readonly<Record<GeoClaimVerdict, number>> = {
+  contradicted: 0,
+  unverified: 1,
+  matched: 2,
+};
+
+/**
+ * At most MAX_CLAIMS claims, in the order the judge listed them.
+ *
+ * A judge that lists more than it was asked to used to lose the whole verdict.
+ * Trimming keeps contradictions first and unverified claims next, so only
+ * supported claims are ever dropped: the verdict derived from what is kept can
+ * come out stricter than the full list would give, never kinder. The report
+ * re-derives its verdict from these same stored claims.
+ */
+function keptClaims(claims: readonly GeoEvaluatedClaim[]): readonly GeoEvaluatedClaim[] {
+  if (claims.length <= MAX_CLAIMS) return claims;
+  const kept = new Set(
+    claims
+      .map((claim, index) => ({ claim, index }))
+      .sort(
+        (left, right) =>
+          TRIM_PRIORITY[left.claim.verdict] - TRIM_PRIORITY[right.claim.verdict] ||
+          left.index - right.index,
+      )
+      .slice(0, MAX_CLAIMS)
+      .map(({ index }) => index),
+  );
+  return claims.filter((_claim, index) => kept.has(index));
+}
+
 export function parseGeoEvaluation(
   rawText: string,
   answer: string,
@@ -511,9 +568,9 @@ export function parseGeoEvaluation(
     throw new AiModuleError('ai: GEO evaluation answerDescribesSubject must be a boolean');
   }
   const rawClaims = record.claims;
-  if (!Array.isArray(rawClaims) || rawClaims.length > MAX_CLAIMS) {
+  if (!Array.isArray(rawClaims) || rawClaims.length > MAX_LISTED_CLAIMS) {
     throw new AiModuleError(
-      `ai: GEO evaluation claims must be an array of at most ${MAX_CLAIMS} items`,
+      `ai: GEO evaluation claims must be an array of at most ${MAX_LISTED_CLAIMS} items`,
     );
   }
   const stated = record.overall;
@@ -523,7 +580,7 @@ export function parseGeoEvaluation(
   ) {
     throw new AiModuleError('ai: GEO evaluation overall verdict is not a known value');
   }
-  const claims = rawClaims.map((claim) => parseClaim(claim, answer, evidence));
+  const claims = keptClaims(rawClaims.map((claim) => parseClaim(claim, answer, evidence)));
   if (!describesSubject && claims.length > 0) {
     throw new AiModuleError('ai: GEO evaluation listed claims for an answer with no description');
   }

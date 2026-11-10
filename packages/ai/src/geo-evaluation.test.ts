@@ -276,19 +276,105 @@ describe('geo evaluation validation', () => {
     expect(() => parseGeoEvaluation(output, ANSWER, EVIDENCE)).toThrow(/no description/);
   });
 
-  it('refuses more claims than the contract allows', () => {
-    const claim = {
+  // A judge listing 9 claims used to lose the whole verdict (a live gov.uk
+  // report). The extra ones are trimmed, supported claims first, so the
+  // verdict can only come out stricter than the full list, never kinder.
+  it('trims claims past the limit, dropping supported ones first', () => {
+    const matched = {
+      claim: 'The business is a dental clinic in Kyiv.',
+      verdict: 'matched',
+      answerQuote: 'a dental clinic in Kyiv',
+      sourceId: 'page-1',
+      sourceQuote: 'We place implants',
+    };
+    const unverified = {
       claim: 'x',
       verdict: 'unverified',
       answerQuote: 'a dental clinic in Kyiv',
     };
+    const contradicted = { ...matched, claim: 'It is in Lviv.', verdict: 'contradicted' };
     const output = JSON.stringify({
       answerDescribesSubject: true,
-      claims: Array.from({ length: 9 }, () => claim),
+      claims: [...Array.from({ length: 7 }, () => matched), unverified, contradicted, unverified],
+      overall: 'partially-supported',
+    });
+
+    const payload = parseGeoEvaluation(output, ANSWER, EVIDENCE);
+    expect(payload.claims).toHaveLength(8);
+    expect(payload.claims.map((claim) => claim.verdict)).toEqual([
+      ...Array.from({ length: 5 }, () => 'matched'),
+      'unverified',
+      'contradicted',
+      'unverified',
+    ]);
+    expect(payload.overall).toBe('contradicts-evidence');
+  });
+
+  // The stored reason names the quote, so the next unmatched quote can be
+  // told apart from the last one without re-running the scan.
+  it('names the quote it could not find', () => {
+    const output = JSON.stringify({
+      answerDescribesSubject: true,
+      claims: [
+        {
+          claim: 'x',
+          verdict: 'matched',
+          answerQuote: 'a dental clinic in Kyiv',
+          sourceId: 'page-1',
+          sourceQuote: 'We fit veneers on Sundays',
+        },
+      ],
+      overall: 'matches-evidence',
+    });
+
+    expect(() => parseGeoEvaluation(output, ANSWER, EVIDENCE)).toThrow(
+      'quoted text that is not in "page-1": "We fit veneers on Sundays"',
+    );
+  });
+
+  it('keeps an all-supported list supported after trimming it', () => {
+    const matchedNumber = (number: number) => ({
+      claim: `Supported claim ${number}.`,
+      verdict: 'matched',
+      answerQuote: 'a dental clinic in Kyiv',
+      sourceId: 'page-1',
+      sourceQuote: 'We place implants',
+    });
+    const output = JSON.stringify({
+      answerDescribesSubject: true,
+      claims: Array.from({ length: 10 }, (_unused, index) => matchedNumber(index + 1)),
+      overall: 'matches-evidence',
+    });
+
+    const payload = parseGeoEvaluation(output, ANSWER, EVIDENCE);
+    expect(payload.claims.map((claim) => claim.claim)).toEqual(
+      Array.from({ length: 8 }, (_unused, index) => `Supported claim ${index + 1}.`),
+    );
+    expect(payload.overall).toBe('matches-evidence');
+  });
+
+  it('cuts a long unmatched quote in the stored reason', () => {
+    const longQuote = 'We fit veneers on Sundays '.repeat(10).trim();
+    const output = JSON.stringify({
+      answerDescribesSubject: true,
+      claims: [{ claim: 'x', verdict: 'unverified', answerQuote: longQuote }],
       overall: 'unverified',
     });
 
-    expect(() => parseGeoEvaluation(output, ANSWER, EVIDENCE)).toThrow(/at most 8/);
+    expect(() => parseGeoEvaluation(output, ANSWER, EVIDENCE)).toThrow(
+      `not in the answer: "${[...longQuote].slice(0, 120).join('')}…"`,
+    );
+  });
+
+  it('still refuses a claim list far past the limit', () => {
+    const claim = { claim: 'x', verdict: 'unverified', answerQuote: 'a dental clinic in Kyiv' };
+    const output = JSON.stringify({
+      answerDescribesSubject: true,
+      claims: Array.from({ length: 25 }, () => claim),
+      overall: 'unverified',
+    });
+
+    expect(() => parseGeoEvaluation(output, ANSWER, EVIDENCE)).toThrow(/at most 24/);
   });
 
   // The boundary the contract now states, held from both sides: a judge that
