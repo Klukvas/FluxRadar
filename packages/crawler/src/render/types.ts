@@ -5,6 +5,8 @@
 // only decides what the DOM looked like once the page's own scripts had run.
 // Nothing here may widen the crawl.
 
+import type { EgressProxy } from '@fluxradar/safe-fetch';
+
 /**
  * Why a page has no rendered DOM. Every value is reported, never hidden.
  *
@@ -123,6 +125,12 @@ export interface RenderRequest {
   readonly isSubresourceAllowed?: (url: URL) => Promise<boolean> | boolean;
   /** Returns true once the scan has been paused or cancelled. */
   readonly shouldStop?: () => boolean;
+  /**
+   * The egress proxy the static crawl used. Subresources leave through it too,
+   * so a rendered page shows what a visitor in the chosen country sees, not
+   * what the server's own network is served (D-228). Absent means direct.
+   */
+  readonly proxy?: EgressProxy;
 }
 
 /** A started browser. Callers must `close()` it, once, when the scan ends. */

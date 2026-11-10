@@ -423,8 +423,10 @@ describe('the egress location in a scan scope', () => {
     ).toBe(true);
   });
 
-  it('starts a new profile on the default location', () => {
-    expect(defaultProfileScanConfig.scope.egressLocation).toBe(DEFAULT_EGRESS_LOCATION);
+  // A new site names no country, so the launch suggests one from its domain
+  // rather than every new site starting in Kyiv.
+  it('starts a new profile with no country of its own', () => {
+    expect(defaultProfileScanConfig.scope).not.toHaveProperty('egressLocation');
     expect(DEFAULT_EGRESS_LOCATION).toBe('ua');
   });
 

@@ -37,6 +37,16 @@ const FRANKFURT: ConfiguredEgressLocation = {
   proxy: { host: '198.51.100.20', port: 3128, credentials: null },
   expectedIp: null,
 };
+const LONDON: ConfiguredEgressLocation = {
+  location: egressLocation({
+    id: 'gb',
+    countryCode: 'GB',
+    city: 'London',
+    label: { en: 'United Kingdom, London', uk: 'Велика Британія, Лондон' },
+  }),
+  proxy: { host: '192.0.2.30', port: 12323, credentials: null },
+  expectedIp: null,
+};
 
 function health(state: EgressHealth['state']): EgressHealth {
   return {
@@ -193,7 +203,7 @@ describe('launching a scan from a chosen egress location', () => {
     expect(launched.body.error.code).toBe('EGRESS_LOCATION_UNKNOWN');
   });
 
-  it('runs a Free check from the default location, whatever the request names', async () => {
+  it('runs a Free check from the country the owner chose', async () => {
     const { agent, profileId } = await signedIn([KYIV, FRANKFURT], ['ua', 'de']);
 
     const free = await agent
@@ -201,8 +211,61 @@ describe('launching a scan from a chosen egress location', () => {
       .send({ scope: { includeSubdomains: false, egressLocation: 'de' } });
 
     expect(free.status).toBe(201);
-    expect(free.body.data.executionConfig.scope.egressLocation).toBe('ua');
-    expect(free.body.data.egressLocation.id).toBe('ua');
+    expect(free.body.data.executionConfig.scope.egressLocation).toBe('de');
+    expect(free.body.data.egressLocation.id).toBe('de');
+  });
+
+  // An older client names no country. A London visitor's generic .com is
+  // then checked from London, not from Kyiv where it may be geo-blocked.
+  it('picks a Free check’s country from the visitor when none was named', async () => {
+    const { agent, profileId } = await signedIn([KYIV, LONDON], ['ua', 'gb']);
+
+    const free = await agent
+      .post(`/profiles/${profileId}/free-check`)
+      .set('accept-language', 'en-GB,en;q=0.9')
+      .send({});
+
+    expect(free.status).toBe(201);
+    expect(free.body.data.executionConfig.scope.egressLocation).toBe('gb');
+  });
+
+  it('refuses a Free check from a country this deployment does not have', async () => {
+    const { agent, profileId } = await signedIn([KYIV], ['ua']);
+
+    const free = await agent
+      .post(`/profiles/${profileId}/free-check`)
+      .send({ scope: { includeSubdomains: false, egressLocation: 'de' } });
+
+    expect(free.status).toBe(400);
+    expect(free.body.error.code).toBe('EGRESS_LOCATION_UNKNOWN');
+    const account = await db.prisma.account.findUniqueOrThrow({ where: { email: OWNER } });
+    expect(account.freeCheckUsedAt).toBeNull();
+  });
+
+  // A client that names no country is given the one the screen would show.
+  it('picks a paid launch’s country from the visitor when none was named', async () => {
+    const { agent, profileId } = await signedIn([KYIV, LONDON], ['ua', 'gb']);
+
+    const launched = await agent
+      .post('/billing/internal-checkout')
+      .set('accept-language', 'en-GB')
+      .send({ siteProfileId: profileId, plan: 'Complete', scope: { includeSubdomains: false } });
+
+    expect(launched.status).toBe(201);
+    const scan = await agent.get(`/scans/${launched.body.data.scanId as string}`);
+    expect(scan.body.data.executionConfig.scope.egressLocation).toBe('gb');
+  });
+
+  it('refuses a Free check from a country that is down, and spends nothing', async () => {
+    const { agent, profileId } = await signedIn([KYIV, FRANKFURT], ['ua']);
+
+    const free = await agent
+      .post(`/profiles/${profileId}/free-check`)
+      .send({ scope: { includeSubdomains: false, egressLocation: 'de' } });
+
+    expect(free.status).toBe(503);
+    const account = await db.prisma.account.findUniqueOrThrow({ where: { email: OWNER } });
+    expect(account.freeCheckUsedAt).toBeNull();
   });
 
   it('does not spend the one free check while the default location is down', async () => {

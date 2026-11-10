@@ -87,9 +87,7 @@ export function LaunchSummary(props: {
           value={
             props.egressLocation === null
               ? '—'
-              : free
-                ? `${egressLocationLabel(props.egressLocation, props.language)} · ${t.launchSummaryEgressDefault}`
-                : egressLocationLabel(props.egressLocation, props.language)
+              : egressLocationLabel(props.egressLocation, props.language)
           }
         />
       )}

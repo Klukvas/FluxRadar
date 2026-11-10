@@ -104,9 +104,11 @@ describe('scanScopeFrom', () => {
   });
 
   // Free honours the user agent and nothing else, so that is all it may claim.
-  // It does not choose a country either: it leaves from the default one.
+  // The country is the other thing it honours: one page from Kyiv can be a
+  // geo block where a US visitor gets the real site.
   it('sends the fixed homepage check on Free, whatever the form holds', () => {
     expect(scanScopeFrom(filledForm, 'Free')).toEqual({
+      egressLocation: 'ua',
       includeSubdomains: false,
       maxPages: 1,
       maxDepth: 0,

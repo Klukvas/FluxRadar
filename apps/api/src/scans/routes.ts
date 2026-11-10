@@ -52,6 +52,7 @@ import type { EgressLocationMonitor } from '../integrations/crawl-egress-monitor
 import {
   egressLaunchConfig,
   resolveLaunchEgressLocation,
+  chosenOrSuggestedEgress,
   scopeWithEgressLocation,
   type LaunchEgress,
 } from './launch-egress.ts';
@@ -108,9 +109,10 @@ export function scansRouter(deps: ScansRouterDeps): Router {
     );
     const profileId = requiredParam(req.params.profileId, 'profileId');
     const profile = await findOwnProfile(deps.prisma, accountId, profileId);
-    // Free does not choose a country: whatever the body says, it leaves from
-    // the default location — and is refused, like any launch, while that
-    // location is down, rather than spending the one free check on our outage.
+    // The country is the owner's when the launch screen sent one, else the
+    // one the site's domain and the visitor's locales point to (D-228). Either
+    // way it is checked like any launch, and refused while that location is
+    // down rather than spending the one free check on our outage.
     const created = await createFreeScan(deps.prisma, {
       accountId,
       siteProfileId: profile.id,
@@ -121,7 +123,15 @@ export function scansRouter(deps: ScansRouterDeps): Router {
       aiConsent: body?.aiConsent,
       language: body?.language,
       aiLanguage: body?.aiLanguage,
-      egress: await resolveLaunchEgressLocation(deps.egress, undefined),
+      egress: await resolveLaunchEgressLocation(
+        deps.egress,
+        await chosenOrSuggestedEgress(
+          deps.egress,
+          body?.scope?.egressLocation,
+          profile.domain,
+          req.get('accept-language'),
+        ),
+      ),
     });
     deps.enqueueScan(created.id);
     sendOk(res, toScanDto(created, []), { status: 201 });
@@ -148,7 +158,15 @@ export function scansRouter(deps: ScansRouterDeps): Router {
       now: deps.now(),
       allowedOrigins: freeCheckAllowedOrigins,
       requestedScope: input.scope,
-      egress: await resolveLaunchEgressLocation(deps.egress, undefined),
+      egress: await resolveLaunchEgressLocation(
+        deps.egress,
+        await chosenOrSuggestedEgress(
+          deps.egress,
+          input.scope?.egressLocation,
+          profile.domain,
+          req.get('accept-language'),
+        ),
+      ),
     });
     deps.enqueueScan(scan.id);
     sendOk(res, toScanDto(scan, []), { status: 201 });
@@ -379,7 +397,7 @@ export interface CreateFreeScanParams {
   /** Legacy EN/UK client field; aiLanguage takes priority. */
   readonly language?: ReportLanguage | undefined;
   readonly aiLanguage?: AiLanguage | undefined;
-  /** The default egress location, checked at launch (`resolveLaunchEgressLocation`). */
+  /** The egress location the route chose, checked at launch (`resolveLaunchEgressLocation`). */
   readonly egress: LaunchEgress;
 }
 
@@ -395,8 +413,8 @@ export interface CreateFreeScanParams {
  *
  * `requestedScope` is what the caller asked for, not what is stored: Free runs a
  * fixed homepage check, so the row records the settings that check will actually
- * apply (see free-scan-scope.ts), plus the default egress location checked at
- * launch — never one the request named.
+ * apply (see free-scan-scope.ts), plus the egress location checked at
+ * launch, which the route chose (the owner's, or the suggested one).
  */
 export async function createFreeScan(
   prisma: PrismaClient,

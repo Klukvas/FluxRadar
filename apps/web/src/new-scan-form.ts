@@ -16,7 +16,8 @@ import { parseApiCheckLines, type ApiCheckLineProblem } from './api-check-lines'
 import { useCheckoutConfig, type PendingCheckout } from './Checkout';
 import {
   effectiveEgressLocation,
-  freeEgressLocation,
+  ownerEgressChoice,
+  suggestedEgressLocationId,
   useLaunchConfig,
   type LaunchConfigState,
 } from './egress-location';
@@ -314,6 +315,8 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     source: 'interface',
   };
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  // Whether the country on screen was picked here rather than loaded (ownerEgressChoice).
+  const [egressPicked, setEgressPicked] = useState(false);
   // A profile switch loads a fresh persisted configuration. Its fields must not
   // inherit a discard warning from the profile the owner just left.
   useEffect(() => {
@@ -418,6 +421,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   const updateScope = (change: Partial<ScanScopeForm>): void => {
     setHasUnsavedChanges(true);
     setScope((current) => ({ ...current, ...change }));
+    if (change.egressLocation !== undefined) setEgressPicked(true);
     // Editing a field withdraws the complaint about it: the message described
     // the value that has just been replaced.
     const edited = Object.keys(change);
@@ -499,6 +503,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
       selectedConfigVersion === writtenVersionRef.current;
     if (ownWrite) return;
     lastLoadedTargetRef.current = target;
+    setEgressPicked(false);
     writtenVersionRef.current = null;
     if (selected?.scanConfig != null) {
       setConfigLoading(false);
@@ -615,12 +620,13 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     }
   };
 
-  // The location this launch will actually ask for: Free always leaves from the
-  // default one; a paid plan from the owner's choice while it is on offer.
-  const egressLocation =
-    plan === 'Free'
-      ? freeEgressLocation(egressConfig)
-      : effectiveEgressLocation(scope.egressLocation, egressConfig);
+  // The location this launch will actually ask for: the owner's choice while it
+  // is on offer, else the country the site's domain or the browser points to.
+  const egressLocation = effectiveEgressLocation(
+    ownerEgressChoice(scope.egressLocation, egressPicked),
+    egressConfig,
+    suggestedEgressLocationId(selected?.domain, egressConfig),
+  );
   // The server refuses such a launch anyway; this keeps the owner from meeting
   // that refusal at the button.
   const egressBlocked =
@@ -762,11 +768,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     paidScopeControls && !scope.respectRobots && !scope.robotsOverrideConfirmed;
   const robotsOverrideStale =
     robotsUnconfirmed && selected?.scanConfig?.scope.robotsOverrideConfirmed === true;
-  const expertConfigured = expertSettingsChanged(
-    scope,
-    paidScopeControls,
-    egressConfig?.defaultLocationId ?? null,
-  );
+  const expertConfigured = expertSettingsChanged(scope, paidScopeControls);
   const expertOpen = expertChoice ?? expertConfigured;
   // Both buttons refuse for the same reasons; saving refuses for two more,
   // because settings nobody can store are worse than a scan nobody can start.

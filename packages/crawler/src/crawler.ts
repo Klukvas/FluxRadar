@@ -126,6 +126,7 @@ class CrawlRun {
   private readonly signal: AbortSignal | undefined;
 
   private readonly renderRuntime: RenderRuntimeResult | undefined;
+  private readonly egressProxy: EgressProxy | undefined;
   private readonly shouldStop: () => boolean;
   private readonly resumeSeeds: readonly CrawlQueueEntry[];
   private readonly probeMedia: boolean;
@@ -174,6 +175,7 @@ class CrawlRun {
     this.onProgress = options.onProgress;
     this.signal = options.signal;
     this.renderRuntime = options.renderRuntime;
+    this.egressProxy = options.egressProxy;
     // Пауза и отмена сходятся в одну проверку: всё, что умеет остановиться на
     // границе шага, обязано останавливаться и по отмене — иначе отменённый скан
     // продолжал бы обход до конца очереди.
@@ -651,6 +653,9 @@ class CrawlRun {
       },
       isSubresourceAllowed: (url) => this.isSubresourceAllowed(url),
       shouldStop: this.shouldStop,
+      // Скрипты и XHR уходят из той же страны, что и сама страница: иначе
+      // гео-зависимый контент рендерился бы глазами сервера, а не выбранной страны.
+      ...(this.egressProxy === undefined ? {} : { proxy: this.egressProxy }),
     });
     if (outcome.kind === 'unavailable') {
       this.failedRenderPages += 1;

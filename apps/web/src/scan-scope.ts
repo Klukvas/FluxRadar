@@ -203,9 +203,9 @@ export interface ScanScopePayload {
  *
  * Free is the fixed homepage check, so its payload is the fixed scope plus the
  * one setting it does honour — the crawler's user agent, which applies to a
- * single page exactly as it applies to a thousand. It names no egress location
- * either: a Free check leaves from the default one (D-228). A paid plan sends
- * everything the owner set.
+ * single page exactly as it applies to a thousand — and the country it leaves
+ * from, which matters to one page as much as to a thousand (D-228). A paid
+ * plan sends everything the owner set.
  *
  * `egressLocation` is the location to send — by default the owner's saved
  * preference, which is what a profile configuration stores; a launch passes
@@ -218,7 +218,11 @@ export function scanScopeFrom(
   egressLocation: string | null = form.egressLocation,
 ): ScanScopePayload {
   if (plan === 'Free') {
-    return { ...FREE_FIXED_SCOPE, userAgent: form.userAgent };
+    return {
+      ...FREE_FIXED_SCOPE,
+      userAgent: form.userAgent,
+      ...(egressLocation === null || egressLocation === '' ? {} : { egressLocation }),
+    };
   }
   const urlPatterns = patternList(form.includePatterns);
   const excludePatterns = patternList(form.excludePatterns);

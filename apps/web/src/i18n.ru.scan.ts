@@ -32,10 +32,9 @@ export const russianScanCopy = {
     userAgentMobile: 'Мобильный',
     labelEgressLocation: 'Страна, из которой идёт проверка',
     hintEgressLocation:
-      'Сайт может по-разному отвечать посетителям из разных стран: язык, редиректы, баннеры согласия, блокировки. Краулер будет читать сайт из этой страны.',
+      'Сайт может по-разному отвечать посетителям из разных стран: язык, редиректы, баннеры согласия, блокировки. Краулер будет читать сайт из этой страны. Мы подбираем её по домену сайта и вашему браузеру; измените, если ваши клиенты в другой стране.',
     egressPerformanceNote:
       'Скорость измеряет Google PageSpeed Insights из своей сети, поэтому выбор страны на раздел «Быстродействие» не влияет.',
-    egressMoreCountries: 'Другие страны появятся позже.',
     egressNone:
       'Сейчас ни одна точка проверки не отвечает, поэтому запустить проверку нельзя. Попробуйте через несколько минут.',
     egressLoadFailed: 'Не удалось загрузить список стран. Проверка пойдёт из точки по умолчанию.',
@@ -151,7 +150,6 @@ export const russianScanCopy = {
     launchSummaryPerformance: 'Провайдер быстродействия',
     launchSummaryPerformanceValue: 'Google PageSpeed / CrUX · без входа',
     launchSummaryEgress: 'Страна проверки',
-    launchSummaryEgressDefault: 'по умолчанию для Free',
     launchSummaryEnabled: 'Включено',
     launchSummaryDisabled: 'Выключено',
     launchSummaryIncluded: 'Включены',
