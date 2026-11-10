@@ -7,13 +7,15 @@
 // walk past, a redirect nobody re-checked, a request made after the scan was
 // stopped), and a faked transport would hide all three.
 
-import type { Server } from 'node:http';
+import type { IncomingMessage, Server } from 'node:http';
 import { createServer } from 'node:http';
-import type { AddressInfo } from 'node:net';
+import type { AddressInfo, Socket } from 'node:net';
+import { connect as netConnect } from 'node:net';
 import { gzipSync } from 'node:zlib';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { RENDER_LIMITS } from '@fluxradar/contracts';
+import { parseEgressProxyUrl } from '@fluxradar/safe-fetch';
 
 import { startPlaywrightRuntime } from './playwright-runtime.js';
 import { RenderBudgetLedger } from './request-policy.js';
@@ -593,5 +595,41 @@ describe('RenderBudgetLedger', () => {
     ledger.releaseRequest();
     expect(ledger.snapshot().remainingRequests).toBe(1);
     expect(ledger.reserveRequest()).toBe(true);
+  });
+});
+
+describe('render session: where subresources leave from', () => {
+  // A rendered page has to be the page a visitor in the chosen country sees,
+  // and the geo-dependent parts of it are usually the scripts and XHR, not the
+  // document — so they leave through the scan's egress proxy too (D-228).
+  it('sends subresource requests through the egress proxy it is given', async () => {
+    const connectTargets: string[] = [];
+    const proxy = createServer((_req, res) => res.writeHead(405).end());
+    proxy.on('connect', (req: IncomingMessage, clientSocket: Socket) => {
+      connectTargets.push(req.url ?? '');
+      const [host, port] = (req.url ?? '').split(':');
+      const upstream = netConnect(Number(port), host, () => {
+        clientSocket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
+        upstream.pipe(clientSocket);
+        clientSocket.pipe(upstream);
+      });
+      upstream.on('error', () => clientSocket.destroy());
+      clientSocket.on('error', () => upstream.destroy());
+    });
+    await new Promise<void>((resolve) => proxy.listen(0, '127.0.0.1', resolve));
+    const proxyPort = (proxy.address() as AddressInfo).port;
+    const test = await harness({
+      proxy: parseEgressProxyUrl(`http://user:secret@127.0.0.1:${proxyPort}`),
+    });
+    try {
+      await test.render();
+      const script = await test.browser.dispatch({ url: `${baseUrl}/app.js` });
+
+      expect(script.fulfilled?.status).toBe(200);
+      expect(connectTargets).toEqual([`127.0.0.1:${new URL(baseUrl).port}`]);
+    } finally {
+      await test.close();
+      await new Promise<void>((resolve) => proxy.close(() => resolve()));
+    }
   });
 });

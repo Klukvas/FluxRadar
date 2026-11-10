@@ -483,6 +483,7 @@ class RenderSession {
         dangerouslyAllowLoopback: this.allowLoopback,
         redirectPolicy: 'manual',
         signal: this.abandoned.signal,
+        ...(this.request.proxy === undefined ? {} : { proxy: this.request.proxy }),
       });
       const wireBytes = responseBytes(result);
       chargedBytes = wireBytes.byteLength;

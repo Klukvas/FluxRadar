@@ -392,7 +392,8 @@ export const defaultProfileScanConfig = {
     respectRobots: true,
     robotsOverrideConfirmed: false,
     userAgent: 'desktop',
-    egressLocation: DEFAULT_EGRESS_LOCATION,
+    // No country: a new site is checked from the one its domain and the
+    // owner's browser point to (suggestEgressLocationId), not from Kyiv.
   },
 } as const satisfies z.input<typeof scanConfigSchema>;
 

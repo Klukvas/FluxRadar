@@ -14,7 +14,7 @@ import { EgressLocationField } from './EgressLocationField';
 import {
   effectiveEgressLocation,
   egressLocationLabel,
-  freeEgressLocation,
+  suggestedEgressLocationId,
   type LaunchConfigState,
 } from './egress-location';
 import type { Language } from './i18n';
@@ -34,6 +34,12 @@ const FRANKFURT: EgressLocation = {
   countryCode: 'DE',
   city: 'Frankfurt',
   label: { en: 'Germany, Frankfurt', uk: 'Німеччина, Франкфурт' },
+};
+const LONDON: EgressLocation = {
+  id: 'gb',
+  countryCode: 'GB',
+  city: 'London',
+  label: { en: 'United Kingdom, London', uk: 'Велика Британія, Лондон' },
 };
 
 function proxyConfig(locations: readonly EgressLocation[]): EgressLaunchConfig {
@@ -82,9 +88,18 @@ describe('which location a launch asks for', () => {
     expect(effectiveEgressLocation('ua', null)).toBeNull();
   });
 
-  it('sends a Free check only from the default location, never a substitute', () => {
-    expect(freeEgressLocation(proxyConfig([KYIV, FRANKFURT]))).toEqual(KYIV);
-    expect(freeEgressLocation(proxyConfig([FRANKFURT]))).toBeNull();
+  it('prefers the suggested country to the default when nobody chose', () => {
+    expect(effectiveEgressLocation('', proxyConfig([KYIV, FRANKFURT]), 'de')).toEqual(FRANKFURT);
+    expect(effectiveEgressLocation('ua', proxyConfig([KYIV, FRANKFURT]), 'de')).toEqual(KYIV);
+    expect(effectiveEgressLocation('', proxyConfig([KYIV]), 'de')).toEqual(KYIV);
+  });
+
+  it('suggests the country a site’s domain points to, among those answering', () => {
+    expect(suggestedEgressLocationId('https://shop.co.uk', proxyConfig([KYIV, LONDON]), [])).toBe(
+      'gb',
+    );
+    expect(suggestedEgressLocationId('https://shop.co.uk', proxyConfig([KYIV]), [])).toBeNull();
+    expect(suggestedEgressLocationId(undefined, proxyConfig([KYIV, LONDON]), [])).toBeNull();
   });
 
   it('names a location in the reader’s language, and an unknown one by its code', () => {
@@ -114,7 +129,6 @@ describe('the country field on the launch screen', () => {
     const select = screen.getByRole('combobox', { name: /^Країна, з якої йде перевірка/ });
     const options = within(select).getAllByRole('option');
     expect(options.map((option) => option.textContent)).toEqual(['Україна, Київ']);
-    expect(screen.getByText('Інші країни з’являться пізніше.')).toBeInTheDocument();
   });
 
   it('explains why the country matters, and that it does not change the speed numbers', () => {
@@ -184,11 +198,12 @@ describe('the launch summary', () => {
     );
   });
 
-  it('says a Free check runs from the default location', () => {
-    renderSummary('Free', KYIV);
+  // Free leaves from a country of its own too, so it is named like any other.
+  it('names the country a Free check runs from', () => {
+    renderSummary('Free', LONDON);
 
     expect(screen.getByText('Країна перевірки').nextSibling).toHaveTextContent(
-      'Україна, Київ · за замовчуванням для Free',
+      /^Велика Британія, Лондон$/,
     );
   });
 });

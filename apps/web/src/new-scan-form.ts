@@ -16,7 +16,7 @@ import { parseApiCheckLines, type ApiCheckLineProblem } from './api-check-lines'
 import { useCheckoutConfig, type PendingCheckout } from './Checkout';
 import {
   effectiveEgressLocation,
-  freeEgressLocation,
+  suggestedEgressLocationId,
   useLaunchConfig,
   type LaunchConfigState,
 } from './egress-location';
@@ -615,12 +615,13 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     }
   };
 
-  // The location this launch will actually ask for: Free always leaves from the
-  // default one; a paid plan from the owner's choice while it is on offer.
-  const egressLocation =
-    plan === 'Free'
-      ? freeEgressLocation(egressConfig)
-      : effectiveEgressLocation(scope.egressLocation, egressConfig);
+  // The location this launch will actually ask for: the owner's choice while it
+  // is on offer, else the country the site's domain or the browser points to.
+  const egressLocation = effectiveEgressLocation(
+    scope.egressLocation,
+    egressConfig,
+    suggestedEgressLocationId(selected?.domain, egressConfig),
+  );
   // The server refuses such a launch anyway; this keeps the owner from meeting
   // that refusal at the button.
   const egressBlocked =
@@ -762,11 +763,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     paidScopeControls && !scope.respectRobots && !scope.robotsOverrideConfirmed;
   const robotsOverrideStale =
     robotsUnconfirmed && selected?.scanConfig?.scope.robotsOverrideConfirmed === true;
-  const expertConfigured = expertSettingsChanged(
-    scope,
-    paidScopeControls,
-    egressConfig?.defaultLocationId ?? null,
-  );
+  const expertConfigured = expertSettingsChanged(scope, paidScopeControls);
   const expertOpen = expertChoice ?? expertConfigured;
   // Both buttons refuse for the same reasons; saving refuses for two more,
   // because settings nobody can store are worse than a scan nobody can start.

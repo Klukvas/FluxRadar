@@ -9,6 +9,7 @@
 import { useEffect, useState } from 'react';
 
 import { apiRequest, type EgressLaunchConfig, type EgressLocation, type LaunchConfig } from './api';
+import { suggestEgressLocationId } from './egress-suggestion';
 import type { Language } from './i18n';
 import { reportLanguage } from './report-language';
 
@@ -77,6 +78,9 @@ function isEgressLocation(value: unknown): value is EgressLocation {
  */
 const RUSSIAN_EGRESS_LABELS: Readonly<Record<string, string>> = {
   ua: 'Украина, Киев',
+  us: 'США, Меса (Аризона)',
+  gb: 'Великобритания, Лондон',
+  ca: 'Канада, Монреаль',
 };
 
 /**
@@ -96,8 +100,9 @@ export function egressLocationLabel(location: EgressLocation, language: Language
 }
 
 /**
- * The location a paid launch will ask for: the owner's choice while it is on
- * offer, else the default, else the first location that is answering.
+ * The location a launch will ask for: the owner's choice while it is on offer,
+ * else the one suggested for the site (`suggestEgressLocationId`), else the
+ * default, else the first location that is answering.
  *
  * A saved choice that is not on offer right now (its network is down) is not
  * silently replaced on the server — the screen shows the location it will
@@ -106,18 +111,39 @@ export function egressLocationLabel(location: EgressLocation, language: Language
 export function effectiveEgressLocation(
   chosen: string,
   config: EgressLaunchConfig | null,
+  suggestedId: string | null = null,
 ): EgressLocation | null {
   if (config === null) return null;
   const offered = (id: string | null): EgressLocation | undefined =>
     config.locations.find((location) => location.id === id);
-  return offered(chosen) ?? offered(config.defaultLocationId) ?? config.locations[0] ?? null;
+  return (
+    offered(chosen) ??
+    offered(suggestedId) ??
+    offered(config.defaultLocationId) ??
+    config.locations[0] ??
+    null
+  );
 }
 
 /**
- * Where a Free check will leave from: always the default location, which it
- * does not choose — or null while that location is not answering.
+ * The country a site with no saved choice is checked from: the one its domain
+ * points to (.co.uk, .ca), else the browser's locale, else the United States —
+ * among the locations answering now.
  */
-export function freeEgressLocation(config: EgressLaunchConfig | null): EgressLocation | null {
-  if (config === null) return null;
-  return config.locations.find((location) => location.id === config.defaultLocationId) ?? null;
+export function suggestedEgressLocationId(
+  site: string | undefined,
+  config: EgressLaunchConfig | null,
+  visitorLocales: readonly string[] = browserLocales(),
+): string | null {
+  if (config === null || site === undefined) return null;
+  return suggestEgressLocationId(
+    site,
+    config.locations.map((location) => location.id),
+    visitorLocales,
+  );
+}
+
+function browserLocales(): readonly string[] {
+  if (typeof navigator === 'undefined') return [];
+  return navigator.languages.length > 0 ? navigator.languages : [navigator.language];
 }

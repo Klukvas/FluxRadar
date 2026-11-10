@@ -16,7 +16,7 @@
 // and only `resolveLaunchEgressLocation` makes one. A new caller cannot hand
 // them an id nobody checked.
 
-import type { ScanScopeInput } from '@fluxradar/contracts';
+import { suggestEgressLocationId, type ScanScopeInput } from '@fluxradar/contracts';
 
 import { ApiError } from '../http/errors.ts';
 import type { ConfiguredEgressLocation } from '../integrations/crawl-egress-config.ts';
@@ -66,6 +66,21 @@ export async function resolveLaunchEgressLocation(
     );
   }
   return checked(chosen);
+}
+
+/**
+ * The location a launch that named none should ask for: the one the site's
+ * domain and the visitor's locales point to, among the locations answering
+ * now — or undefined, which `resolveLaunchEgressLocation` reads as the default.
+ */
+export async function suggestedLaunchEgressLocation(
+  monitor: EgressLocationMonitor,
+  site: string,
+  visitorLocales: readonly string[],
+): Promise<string | undefined> {
+  if (monitor.configured.length === 0) return undefined;
+  const available = (await monitor.available()).map(({ location }) => location.id);
+  return suggestEgressLocationId(site, available, visitorLocales) ?? undefined;
 }
 
 function checked(location: ConfiguredEgressLocation | null): LaunchEgress {

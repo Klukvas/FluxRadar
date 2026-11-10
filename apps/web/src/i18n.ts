@@ -829,10 +829,9 @@ const BILINGUAL = {
       userAgentMobile: 'Mobile',
       labelEgressLocation: 'Country the check runs from',
       hintEgressLocation:
-        'A site can answer visitors from different countries differently — language, redirects, consent banners, blocks. The crawler reads it from this country.',
+        'A site can answer visitors from different countries differently — language, redirects, consent banners, blocks. The crawler reads it from this country. We pick it from the site’s domain and your browser; change it if your customers are elsewhere.',
       egressPerformanceNote:
         'Speed is measured by Google PageSpeed Insights from Google’s own network, so the country you choose does not change the Performance section.',
-      egressMoreCountries: 'More countries will be added later.',
       egressNone:
         'No check location is answering right now, so a scan cannot start. Try again in a few minutes.',
       egressLoadFailed:
@@ -969,7 +968,6 @@ const BILINGUAL = {
       launchSummaryPerformance: 'Performance provider',
       launchSummaryPerformanceValue: 'Google PageSpeed / CrUX · no sign-in',
       launchSummaryEgress: 'Checked from',
-      launchSummaryEgressDefault: 'default for Free',
       launchSummaryEnabled: 'Enabled',
       launchSummaryDisabled: 'Off',
       launchSummaryIncluded: 'Included',
@@ -2905,10 +2903,9 @@ const BILINGUAL = {
       userAgentMobile: 'Мобільний',
       labelEgressLocation: 'Країна, з якої йде перевірка',
       hintEgressLocation:
-        'Сайт може по-різному відповідати відвідувачам з різних країн — мова, редиректи, банери згоди, блокування. Краулер читатиме сайт із цієї країни.',
+        'Сайт може по-різному відповідати відвідувачам з різних країн — мова, редиректи, банери згоди, блокування. Краулер читатиме сайт із цієї країни. Ми підбираємо її за доменом сайту й вашим браузером; змініть, якщо ваші клієнти в іншій країні.',
       egressPerformanceNote:
         'Швидкість вимірює Google PageSpeed Insights зі своєї мережі, тому вибір країни на розділ «Швидкодія» не впливає.',
-      egressMoreCountries: 'Інші країни з’являться пізніше.',
       egressNone:
         'Зараз жодна точка перевірки не відповідає, тому запустити перевірку не можна. Спробуйте за кілька хвилин.',
       egressLoadFailed:
@@ -3024,7 +3021,6 @@ const BILINGUAL = {
       launchSummaryPerformance: 'Провайдер швидкодії',
       launchSummaryPerformanceValue: 'Google PageSpeed / CrUX · без входу',
       launchSummaryEgress: 'Країна перевірки',
-      launchSummaryEgressDefault: 'за замовчуванням для Free',
       launchSummaryEnabled: 'Увімкнено',
       launchSummaryDisabled: 'Вимкнено',
       launchSummaryIncluded: 'Включено',

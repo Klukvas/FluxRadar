@@ -5,12 +5,12 @@ import { copy, type Language } from './i18n';
 import { useDelayedFlag } from './use-delayed-flag';
 
 /**
- * The country a paid check leaves from (D-228).
+ * The country a check leaves from (D-228), shown in the first step for every
+ * plan: it decides what the crawler sees, so it is not an expert setting.
  *
  * Only locations the server says are configured and answering are listed — no
  * placeholder for a country that is not set up, because an option that cannot
- * be bought is a promise the screen cannot keep. The line under it says more
- * are coming instead.
+ * be bought is a promise the screen cannot keep.
  *
  * The Performance note is not optional. PageSpeed Insights measures from
  * Google's network whatever is chosen here, and without saying so the owner
@@ -44,7 +44,6 @@ export function EgressLocationField(props: {
           hint={t.hintEgressLocation}
         />
         <p className="muted panel-help">{t.egressPerformanceNote}</p>
-        <p className="muted panel-help">{t.egressMoreCountries}</p>
       </>
     );
   }
@@ -76,7 +75,6 @@ export function EgressLocationField(props: {
         }))}
       />
       <p className="muted panel-help">{t.egressPerformanceNote}</p>
-      <p className="muted panel-help">{t.egressMoreCountries}</p>
     </>
   );
 }

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 
 import type { SiteProfile } from './api';
 import { Button, SelectField } from './components';
+import { EgressLocationField } from './EgressLocationField';
 import type { Language } from './i18n';
 import { newScanCopy } from './new-scan-copy';
 import type { NewScanForm } from './new-scan-form';
@@ -50,7 +51,7 @@ export function SiteStep(props: {
   onCreateProfile: () => void;
 }) {
   const c = newScanCopy[props.language];
-  const { chooseTarget, target } = props.form;
+  const { chooseTarget, egressLocation, launchConfig, target, updateScope } = props.form;
   return (
     <NewScanStep number={1} title={c.steps.site} id="scan-step-site" hint={c.site.hint}>
       {props.profiles.length === 0 ? (
@@ -64,17 +65,27 @@ export function SiteStep(props: {
           <Button onClick={props.onCreateProfile}>{c.createProfile}</Button>
         </>
       ) : (
-        <SelectField
-          label={c.site.label}
-          name="scan-profile"
-          autoComplete="off"
-          value={target}
-          onChange={chooseTarget}
-          options={props.profiles.map((profile) => ({
-            value: profile.id,
-            label: `${profile.name} · ${siteAddress(profile.domain)}`,
-          }))}
-        />
+        <>
+          <SelectField
+            label={c.site.label}
+            name="scan-profile"
+            autoComplete="off"
+            value={target}
+            onChange={chooseTarget}
+            options={props.profiles.map((profile) => ({
+              value: profile.id,
+              label: `${profile.name} · ${siteAddress(profile.domain)}`,
+            }))}
+          />
+          {/* Beside the site, not folded away: a US site checked from Kyiv can
+              meet a geo block and read as broken (D-228). */}
+          <EgressLocationField
+            language={props.language}
+            config={launchConfig}
+            selected={egressLocation}
+            onChange={(value) => updateScope({ egressLocation: value })}
+          />
+        </>
       )}
     </NewScanStep>
   );
