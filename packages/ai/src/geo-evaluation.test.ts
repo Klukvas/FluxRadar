@@ -312,10 +312,7 @@ describe('geo evaluation validation', () => {
         overall: 'matches-evidence',
       });
 
-    // A judge quotes whole words, so the longest quote it can lawfully give
-    // ends on the last word that fits the limit.
-    const atLimit = quoteOf(GEO_EVALUATION_MAX_QUOTE_CHARS).replace(/\s*\S*$/, '');
-    expect([...atLimit].length).toBeGreaterThan(GEO_EVALUATION_MAX_QUOTE_CHARS - 12);
+    const atLimit = quoteOf(GEO_EVALUATION_MAX_QUOTE_CHARS);
     const payload = parseGeoEvaluation(outputQuoting(atLimit), ANSWER, LONG_EXCERPT_EVIDENCE);
     expect(payload.claims[0]?.sourceQuote).toBe(atLimit);
 

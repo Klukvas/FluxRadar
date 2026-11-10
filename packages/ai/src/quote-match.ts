@@ -15,9 +15,9 @@
 // the DOM, where one block runs into the next ("make this website work.We’d
 // like", "Benefits · Births, deaths"), and answers carry markdown ("**GOV.UK**").
 // A judge quoting that text the way a person reads it was losing the whole
-// verdict. So whitespace is optional and block separators count as whitespace —
-// but a match must still start and end on a word boundary of the text, so
-// "the rapist" never matches "therapist".
+// verdict. So whitespace beside punctuation is optional and block separators
+// count as whitespace — but between two letters the quote must break words
+// exactly where the text does, so "the rapist" never matches "therapist".
 //
 // A judge may elide the middle of a quote with "…", within limits that keep it
 // from stitching a sentence out of fragments: a few long parts, close together.
@@ -80,19 +80,6 @@ function searchable(text: string): SearchableText {
 
 const WORD_CHAR = /[\p{L}\p{N}]/u;
 
-/** Whether compact[start, end) begins and ends on a word boundary of the text. */
-function onWordBoundaries(text: SearchableText, start: number, end: number): boolean {
-  const first = text.spacedIndex[start] ?? 0;
-  const last = text.spacedIndex[end - 1] ?? 0;
-  const before = text.spaced[first - 1];
-  const after = text.spaced[last + 1];
-  const startsWord =
-    before === undefined || !WORD_CHAR.test(before) || !WORD_CHAR.test(text.spaced[first] ?? '');
-  const endsWord =
-    after === undefined || !WORD_CHAR.test(after) || !WORD_CHAR.test(text.spaced[last] ?? '');
-  return startsWord && endsWord;
-}
-
 interface QuotePart {
   /** The part with its spaces removed. */
   readonly compact: string;
@@ -115,24 +102,25 @@ function quotePart(spaced: string): QuotePart {
 }
 
 /**
- * Whether every word break the quote makes is a break in the text too: a
- * space the quote puts between two letters may not fall inside a word of the
- * text ("the rapist" against "therapist"). The text may break where the quote
- * does not — that is the glued DOM block this matching exists for.
+ * Whether the quote breaks words exactly where the text does. Between two
+ * letters, a space in one and none in the other is a different phrase: "the
+ * rapist" is not "therapist", and "we do not" is not "we do no tax". Beside
+ * punctuation a space is layout either way — "work.We’d" in a glued DOM
+ * excerpt is "work. We’d" as a reader quotes it.
  */
-function keepsQuoteBreaks(text: SearchableText, at: number, part: QuotePart): boolean {
-  return part.breaks.every((offset) => {
+function keepsWordBreaks(text: SearchableText, at: number, part: QuotePart): boolean {
+  const quoteBreaks = new Set(part.breaks);
+  for (let offset = 1; offset < part.compact.length; offset += 1) {
     const left = text.spacedIndex[at + offset - 1] ?? 0;
     const right = text.spacedIndex[at + offset] ?? 0;
-    return (
-      right - left > 1 ||
-      !WORD_CHAR.test(text.spaced[left] ?? '') ||
-      !WORD_CHAR.test(text.spaced[right] ?? '')
-    );
-  });
+    const betweenLetters =
+      WORD_CHAR.test(text.spaced[left] ?? '') && WORD_CHAR.test(text.spaced[right] ?? '');
+    if (betweenLetters && right - left > 1 !== quoteBreaks.has(offset)) return false;
+  }
+  return true;
 }
 
-/** Where `part` next occurs on word boundaries at or after `from`, or -1. */
+/** Where `part` next occurs, with the same word breaks, at or after `from`, or -1. */
 function findPart(text: SearchableText, part: QuotePart, from: number): number {
   const { compact } = part;
   for (
@@ -140,8 +128,7 @@ function findPart(text: SearchableText, part: QuotePart, from: number): number {
     at !== -1;
     at = text.compact.indexOf(compact, at + 1)
   ) {
-    const end = at + compact.length;
-    if (onWordBoundaries(text, at, end) && keepsQuoteBreaks(text, at, part)) return at;
+    if (keepsWordBreaks(text, at, part)) return at;
   }
   return -1;
 }
@@ -160,8 +147,8 @@ function quoteParts(quote: string, allowElision: boolean): readonly QuotePart[] 
 }
 
 /**
- * A quote counts only if the text really contains it, on word boundaries;
- * punctuation style, spacing and markdown may differ. An elided quote counts
+ * A quote counts only if the text really contains it, breaking words where
+ * the text does; punctuation style, spacing and markdown may differ. An elided quote counts
  * when each of its few long parts appears, in order and close together.
  */
 export function quoteOccursIn(

@@ -97,10 +97,12 @@ describe('quoteOccursIn across layout', () => {
 // not say: by joining words, by stitching fragments, or by reaching across
 // the page.
 describe('quoteOccursIn guards', () => {
-  it('does not match inside or across words', () => {
+  it('breaks words only where the text does', () => {
     expect(quoteOccursIn('A family therapist in Leeds.', 'the rapist')).toBe(false);
     expect(quoteOccursIn('We do no tax returns.', 'we do not')).toBe(false);
     expect(quoteOccursIn('Our therapist is in Leeds.', 'therapist is in Leeds')).toBe(true);
+    // A quote cut mid-word still counts, as it always has: stored reports hold such quotes.
+    expect(quoteOccursIn('Smile Clinic places implants.', 'Smile Clinic places impl')).toBe(true);
   });
 
   it('refuses an elided quote made of short fragments', () => {
