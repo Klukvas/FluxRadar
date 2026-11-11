@@ -361,6 +361,11 @@ jobs:
           # emailVerification status of "provider-error" (email/resend-config.ts).
           # Nonsecret emergency switch; empty keeps the base configuration.
           PRODUCTION_GOOGLE_LOGIN_ENABLED: ${{ vars.PRODUCTION_GOOGLE_LOGIN_ENABLED }}
+          # Lets scans open a browser for JS-rendered pages ("true" turns it on).
+          # Not a secret, so it is a production environment VARIABLE: the base
+          # env file cannot be read back, and turning rendering on or off should
+          # not mean retyping every other value. Empty keeps the base file's value.
+          PRODUCTION_RENDER_ENABLED: ${{ vars.PRODUCTION_RENDER_ENABLED }}
           PRODUCTION_RESEND_API_KEY: ${{ secrets.PRODUCTION_RESEND_API_KEY }}
           PRODUCTION_RESEND_FROM_EMAIL: ${{ secrets.PRODUCTION_RESEND_FROM_EMAIL }}
           # Owner dashboard (/admin/stats). A secret for the same reason as the
@@ -492,6 +497,7 @@ jobs:
           upsert_env CRAWL_EGRESS_PROXY_URL_CA PRODUCTION_CRAWL_EGRESS_PROXY_URL_CA
           upsert_env CRAWL_EGRESS_EXPECTED_IP_CA PRODUCTION_CRAWL_EGRESS_EXPECTED_IP_CA
           upsert_env GOOGLE_LOGIN_ENABLED PRODUCTION_GOOGLE_LOGIN_ENABLED
+          upsert_env FLUXRADAR_RENDER_ENABLED PRODUCTION_RENDER_ENABLED
           upsert_env RESEND_API_KEY PRODUCTION_RESEND_API_KEY
           upsert_env RESEND_FROM_EMAIL PRODUCTION_RESEND_FROM_EMAIL
           upsert_env HETZNER_S3_ACCESS_KEY PRODUCTION_HETZNER_S3_ACCESS_KEY
