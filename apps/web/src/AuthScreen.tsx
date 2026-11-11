@@ -46,9 +46,9 @@ export function AuthScreen(props: {
   const [mode, setMode] = useState<AuthMode>(props.initialMode);
   const [forgotPassword, setForgotPassword] = useState(false);
   const [resetDone, setResetDone] = useState(false);
-  const [verificationStatus, setVerificationStatus] = useState<'idle' | 'working' | 'verified'>(
-    'idle',
-  );
+  const [verificationStatus, setVerificationStatus] = useState<
+    'idle' | 'working' | 'verified' | 'failed'
+  >('idle');
   const verificationStarted = useRef(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -70,7 +70,12 @@ export function AuthScreen(props: {
       `/auth/verify-email?token=${encodeURIComponent(props.emailAction.token)}`,
     )
       .then(() => setVerificationStatus('verified'))
-      .catch((caught) => onError(caught instanceof Error ? caught.message : t.verificationFailed));
+      .catch((caught) => {
+        // Without an end state the page kept saying "checking…" forever after
+        // the error dialog was closed, with nothing left to do.
+        setVerificationStatus('failed');
+        onError(caught instanceof Error ? caught.message : t.verificationFailed);
+      });
   }, [isVerification, props.emailAction, onError, t.verificationFailed]);
 
   useEffect(() => {
@@ -197,7 +202,9 @@ export function AuthScreen(props: {
       ? t.leads.verifying
       : verificationStatus === 'verified'
         ? t.leads.verified
-        : t.leads.verifyPending
+        : verificationStatus === 'failed'
+          ? t.leads.verifyFailed
+          : t.leads.verifyPending
     : isReset
       ? resetDone
         ? t.leads.resetDone
