@@ -158,6 +158,9 @@ export const russianSiteCopy = {
       'Google подключён, но не каждый сайт читает property: без него отчёт не содержит ваших данных Search Console и Analytics. Пока без property: {sites}.',
     googleReminderChoose: 'Выбрать property',
     noSites: 'Сайтов пока нет',
+    sitesLoadFailed:
+      'Не удалось загрузить ваши сайты. Они сохранены, проверьте соединение и попробуйте ещё раз.',
+    sitesRetry: 'Попробовать ещё раз',
     noSitesHelp:
       'Добавьте первый сайт, чтобы начать. Введите адрес главной страницы (например, mysalon.com.ua), и FluxRadar сохранит сайт, чтобы вы проверили его, когда будете готовы.',
     addSite: 'Добавить сайт',

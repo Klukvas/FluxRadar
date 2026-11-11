@@ -28,6 +28,7 @@ export type AuthCopy = {
     readonly verifying: string;
     readonly verified: string;
     readonly verifyPending: string;
+    readonly verifyFailed: string;
   };
   readonly email: string;
   readonly emailPlaceholder: string;
@@ -92,6 +93,8 @@ export const authCopy: Record<Language, AuthCopy> = {
       verifying: 'Checking your one-time link…',
       verified: 'Your email is verified. You can return to FluxRadar.',
       verifyPending: 'The verification link is being checked.',
+      verifyFailed:
+        'This link did not work: it may have expired or already been used. Sign in and send yourself a new one from your account page.',
     },
     email: 'Email',
     emailPlaceholder: 'you@example.com',
@@ -158,6 +161,8 @@ export const authCopy: Record<Language, AuthCopy> = {
       verifying: 'Перевіряємо одноразове посилання…',
       verified: 'Ваш email підтверджено. Можна повертатися до FluxRadar.',
       verifyPending: 'Посилання підтвердження перевіряється.',
+      verifyFailed:
+        'Це посилання не спрацювало: можливо, воно застаріло або вже використане. Увійдіть і надішліть собі нове на сторінці акаунта.',
     },
     email: 'Email',
     emailPlaceholder: 'you@example.com',
@@ -226,6 +231,8 @@ export const authCopy: Record<Language, AuthCopy> = {
       verifying: 'Проверяем одноразовую ссылку…',
       verified: 'Ваш email подтверждён. Можно возвращаться в FluxRadar.',
       verifyPending: 'Ссылка подтверждения проверяется.',
+      verifyFailed:
+        'Эта ссылка не сработала: возможно, она устарела или уже использована. Войдите и отправьте себе новую на странице аккаунта.',
     },
     email: 'Email',
     emailPlaceholder: 'you@example.com',

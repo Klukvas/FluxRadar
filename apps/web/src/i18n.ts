@@ -333,6 +333,9 @@ const BILINGUAL = {
         'Google is connected, but not every site reads a property yet — without one, a report leaves your Search Console and Analytics data out. No property yet: {sites}.',
       googleReminderChoose: 'Choose properties',
       noSites: 'No sites yet',
+      sitesLoadFailed:
+        'Your sites could not be loaded. They are still saved; check the connection and try again.',
+      sitesRetry: 'Try again',
       noSitesHelp:
         'Add your first site to begin. Enter its homepage address (like mysalon.com) and FluxRadar saves it, ready to check whenever you are.',
       addSite: 'Add a site',
@@ -1047,6 +1050,8 @@ const BILINGUAL = {
     scanProgress: {
       windowTitle: 'Scan progress',
       noScanTitle: 'No check selected',
+      connectionLost:
+        'Connection lost. The check keeps running on our side; this page will catch up as soon as it reconnects.',
       noScanBody: 'Open one of your reports, or start a new check of a saved profile.',
       noScanAction: 'Go to reports',
       panelTitle: 'Checking your site',
@@ -2446,6 +2451,9 @@ const BILINGUAL = {
         'Google підключено, але не кожен сайт читає property — без нього звіт не містить ваших даних Search Console та Analytics. Ще без property: {sites}.',
       googleReminderChoose: 'Обрати property',
       noSites: 'Сайтів ще немає',
+      sitesLoadFailed:
+        'Не вдалося завантажити ваші сайти. Вони збережені, перевірте з’єднання і спробуйте ще раз.',
+      sitesRetry: 'Спробувати ще раз',
       noSitesHelp:
         'Додайте перший сайт, щоб почати. Введіть адресу головної сторінки (наприклад, mysalon.com.ua), і FluxRadar збереже сайт, щоб ви перевірили його, коли будете готові.',
       addSite: 'Додати сайт',
@@ -3100,6 +3108,8 @@ const BILINGUAL = {
     scanProgress: {
       windowTitle: 'Перебіг перевірки',
       noScanTitle: 'Перевірку не вибрано',
+      connectionLost:
+        'Зв’язок втрачено. Перевірка триває на нашому боці; сторінка оновиться, щойно з’єднання відновиться.',
       noScanBody:
         'Відкрийте один зі своїх звітів або запустіть нову перевірку збереженого профілю.',
       noScanAction: 'Перейти до звітів',

@@ -6,7 +6,6 @@
 
 import { useEffect, useRef, useState } from 'react';
 
-import { trackEvent } from './analytics';
 import { apiRequest, type Scan, type ScanModule } from './api';
 import { Button, EmptyState, FieldRow, Panel, ProgressBar, StatusChip, Window } from './components';
 import { copy, fillCopy, type Language } from './i18n';
@@ -18,6 +17,7 @@ import {
   type LiveProgressMark,
 } from './scan-progress-state';
 import { ScanProgressStatus } from './ScanProgressStatus';
+import { useScanPolling } from './use-scan-polling';
 import { scanCancelCopy } from './scan-cancel-copy';
 import {
   displayDomain,
@@ -80,47 +80,11 @@ export function ScanScreen(props: {
       (cancelTrigger.current ?? previousFocus)?.focus();
     };
   }, [confirmCancel]);
-  useEffect(() => {
-    if (
-      props.scan === null ||
-      (isTerminalScanStatus(props.scan.status) && props.scan.reportReady !== false)
-    )
-      return undefined;
-    let cancelled = false;
-    // Polls overlap when a request outlasts the interval, and two of them can
-    // both see the scan finish.
-    let completionReported = false;
-    const scanId = props.scan.id;
-    const poll = async () => {
-      try {
-        const scan = await apiRequest<Scan>(`/scans/${scanId}`);
-        if (cancelled) return;
-        props.onUpdate(scan);
-        if (
-          isTerminalScanStatus(scan.status) &&
-          scan.reportReady !== false &&
-          timer !== undefined
-        ) {
-          window.clearInterval(timer);
-          // Only a scan watched to the end is reported: this effect never polls
-          // one that was already finished when the screen opened.
-          if (!completionReported) {
-            completionReported = true;
-            trackEvent('scan_completed', { plan: scan.plan, status: scan.status });
-          }
-        }
-      } catch (caught) {
-        if (!cancelled)
-          props.onError(caught instanceof Error ? caught.message : 'Scan status unavailable');
-      }
-    };
-    const timer = window.setInterval(() => void poll(), 1000);
-    void poll();
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, [props.scan?.id, props.onError, props.onUpdate]);
+  const { connectionLost } = useScanPolling({
+    scan: props.scan,
+    onUpdate: props.onUpdate,
+    onError: props.onError,
+  });
   if (props.scan === null)
     return (
       <Window title={t.windowTitle}>
@@ -194,6 +158,11 @@ export function ScanScreen(props: {
           label={t.progressLabel}
           variant={settled ? 'result' : 'live'}
         />
+        {connectionLost && !settled ? (
+          <p className="muted" role="status">
+            {t.connectionLost}
+          </p>
+        ) : null}
         {settled ? (
           <div className="scan-complete" role="status" aria-live="polite">
             <StatusChip status={scan.status} label={scanStateLabel(scan.status, props.language)} />

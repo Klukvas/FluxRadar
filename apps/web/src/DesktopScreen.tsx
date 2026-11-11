@@ -49,12 +49,17 @@ import { normalizeSiteAddress } from './site-address-input';
 import { useProfileAutofill } from './use-profile-autofill';
 import { DomainOwnershipPanel } from './DomainOwnership';
 import { SiteNextSteps } from './SiteNextSteps';
+import { SitesLoadFailed } from './SitesLoadFailed';
 import { SiteStatusPanel } from './SiteStatus';
 import { TargetLanguagesField } from './TargetLanguagesField';
 import './styles/desktop.css';
 
 export interface DesktopScreenProps {
   readonly profiles: readonly SiteProfile[];
+  /** The site list could not be read; shown instead of the empty state. */
+  readonly profilesFailed?: boolean;
+  /** Reads the site list again after a failed load. */
+  readonly onRetryProfiles?: () => Promise<void>;
   /** A public-page address handed off after sign-in, awaiting owner confirmation. */
   readonly initialDomain?: string | null;
   /**
@@ -231,8 +236,10 @@ export function DesktopScreen(props: DesktopScreenProps) {
   const [latest, setLatest] = useState<Scan | null | undefined>(undefined);
   const formRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  // An account whose list failed to load is not empty: opening the add form
+  // there invites the owner to save a site they already have.
   const formOpen =
-    props.profiles.length === 0 ||
+    (props.profiles.length === 0 && props.profilesFailed !== true) ||
     editingProfile !== null ||
     formRequested ||
     props.tourActive === true;
@@ -430,7 +437,9 @@ export function DesktopScreen(props: DesktopScreenProps) {
           <div ref={listRef}>
             <Panel>
               <div>
-                {props.profiles.length === 0 ? (
+                {props.profilesFailed === true && props.onRetryProfiles !== undefined ? (
+                  <SitesLoadFailed language={props.language} onRetry={props.onRetryProfiles} />
+                ) : props.profiles.length === 0 ? (
                   <EmptyState title={t.workspace.noSites} description={t.workspace.noSitesHelp} />
                 ) : (
                   props.profiles.map((profile) => (
