@@ -7,7 +7,7 @@
 // be opened and what to do, no raw code outside a small technical line, and no
 // sentence anywhere that calls an unchecked site clean.
 
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { CrawlSummary, Dashboard, IssueSummary, Scan, ScanModule } from './api';
@@ -567,5 +567,56 @@ describe('a report whose site was read', () => {
     expect(
       await screen.findByText('No open problems — nothing in this report is waiting for a fix.'),
     ).toBeTruthy();
+  });
+});
+
+// A double click on an export used to download the same file twice, with no
+// sign that the first click was being worked on.
+describe('the data export buttons', () => {
+  it('run one export at a time and say which one is in progress', async () => {
+    const scan: Scan = {
+      ...SCAN,
+      status: 'Completed',
+      statusReason: null,
+      crawlSummary: { ...UNREAD_CRAWL, reach: 'reachable', pagesRead: 3, urlsDiscovered: 3 },
+    };
+    const base = dashboardOf(scan);
+    const dashboard: Dashboard = {
+      ...base,
+      overall: { ...base.overall, verdict: 'normal', score: 90, weightedCoverage: 1 },
+      modules: [
+        {
+          ...unreadModule('SEO'),
+          status: 'Completed',
+          statusReason: null,
+          coverage: 1,
+          score: 90,
+          completedApplicableChecks: 1,
+          usableOutput: true,
+        },
+      ],
+    };
+    await openReport(dashboard, 'en');
+    const answered = vi.mocked(fetch);
+    let exports = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((input: unknown, init?: RequestInit) => {
+        if (String(input).includes('/export')) {
+          exports += 1;
+          return new Promise<Response>(() => {});
+        }
+        return answered(input as RequestInfo, init);
+      }),
+    );
+
+    const json = screen.getByRole('button', { name: 'JSON' });
+    fireEvent.click(json);
+    fireEvent.click(json);
+    fireEvent.click(screen.getByRole('button', { name: 'CSV' }));
+
+    expect(exports).toBe(1);
+    expect(screen.getByRole('button', { name: 'JSON…' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'CSV' })).toBeDisabled();
   });
 });

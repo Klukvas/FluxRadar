@@ -720,26 +720,46 @@ function PdfDownloadButton(props: {
 function ExportButtons(props: { scan: Scan; onError: (value: string) => void }) {
   const scanId = props.scan.id;
   const baseName = exportBaseName(props.scan);
-  const downloadJson = async () => {
+  // One export at a time: a double click used to save the same file twice, and
+  // a large export gave no sign that anything was happening.
+  const [busyFormat, setBusyFormat] = useState<'json' | 'csv' | null>(null);
+  const run = async (format: 'json' | 'csv', save: () => Promise<void>, fallback: string) => {
+    if (busyFormat !== null) return;
+    setBusyFormat(format);
     try {
-      const value = await apiRequest<ExportPayload>(`/scans/${scanId}/export?format=json`);
-      download(`${baseName}.json`, JSON.stringify(value.records, null, 2), 'application/json');
+      await save();
     } catch (caught) {
-      props.onError(caught instanceof Error ? caught.message : 'JSON export failed');
+      props.onError(caught instanceof Error ? caught.message : fallback);
+    } finally {
+      setBusyFormat(null);
     }
   };
-  const downloadCsv = async () => {
-    try {
-      const value = await apiRequest<string>(`/scans/${scanId}/export?format=csv`);
-      download(`${baseName}.csv`, value, 'text/csv');
-    } catch (caught) {
-      props.onError(caught instanceof Error ? caught.message : 'CSV export failed');
-    }
-  };
+  const downloadJson = () =>
+    run(
+      'json',
+      async () => {
+        const value = await apiRequest<ExportPayload>(`/scans/${scanId}/export?format=json`);
+        download(`${baseName}.json`, JSON.stringify(value.records, null, 2), 'application/json');
+      },
+      'JSON export failed',
+    );
+  const downloadCsv = () =>
+    run(
+      'csv',
+      async () => {
+        const value = await apiRequest<string>(`/scans/${scanId}/export?format=csv`);
+        download(`${baseName}.csv`, value, 'text/csv');
+      },
+      'CSV export failed',
+    );
   return (
     <>
-      <Button onClick={() => void downloadJson()}>JSON</Button>
-      <Button onClick={() => void downloadCsv()}>CSV</Button>
+      <Button onClick={() => void downloadJson()} disabled={busyFormat !== null}>
+        {busyFormat === 'json' ? 'JSON…' : 'JSON'}
+      </Button>
+      <Button onClick={() => void downloadCsv()} disabled={busyFormat !== null}>
+        {busyFormat === 'csv' ? 'CSV…' : 'CSV'}
+      </Button>
     </>
   );
 }

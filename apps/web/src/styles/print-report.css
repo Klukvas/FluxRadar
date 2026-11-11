@@ -124,8 +124,9 @@
 }
 .print-note {
   padding: var(--sp-2);
-  border: 1px solid #8a5b00;
-  background: #fff4de;
+  border: 1px solid var(--warn-line);
+  background: var(--warn-fill);
+  color: var(--warn-text);
 }
 .print-problem {
   margin-top: var(--sp-4);

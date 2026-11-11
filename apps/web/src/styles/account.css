@@ -33,9 +33,9 @@
   justify-content: space-between;
   margin-bottom: var(--sp-3);
   padding: var(--sp-2) var(--sp-3);
-  border: 1px solid #8a5b00;
-  background: #ffe9c2;
-  color: #4d3300;
+  border: 1px solid var(--warn-line);
+  background: var(--warn-fill);
+  color: var(--warn-text);
 }
 .verify-banner p {
   margin: 0;
