@@ -223,7 +223,10 @@ function PasswordPanel(props: {
   );
 }
 
-export function PurchasesPanel(props: { language: Language; onOpenScan: (scanId: string) => void }) {
+export function PurchasesPanel(props: {
+  language: Language;
+  onOpenScan: (scanId: string) => void;
+}) {
   const t = accountCopy[props.language].purchases;
   const [purchases, setPurchases] = useState<readonly Purchase[] | null>(null);
   const [failed, setFailed] = useState(false);
@@ -263,7 +266,13 @@ export function PurchasesPanel(props: { language: Language; onOpenScan: (scanId:
           </div>
         </>
       ) : purchases === null ? (
-        <SkeletonRows rows={2} />
+        // Six cells, one per table column, at the height of a row that holds a
+        // status chip and a button, so the loaded table lands where this was.
+        <SkeletonRows
+          rows={2}
+          columns={['90px', 'minmax(0, 1fr)', '90px', '90px', '110px', '80px']}
+          rowHeight={36}
+        />
       ) : purchases.length === 0 ? (
         <EmptyState title={t.empty} />
       ) : (

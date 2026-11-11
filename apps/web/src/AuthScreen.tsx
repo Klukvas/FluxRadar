@@ -246,7 +246,11 @@ export function AuthScreen(props: {
             >
               {busy ? t.working : t.googleContinue}
             </Button>
-            {googleStatus === 'ready' && !googleEnabled ? (
+            {googleStatus === 'loading' ? (
+              <p className="muted" role="status">
+                {t.googleChecking}
+              </p>
+            ) : googleStatus === 'ready' && !googleEnabled ? (
               <p className="muted">{t.googleUnavailable}</p>
             ) : null}
             <p className="muted">{t.googleOrEmail}</p>
