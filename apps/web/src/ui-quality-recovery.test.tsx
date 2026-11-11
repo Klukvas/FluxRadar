@@ -41,7 +41,7 @@ function ok<T>(data: T): Response {
 }
 
 describe('a site list that failed to load', () => {
-  it('says so and offers a retry instead of the empty state', () => {
+  it('says so and offers a retry instead of the empty state', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(() => Promise.resolve(ok(null))),
@@ -67,7 +67,13 @@ describe('a site list that failed to load', () => {
     );
 
     expect(screen.getByRole('alert')).toHaveTextContent('Your sites could not be loaded.');
-    expect(screen.queryByText('No sites yet')).not.toBeInTheDocument();
+    // Let the panels that read the scan list finish, so a "0 sites" line
+    // drawn after their request cannot slip past the assertions below.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(screen.queryByText(/No sites yet/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Sites saved')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     expect(onRetryProfiles).toHaveBeenCalledTimes(1);
   });

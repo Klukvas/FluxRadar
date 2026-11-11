@@ -757,7 +757,9 @@ export function DesktopScreen(props: DesktopScreenProps) {
               onRetryScan={props.onRetryScan}
               onLatest={onLatest}
             />
-          ) : (
+          ) : props.profilesFailed === true ? null : (
+            // Both blocks are built from the site list; while it could not be
+            // read they would report "0 sites saved" as a fact.
             <>
               {latest === undefined ? null : (
                 <NextStep
