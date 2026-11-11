@@ -13,6 +13,11 @@ Disallow: /integrations
 Disallow: /account
 Disallow: /checkout/
 Disallow: /api/
+# Every public page asks these two at load (session state, support widget).
+# They are read-only and answer anonymously, so a crawler that renders the page
+# can load it as a visitor does instead of treating the page as half-read.
+Allow: /api/auth/me
+Allow: /api/support/status
 Disallow: /admin/
 
 # What our own crawler is, for anyone who met FluxRadarBot in their access log
