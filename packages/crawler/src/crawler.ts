@@ -8,6 +8,7 @@ import type { EgressProxy, SafeFetchResult } from '@fluxradar/safe-fetch';
 import { HostLimiter, safeFetch } from '@fluxradar/safe-fetch';
 
 import { extractLinks } from './link-extractor.js';
+import { RENDER_COVERAGE_LIMIT_REASONS } from './render/types.js';
 import type { BlockedRequestReason, RenderRuntimeResult } from './render/types.js';
 import { probeMediaResources } from './resources.js';
 import { hostKey, RobotsHostCache } from './robots-host-cache.js';
@@ -36,19 +37,6 @@ import type {
 
 /** ≥ стольких 5xx подряд на host → host останавливается (D-030). */
 export const CONSECUTIVE_5XX_HOST_STOP = 5;
-
-/**
- * Block reasons that mean the rendered DOM is missing something the page wanted.
- *
- * The other reasons are policy — a render never posts, never navigates and never
- * loads an image — and a page refused one of those still got the DOM a visitor
- * gets. These three are OUR limits meeting the page's own resources.
- */
-const RENDER_COVERAGE_LIMIT_REASONS: readonly BlockedRequestReason[] = [
-  'budget',
-  'robots-disallowed',
-  'ssrf-blocked',
-];
 
 export interface CrawlOptions {
   /** Инъекция транспорта (тесты/моки); default — safeFetch с UA краулера. */

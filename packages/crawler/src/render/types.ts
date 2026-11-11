@@ -102,6 +102,21 @@ export const BLOCKED_REQUEST_REASONS = [
 
 export type BlockedRequestReason = (typeof BLOCKED_REQUEST_REASONS)[number];
 
+/**
+ * Block reasons that mean the rendered DOM is missing something the page wanted.
+ *
+ * The other reasons are policy — a render never posts, never navigates and never
+ * loads an image — and a page refused one of those still got the DOM a visitor
+ * gets. These three are OUR limits meeting the page's own resources. The crawl
+ * summary and every rule that asks "was this page fully read" share this list,
+ * so the report never calls a page complete in one place and unread in another.
+ */
+export const RENDER_COVERAGE_LIMIT_REASONS: readonly BlockedRequestReason[] = [
+  'budget',
+  'robots-disallowed',
+  'ssrf-blocked',
+];
+
 /** The page body the crawler already fetched, reused as the render's document. */
 export interface RenderDocument {
   readonly html: string;
