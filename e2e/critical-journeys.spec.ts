@@ -113,17 +113,20 @@ test.describe('critical customer journeys', () => {
     });
 
     await page.goto('/');
-    await expect(page.getByText('FluxRadar is unavailable')).toBeVisible();
-    // The consent panel is centred on the viewport, which is where this
-    // screen's one control is, so a first-time visitor answers it first — as
-    // this test now does.
-    await dismissCookies(page);
-    await page.getByRole('button', { name: 'Try again' }).click();
+    // The home page is public, so a failed session check no longer blocks it:
+    // the page renders and a notice offers to check the session again.
+    const sessionNotice = page.getByText(
+      'Your session could not be checked. This public page is available.',
+    );
+    await expect(sessionNotice).toBeVisible();
     await expect(
       page.getByRole('heading', {
-        name: 'We check your website and show what keeps customers from finding you',
+        name: 'Online website audit: SEO, AI visibility and what to fix first',
       }),
     ).toBeVisible();
+    await dismissCookies(page);
+    await page.getByRole('button', { name: 'Retry' }).click();
+    await expect(sessionNotice).toBeHidden();
     expect(sessionReads).toBeGreaterThanOrEqual(2);
   });
 });

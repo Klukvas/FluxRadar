@@ -595,7 +595,7 @@ test.describe('AI Action Plan on a Complete report', () => {
     );
     await expect(block.locator('.action-plan__actions > li').first()).toContainText('Small effort');
     await expect(
-      block.getByRole('button', { name: 'robots.txt is missing or unreachable' }),
+      block.getByRole('button', { name: 'The instructions file for search engines is missing' }),
     ).toBeVisible();
     await expect(block.locator('.action-plan__reach')).toHaveText(
       'This plan addresses 60% of the open findings, across 4 rules.',
@@ -725,8 +725,10 @@ test.describe('AI Action Plan on a Complete report', () => {
 
     await issuesRequest;
     await expect(page).toHaveURL(new RegExp(`/scans/${SCAN_ID}/issues$`));
-    await expect(page.locator('.issue-rule-filter')).toContainText(
-      'Problem: robots.txt is missing or unreachable',
+    await expect(page.locator('.issue-rule-filter')).toContainText('Showing one problem only');
+    // The open problem is named once, on the heading under the filter line.
+    await expect(page.locator('.issue-group-title')).toHaveText(
+      'The instructions file for search engines is missing',
     );
     await expect(page.getByText('https://smile.example/robots.txt').first()).toBeVisible();
   });
