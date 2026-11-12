@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 test.describe('cookie choices on public legal pages', () => {
-  test('opens compact and centred, stores a refusal in one press, and reopens it expanded', async ({
+  test('opens as a compact bottom bar, stores a refusal in one press, and reopens it expanded', async ({
     page,
   }) => {
     await page.goto('/terms');
@@ -24,8 +24,11 @@ test.describe('cookie choices on public legal pages', () => {
     expect(
       Math.abs((box?.x ?? 0) + (box?.width ?? 0) / 2 - (viewport?.width ?? 0) / 2),
     ).toBeLessThanOrEqual(2);
+    // The banner is a full-width bar along the bottom edge (12px of padding
+    // around it), not a panel over the page centre.
+    expect(box?.width ?? 0).toBeGreaterThanOrEqual((viewport?.width ?? 0) - 2 * 12 - 2);
     expect(
-      Math.abs((box?.y ?? 0) + (box?.height ?? 0) / 2 - (viewport?.height ?? 0) / 2),
+      Math.abs((viewport?.height ?? 0) - ((box?.y ?? 0) + (box?.height ?? 0)) - 12),
     ).toBeLessThanOrEqual(2);
 
     const heightWithBanner = await page.evaluate(() => document.documentElement.scrollHeight);

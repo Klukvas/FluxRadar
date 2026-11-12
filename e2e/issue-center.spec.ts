@@ -269,17 +269,20 @@ test.describe('the Issue Center on a report full of header findings', () => {
     await expect(page.getByRole('row')).toHaveCount(4);
     await expect(page.getByText(`${DOMAIN}/page-7`)).toHaveCount(0);
 
-    // Headlined in the owner's words; the technical title, the only place the
-    // header is named now, stays on the line under it.
+    // Headlined in the owner's words, with what it means and what to do in view;
+    // the measurement is one fold down.
     const csp = page
       .getByRole('row')
-      .filter({ hasText: 'Content-Security-Policy is missing or weak' });
-    await expect(csp).toContainText('Pages do not limit where they load content from');
+      .filter({ hasText: 'Pages do not limit where they load content from' });
     await expect(csp).toContainText(`On ${CSP_PAGES} pages`);
+    await expect(
+      csp.getByText(/Telling the browser which sources it may load content from/),
+    ).toBeVisible();
+    await expect(csp.getByText('What to do:')).toBeVisible();
     const explanation = csp.getByText(/do not tell the browser which outside sources/);
     // Folded by default — a row that opens itself is a row per problem in name only.
     await expect(explanation).toBeHidden();
-    await csp.getByText('What this means in plain language').click();
+    await csp.getByText('What the check measures').click();
     await expect(explanation).toBeVisible();
     await expect(
       csp.getByText(/nothing was attacked, logged into or tested for whether it can be exploited/),
@@ -296,17 +299,19 @@ test.describe('the Issue Center on a report full of header findings', () => {
     await dismissCookies(page);
 
     await page
-      .getByRole('button', { name: 'Show findings: Some browser protection settings are off' })
+      .getByRole('button', {
+        name: 'Where exactly and how to fix: Some browser protection settings are off',
+      })
       .click();
 
     await expect(page.getByText('These findings are on 30 pages.')).toBeVisible();
-    await expect(page.getByText('What differs between pages')).toBeVisible();
+    await expect(page.getByText('What we found, and on which pages')).toBeVisible();
     await expect(
       page.getByRole('listitem').filter({ hasText: '(1): Referrer-Policy' }),
-    ).toContainText('22 findings');
+    ).toContainText('On these 22 pages:');
     await expect(
       page.getByRole('listitem').filter({ hasText: '(2): X-Frame-Options' }),
-    ).toContainText('8 findings');
+    ).toContainText('On these 8 pages:');
     // Still per page underneath: every finding keeps its address and its status.
     await expect(page.getByText(`${DOMAIN}/page-7`)).toBeVisible();
     await expect(
@@ -319,7 +324,7 @@ test.describe('the Issue Center on a report full of header findings', () => {
       }),
     ).toBeVisible();
 
-    await page.getByRole('button', { name: 'Show every problem' }).click();
+    await page.getByRole('button', { name: 'Back to all problems' }).click();
 
     // Regression: this used to drop the rule filter and stay in the flat list,
     // which is every finding of every rule — one row per page.
@@ -337,13 +342,15 @@ test.describe('the Issue Center on a report full of header findings', () => {
     await dismissCookies(page);
 
     await page
-      .getByRole('button', { name: 'Show findings: Cookies without all the usual safety limits' })
+      .getByRole('button', {
+        name: 'Where exactly and how to fix: Cookies without all the usual safety limits',
+      })
       .click();
 
     // Four findings, two pages: the breakdown counts the pages, and the
     // disclosure in the detail says one finding is one cookie.
     await expect(page.getByText('These findings are on 2 pages.')).toBeVisible();
-    await page.getByRole('button', { name: 'Details' }).first().click();
+    await page.getByRole('button', { name: 'Explanation and evidence' }).first().click();
     await expect(page.getByText(/One finding for each cookie on each page/)).toBeVisible();
 
     // The raw attribute names are still reachable — one fold down, for whoever
@@ -352,21 +359,21 @@ test.describe('the Issue Center on a report full of header findings', () => {
     const evidence = detail.getByText('Set-Cookie "sid" is missing attributes: HttpOnly, SameSite');
     await expect(evidence).toBeHidden();
     // The scoring fields are folded with it, after the explanation.
-    await expect(detail.getByText('Impact')).toBeHidden();
+    await expect(detail.getByText('Places affected')).toBeHidden();
     await detail.getByText('Technical details for your developer').click();
     await expect(evidence).toBeVisible();
-    await expect(detail.getByText('Impact')).toBeVisible();
+    await expect(detail.getByText('Places affected')).toBeVisible();
     await expect(detail.getByText('SEC-PASSIVE-005')).toBeVisible();
   });
 });
 
 test.describe('the pricing block on the home page', () => {
-  test('answers "which one is right for you?" above the three cards', async ({ page, baseURL }) => {
+  test('answers "which one is right for you?" above the two cards', async ({ page, baseURL }) => {
     await installFixtures(page, new URL(baseURL ?? '').origin, { signedIn: false });
     await page.goto('/');
     await dismissCookies(page);
 
-    const comparison = page.getByRole('table', { name: /The three packages side by side/ });
+    const comparison = page.getByRole('table', { name: /The two packages side by side/ });
     const basicCard = page.getByRole('heading', { name: 'Basic', level: 3 });
     await comparison.scrollIntoViewIfNeeded();
     const comparisonBox = await comparison.boundingBox();
@@ -374,9 +381,11 @@ test.describe('the pricing block on the home page', () => {
     if (comparisonBox === null || cardBox === null) throw new Error('expected both blocks drawn');
 
     expect(comparisonBox.y).toBeLessThan(cardBox.y);
-    // And the answers are the proof-read ones: Basic's column names every
-    // module it does not run.
+    // And the answers are the proof-read ones: Basic's column names, in plain
+    // words, every section it does not run.
     const notIncluded = page.getByRole('row').filter({ hasText: 'What is not included' });
-    await expect(notIncluded).toContainText('UX/Conversion and Analytics');
+    await expect(notIncluded).toContainText(
+      'whether visitors understand what to do next, and visitor statistics',
+    );
   });
 });
