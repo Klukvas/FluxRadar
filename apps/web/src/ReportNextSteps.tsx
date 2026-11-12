@@ -645,6 +645,8 @@ function drawsOwnChanges(scan: Scan): boolean {
 type ReportNextStepsProps = {
   scan: Scan;
   language: Language;
+  /** The Free report’s recorded SEO check count. */
+  freeChecks?: number;
   onOpenProblem: (ruleId: string) => void;
   onAllProblems: () => void;
   /** Opens the scan form on the given plan for this report's site. */
@@ -751,6 +753,7 @@ export function ReportNextStepsWithSummary(
           scan={props.scan}
           language={props.language}
           openProblems={summary === null ? null : openProblemGroups(summary).length}
+          checks={props.freeChecks}
           onUpgrade={(plan) => {
             trackUpgradeClicked(plan, 'free_report');
             props.onUpgrade(plan);

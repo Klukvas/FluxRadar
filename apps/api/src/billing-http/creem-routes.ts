@@ -13,7 +13,7 @@
 import { Router } from 'express';
 import type { RequestHandler } from 'express';
 import type { PrismaClient } from '@prisma/client';
-import { scanScopeSchema } from '@fluxradar/contracts';
+import { scanScopeSchema, aiLanguageSchema } from '@fluxradar/contracts';
 import type { AiProviderName } from '@fluxradar/ai';
 import { z } from 'zod';
 
@@ -62,7 +62,8 @@ import { requiredParam } from '../http/params.ts';
 import { parseInput } from '../http/validate.ts';
 import type { EgressLocationMonitor } from '../integrations/crawl-egress-monitor.ts';
 import { availableOptInAiProviders } from '../integrations/opt-in-ai-config.ts';
-import { resolveLaunchEgressLocation } from '../scans/launch-egress.ts';
+import { findOwnProfile } from '../profiles/routes.ts';
+import { chosenOrSuggestedEgress, resolveLaunchEgressLocation } from '../scans/launch-egress.ts';
 
 export const CREEM_SIGNATURE_HEADER_NAME = CREEM_SIGNATURE_HEADER;
 
@@ -79,6 +80,7 @@ const checkoutSessionInputSchema = z
     plan: z.enum(PAID_PLANS),
     scope: scanScopeSchema,
     aiConsent: aiConsentSchema.optional(),
+    aiLanguage: aiLanguageSchema.optional(),
     expectedProfileConfigVersion: z.number().int().min(1).optional(),
   })
   .superRefine((input, ctx) => {
@@ -217,7 +219,16 @@ export function creemRouter(deps: CreemRouterDeps): Router {
     assertOptInProvidersAvailable(input.aiConsent, optInAiProviders);
     // Before a session row exists or the provider is called: a buyer must not
     // pay for a scan from a country whose network is down right now.
-    const egress = await resolveLaunchEgressLocation(deps.egress, input.scope.egressLocation);
+    const profile = await findOwnProfile(deps.prisma, accountId, input.siteProfileId);
+    const egress = await resolveLaunchEgressLocation(
+      deps.egress,
+      await chosenOrSuggestedEgress(
+        deps.egress,
+        input.scope.egressLocation,
+        profile,
+        req.get('accept-language'),
+      ),
+    );
     let session: CreemCheckoutSessionView;
     try {
       session = await createCreemCheckoutSession(
@@ -234,6 +245,7 @@ export function creemRouter(deps: CreemRouterDeps): Router {
           scope: input.scope,
           egress,
           aiConsent: input.aiConsent,
+          aiLanguage: input.aiLanguage,
           expectedProfileConfigVersion: input.expectedProfileConfigVersion,
           clientKey: clientKey ?? undefined,
           // The hash only matters next to its key: a headerless request stores
@@ -327,8 +339,7 @@ async function replayCheckoutIfAny(
     (await deps.prisma.checkoutSession.findFirst({
       where: { id: existing.id, ...openCheckoutSessionWhere(deps.now()) },
     })) !== null;
-  const hasProviderView =
-    existing.providerSessionId !== null && existing.checkoutUrl !== null;
+  const hasProviderView = existing.providerSessionId !== null && existing.checkoutUrl !== null;
   if (stillOpen && !hasProviderView) {
     throw new ApiError(
       409,

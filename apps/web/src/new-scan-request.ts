@@ -38,15 +38,8 @@ export interface ScanRequest {
    * record, and the preview then asks nothing (D-236).
    */
   readonly freeAiConsent?: boolean;
-  /**
-   * Free only: the language the AI preview asks and is judged in — the owner's
-   * choice, else the site's language, else the UI language at launch (D-237).
-   * It stays fixed for the scan: a later UI switch changes the labels, never
-   * the stored texts. Sent only together with the AI consent: without it no
-   * question is asked, and the server derives the language from the profile
-   * itself should it ever need one. Paid requests do not send it.
-   */
-  readonly language?: AiLanguage;
+  /** GEO question and answer language, captured at submit for every plan. */
+  readonly aiLanguage: AiLanguage;
   readonly internalFreeAccess: boolean;
   /**
    * The per-draft idempotency key the form minted for this launch. Sent on the
@@ -66,9 +59,9 @@ export async function requestScan(request: ScanRequest): Promise<Scan | null> {
       body: JSON.stringify({
         scope,
         expectedProfileConfigVersion,
+        aiLanguage: request.aiLanguage,
         ...(request.freeAiConsent === true
           ? {
-              ...(request.language !== undefined ? { language: request.language } : {}),
               aiConsent: {
                 providers: [...FREE_AI_PROCESSING_PROVIDERS],
                 noticeVersion: AI_PROCESSING_NOTICE_VERSION,
@@ -90,7 +83,13 @@ export async function requestScan(request: ScanRequest): Promise<Scan | null> {
       noticeVersion: AI_PROCESSING_NOTICE_VERSION,
     },
   };
-  const purchase = { siteProfileId: profileId, plan, scope, expectedProfileConfigVersion };
+  const purchase = {
+    siteProfileId: profileId,
+    plan,
+    scope,
+    expectedProfileConfigVersion,
+    aiLanguage: request.aiLanguage,
+  };
   if (request.internalFreeAccess) {
     // Internal allowlist only: creates a scan without a purchase, and answers
     // 402 for everyone else. There is no simulated payment behind it — nothing

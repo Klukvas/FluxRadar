@@ -333,6 +333,9 @@ const BILINGUAL = {
         'Google is connected, but not every site reads a property yet — without one, a report leaves your Search Console and Analytics data out. No property yet: {sites}.',
       googleReminderChoose: 'Choose properties',
       noSites: 'No sites yet',
+      sitesLoadFailed:
+        'Your sites could not be loaded. They are still saved; check the connection and try again.',
+      sitesRetry: 'Try again',
       noSitesHelp:
         'Add your first site to begin. Enter its homepage address (like mysalon.com) and FluxRadar saves it, ready to check whenever you are.',
       addSite: 'Add a site',
@@ -506,7 +509,7 @@ const BILINGUAL = {
         formLabel: 'Your website address',
         formPlaceholder: 'e.g. mysalon.com',
         submit: 'Check my site',
-        note: 'Basic and Complete are one-time audits, from {price}. Compare their coverage in the plans below.',
+        note: 'Free: 6 homepage checks after registration. No card needed. Paid audits are optional: Basic {price} or Complete {completePrice}, each a one-time payment.',
         trust: ['No passwords or site access', 'No subscription', 'Report in English or Ukrainian'],
         pricingLink: 'Prices and what the report includes',
         example: {
@@ -525,13 +528,14 @@ const BILINGUAL = {
               priority: 'worth',
               chip: 'WORTH FIXING',
               problem:
-                '4 pages have no description — Google shows a random piece of text under the link.',
+                '4 pages have no meta description. Google may use page content for the text under the link.',
               action: 'What to do: write 1–2 sentences in your site builder’s “Description” field.',
             },
             {
               priority: 'worth',
               chip: 'WORTH FIXING',
-              problem: '12 photos have no caption — Google cannot tell what they show.',
+              problem:
+                '12 photos need alt text to help search engines and people using screen readers understand them.',
               action: 'What to do: add a short description in the “alt text” field.',
             },
           ],
@@ -607,14 +611,14 @@ const BILINGUAL = {
           {
             where: '{count} pages',
             title:
-              'Some pages have no description, so Google shows a random piece of text under your link.',
+              'Some pages have no meta description. Google may use page content for the text under your link, even when a description is provided.',
             action:
               'Write one or two sentences for each page saying what you offer and where. Your site builder has a “Description” or “SEO” field for it.',
           },
           {
             where: '{count} pictures',
             title:
-              'Some pictures have no text description, so Google and people who use screen readers cannot tell what they show.',
+              'Some meaningful pictures have no alt text. A short description helps search engines understand the picture and makes it accessible to people using screen readers.',
             action:
               'Add a short description to each picture that carries meaning, such as “Pink gel manicure with gold tips”; one that is only decoration gets an empty description. Site builders usually call this field “alt text”.',
           },
@@ -812,7 +816,7 @@ const BILINGUAL = {
     },
     newScan: {
       windowTitle: 'New scan',
-      prefillNote: 'Settings carried over from your last check of this site.',
+      prefillNote: 'Loaded this site’s scan settings.',
       freeScopeTitle: 'What the free check does',
       freeScopeNote:
         'The free check reads your homepage and nothing else: the page title, the heading structure, the meta description, whether search engines are allowed to index it, the link preview for social networks (Open Graph/Twitter) and image alt text.',
@@ -828,10 +832,9 @@ const BILINGUAL = {
       userAgentMobile: 'Mobile',
       labelEgressLocation: 'Country the check runs from',
       hintEgressLocation:
-        'A site can answer visitors from different countries differently — language, redirects, consent banners, blocks. The crawler reads it from this country.',
+        'A site can answer visitors from different countries differently — language, redirects, consent banners, blocks. The crawler reads it from this country. We pick it from the site’s domain and your browser; change it if your customers are elsewhere.',
       egressPerformanceNote:
         'Speed is measured by Google PageSpeed Insights from Google’s own network, so the country you choose does not change the Performance section.',
-      egressMoreCountries: 'More countries will be added later.',
       egressNone:
         'No check location is answering right now, so a scan cannot start. Try again in a few minutes.',
       egressLoadFailed:
@@ -968,7 +971,6 @@ const BILINGUAL = {
       launchSummaryPerformance: 'Performance provider',
       launchSummaryPerformanceValue: 'Google PageSpeed / CrUX · no sign-in',
       launchSummaryEgress: 'Checked from',
-      launchSummaryEgressDefault: 'default for Free',
       launchSummaryEnabled: 'Enabled',
       launchSummaryDisabled: 'Off',
       launchSummaryIncluded: 'Included',
@@ -1048,6 +1050,8 @@ const BILINGUAL = {
     scanProgress: {
       windowTitle: 'Scan progress',
       noScanTitle: 'No check selected',
+      connectionLost:
+        'Connection lost. The check keeps running on our side; this page will catch up as soon as it reconnects.',
       noScanBody: 'Open one of your reports, or start a new check of a saved profile.',
       noScanAction: 'Go to reports',
       panelTitle: 'Checking your site',
@@ -1172,7 +1176,7 @@ const BILINGUAL = {
       // 0–100 number could honestly measure. AI SEO / GEO is the one: its
       // checks are informational, so a score there would be invented rather
       // than measured. The observations themselves are on the section's card.
-      informationalLabel: 'Observations only',
+      informationalLabel: 'No separate score',
       coverageUnavailable: 'coverage unavailable',
       siteCoverageTitle: 'How much of the site was read',
       siteCoverageCaption: 'Addresses read',
@@ -2447,6 +2451,9 @@ const BILINGUAL = {
         'Google підключено, але не кожен сайт читає property — без нього звіт не містить ваших даних Search Console та Analytics. Ще без property: {sites}.',
       googleReminderChoose: 'Обрати property',
       noSites: 'Сайтів ще немає',
+      sitesLoadFailed:
+        'Не вдалося завантажити ваші сайти. Вони збережені, перевірте з’єднання і спробуйте ще раз.',
+      sitesRetry: 'Спробувати ще раз',
       noSitesHelp:
         'Додайте перший сайт, щоб почати. Введіть адресу головної сторінки (наприклад, mysalon.com.ua), і FluxRadar збереже сайт, щоб ви перевірили його, коли будете готові.',
       addSite: 'Додати сайт',
@@ -2611,7 +2618,7 @@ const BILINGUAL = {
         formLabel: 'Адреса вашого сайту',
         formPlaceholder: 'наприклад, mysalon.com.ua',
         submit: 'Перевірте свій сайт',
-        note: 'Basic і Complete — разові аудити від {price}. Порівняйте їхній обсяг у пакетах нижче.',
+        note: 'Free: 6 перевірок головної сторінки після реєстрації. Картка не потрібна. Платні аудити — за бажанням: Basic {price} або Complete {completePrice}, кожен з разовою оплатою.',
         trust: ['Без паролів і доступу до сайту', 'Без підписки', 'Звіт українською'],
         pricingLink: 'Ціни та що входить у звіт',
         example: {
@@ -2629,13 +2636,15 @@ const BILINGUAL = {
             {
               priority: 'worth',
               chip: 'ВАРТО ВИПРАВИТИ',
-              problem: '4 сторінки без опису — Google показує під посиланням випадковий текст.',
+              problem:
+                '4 сторінки без метаопису. Google може взяти текст під посиланням зі вмісту сторінки.',
               action: 'Що зробити: дописати 1–2 речення в полі «Опис» конструктора.',
             },
             {
               priority: 'worth',
               chip: 'ВАРТО ВИПРАВИТИ',
-              problem: '12 фото без підпису — Google не знає, що на них.',
+              problem:
+                '12 фото потребують текстового опису: він допомагає пошуковикам і людям із програмами читання екрана зрозуміти зображення.',
               action: 'Що зробити: додати короткий опис у полі «alt-текст».',
             },
           ],
@@ -2694,14 +2703,14 @@ const BILINGUAL = {
           {
             where: 'сторінки — {count}',
             title:
-              'Деякі сторінки не мають опису, тому Google показує під посиланням випадковий шматок тексту.',
+              'Деякі сторінки не мають метаопису. Google може взяти текст під посиланням зі вмісту сторінки, навіть коли опис є.',
             action:
               'Напишіть для кожної сторінки одне-два речення про те, що ви пропонуєте і де. У конструкторі сайту для цього є поле «Опис» або «SEO».',
           },
           {
             where: 'зображення — {count}',
             title:
-              'Деякі зображення не мають текстового опису, тому ні Google, ні люди з програмами читання екрана не знають, що на них.',
+              'Деякі змістовні зображення не мають текстового опису. Короткий опис допомагає пошуковикам зрозуміти зображення та робить його доступним для людей із програмами читання екрана.',
             action:
               'Додайте короткий опис до кожного змістовного зображення, наприклад «Рожевий гель-манікюр із золотими кінчиками»; те, що є лише оздобою, отримує порожній опис. У конструкторах це поле зазвичай називається «alt-текст».',
           },
@@ -2886,7 +2895,7 @@ const BILINGUAL = {
     },
     newScan: {
       windowTitle: 'Нова перевірка',
-      prefillNote: 'Налаштування перенесено з вашої попередньої перевірки цього сайту.',
+      prefillNote: 'Завантажено налаштування перевірки для цього сайту.',
       freeScopeTitle: 'Що робить безкоштовна перевірка',
       freeScopeNote:
         'Безкоштовна перевірка читає лише головну сторінку: заголовок сторінки, структуру заголовків, meta description, чи дозволено пошуковим системам індексувати сторінку, превʼю посилання для соцмереж (Open Graph/Twitter) і alt-текст зображень.',
@@ -2902,10 +2911,9 @@ const BILINGUAL = {
       userAgentMobile: 'Мобільний',
       labelEgressLocation: 'Країна, з якої йде перевірка',
       hintEgressLocation:
-        'Сайт може по-різному відповідати відвідувачам з різних країн — мова, редиректи, банери згоди, блокування. Краулер читатиме сайт із цієї країни.',
+        'Сайт може по-різному відповідати відвідувачам з різних країн — мова, редиректи, банери згоди, блокування. Краулер читатиме сайт із цієї країни. Ми підбираємо її за доменом сайту й вашим браузером; змініть, якщо ваші клієнти в іншій країні.',
       egressPerformanceNote:
         'Швидкість вимірює Google PageSpeed Insights зі своєї мережі, тому вибір країни на розділ «Швидкодія» не впливає.',
-      egressMoreCountries: 'Інші країни з’являться пізніше.',
       egressNone:
         'Зараз жодна точка перевірки не відповідає, тому запустити перевірку не можна. Спробуйте за кілька хвилин.',
       egressLoadFailed:
@@ -3021,7 +3029,6 @@ const BILINGUAL = {
       launchSummaryPerformance: 'Провайдер швидкодії',
       launchSummaryPerformanceValue: 'Google PageSpeed / CrUX · без входу',
       launchSummaryEgress: 'Країна перевірки',
-      launchSummaryEgressDefault: 'за замовчуванням для Free',
       launchSummaryEnabled: 'Увімкнено',
       launchSummaryDisabled: 'Вимкнено',
       launchSummaryIncluded: 'Включено',
@@ -3101,6 +3108,8 @@ const BILINGUAL = {
     scanProgress: {
       windowTitle: 'Перебіг перевірки',
       noScanTitle: 'Перевірку не вибрано',
+      connectionLost:
+        'Зв’язок втрачено. Перевірка триває на нашому боці; сторінка оновиться, щойно з’єднання відновиться.',
       noScanBody:
         'Відкрийте один зі своїх звітів або запустіть нову перевірку збереженого профілю.',
       noScanAction: 'Перейти до звітів',
@@ -3195,7 +3204,7 @@ const BILINGUAL = {
       helpFindingsBody:
         'Конкретні проблеми, які ми виявили, кожна з доказом. Відкрийте список знахідок нижче, щоб переглянути їх і побачити рекомендовані виправлення.',
       noScore: 'Без оцінки',
-      informationalLabel: 'Лише спостереження',
+      informationalLabel: 'Без окремого бала',
       coverageUnavailable: 'покриття недоступне',
       siteCoverageTitle: 'Яку частину сайту прочитано',
       siteCoverageCaption: 'Прочитано адрес',

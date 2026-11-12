@@ -5,6 +5,8 @@
 // only decides what the DOM looked like once the page's own scripts had run.
 // Nothing here may widen the crawl.
 
+import type { EgressProxy } from '@fluxradar/safe-fetch';
+
 /**
  * Why a page has no rendered DOM. Every value is reported, never hidden.
  *
@@ -100,6 +102,21 @@ export const BLOCKED_REQUEST_REASONS = [
 
 export type BlockedRequestReason = (typeof BLOCKED_REQUEST_REASONS)[number];
 
+/**
+ * Block reasons that mean the rendered DOM is missing something the page wanted.
+ *
+ * The other reasons are policy — a render never posts, never navigates and never
+ * loads an image — and a page refused one of those still got the DOM a visitor
+ * gets. These three are OUR limits meeting the page's own resources. The crawl
+ * summary and every rule that asks "was this page fully read" share this list,
+ * so the report never calls a page complete in one place and unread in another.
+ */
+export const RENDER_COVERAGE_LIMIT_REASONS: readonly BlockedRequestReason[] = [
+  'budget',
+  'robots-disallowed',
+  'ssrf-blocked',
+];
+
 /** The page body the crawler already fetched, reused as the render's document. */
 export interface RenderDocument {
   readonly html: string;
@@ -123,6 +140,12 @@ export interface RenderRequest {
   readonly isSubresourceAllowed?: (url: URL) => Promise<boolean> | boolean;
   /** Returns true once the scan has been paused or cancelled. */
   readonly shouldStop?: () => boolean;
+  /**
+   * The egress proxy the static crawl used. Subresources leave through it too,
+   * so a rendered page shows what a visitor in the chosen country sees, not
+   * what the server's own network is served (D-228). Absent means direct.
+   */
+  readonly proxy?: EgressProxy;
 }
 
 /** A started browser. Callers must `close()` it, once, when the scan ends. */

@@ -3,18 +3,21 @@
 // out of 100 — kept together so the note is read with the number (D-237). Paid
 // reports use `ScoreDial` directly and see none of this.
 
+import { freeReportCopy } from './free-report-copy';
 import type { Dashboard, ScanModule } from './api';
 import { Button, ScoreDial } from './components';
 import {
   FREE_SCORE_UPGRADE_PLAN,
   FULL_SCORE_MAX,
   freeDialProps,
+  freeIssueCheckCountOf,
   freeScoreCopy,
   isFreeScale,
 } from './free-score-copy';
 import { trackUpgradeClicked } from './funnel-analytics';
 import type { Language } from './i18n';
 import type { PaidPlan } from './plan-modules';
+import { BASIC_PRICE } from './tariff-prices';
 
 export function FreeScore(props: {
   overall: Dashboard['overall'];
@@ -25,6 +28,17 @@ export function FreeScore(props: {
 }) {
   const { overall, onUpgrade } = props;
   const dial = freeDialProps(overall, props.modules, props.language);
+  const seo = props.modules.find((module) => module.module === 'SEO');
+  const completion =
+    seo?.completedApplicableChecks !== null &&
+    seo?.completedApplicableChecks !== undefined &&
+    seo.applicableChecks !== null
+      ? freeReportCopy[props.language].completion(
+          seo.completedApplicableChecks,
+          seo.applicableChecks,
+        )
+      : undefined;
+  const issues = freeIssueCheckCountOf(props.modules);
   const freeScale = isFreeScale(overall.scoreMax);
   return (
     <div className="free-score">
@@ -32,8 +46,28 @@ export function FreeScore(props: {
         score={overall.score}
         language={props.language}
         verdict={overall.verdict}
-        coverage={overall.weightedCoverage}
+        coverageText={completion}
         {...dial}
+        scoreContext={
+          <div className="free-score__context">
+            <p className="free-score__issues">
+              {issues === null
+                ? freeReportCopy[props.language].issueResultsUnknown
+                : freeReportCopy[props.language].issueChecks(issues)}
+            </p>
+            {freeScale && overall.score !== null ? (
+              <p className="free-score__rounding">{freeReportCopy[props.language].rounding}</p>
+            ) : null}
+          </div>
+        }
+        scale={
+          dial.scale === undefined
+            ? undefined
+            : {
+                ...dial.scale,
+                suffix: `${dial.scale.suffix} ${freeReportCopy[props.language].pointUnit}`,
+              }
+        }
       />
       {freeScale && onUpgrade !== undefined ? (
         <div className="free-score__cta">
@@ -48,6 +82,14 @@ export function FreeScore(props: {
             }}
           >
             {freeScoreCopy[props.language].upgrade(FULL_SCORE_MAX)}
+          </Button>
+          <Button
+            onClick={() => {
+              trackUpgradeClicked('Basic', 'free_score');
+              onUpgrade('Basic');
+            }}
+          >
+            {freeReportCopy[props.language].basicAction(BASIC_PRICE)}
           </Button>
         </div>
       ) : null}

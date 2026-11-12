@@ -10,22 +10,12 @@ import { DEFAULT_SCOPE_FORM, type ScanScopeForm } from './scan-scope';
 /**
  * Whether anything inside "For experienced users" differs from what a new
  * profile starts on. Free shows only the user agent there, so only it counts.
- * The country counts once the deployment has named its default: before that,
- * a stored location cannot be told apart from the default one.
+ * The country is not in the block: it sits beside the site, always on screen.
  */
-export function expertSettingsChanged(
-  scope: ScanScopeForm,
-  paidScopeControls: boolean,
-  defaultEgressLocation: string | null,
-): boolean {
+export function expertSettingsChanged(scope: ScanScopeForm, paidScopeControls: boolean): boolean {
   if (scope.userAgent !== DEFAULT_SCOPE_FORM.userAgent) return true;
   if (!paidScopeControls) return false;
-  const countryChanged =
-    defaultEgressLocation !== null &&
-    scope.egressLocation !== '' &&
-    scope.egressLocation !== defaultEgressLocation;
   return (
-    countryChanged ||
     scope.includeSubdomains !== DEFAULT_SCOPE_FORM.includeSubdomains ||
     scope.maxPages.trim() !== DEFAULT_SCOPE_FORM.maxPages ||
     scope.maxDepth.trim() !== DEFAULT_SCOPE_FORM.maxDepth ||

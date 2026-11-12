@@ -6,12 +6,13 @@ import type { PrismaClient, Scan, ScanModule } from '@prisma/client';
 import { computeStoredScanOverallScore } from '@fluxradar/scoring';
 import {
   RULESET_VERSION,
+  aiLanguageSchema,
   reportLanguageSchema,
   scanRequestInputSchema,
   scanScopeSchema,
 } from '@fluxradar/contracts';
 import { isModuleName, isPlan, parsePlan, readStoredPlan } from '@fluxradar/contracts';
-import type { ReportLanguage, ScanScopeInput } from '@fluxradar/contracts';
+import type { AiLanguage, ReportLanguage, ScanScopeInput } from '@fluxradar/contracts';
 import { z } from 'zod';
 
 import { accountIdFrom, requireAuth } from '../auth/middleware.ts';
@@ -47,11 +48,11 @@ import { toModuleDto, toScanDto } from './scan-dto.ts';
 import { listScanHistory } from './scan-history.ts';
 import { geoEvidenceFrom, geoObservationsFrom, geoVisibilitySummaryFrom } from './geo-report.ts';
 import { captureExecutionConfig, lockOwnProfile } from '../profiles/execution-config.ts';
-import { resolveSiteLanguage } from './site-language.ts';
 import type { EgressLocationMonitor } from '../integrations/crawl-egress-monitor.ts';
 import {
   egressLaunchConfig,
   resolveLaunchEgressLocation,
+  chosenOrSuggestedEgress,
   scopeWithEgressLocation,
   type LaunchEgress,
 } from './launch-egress.ts';
@@ -73,12 +74,9 @@ export const freeCheckBodySchema = z
     expectedProfileConfigVersion: z.number().int().min(1).optional(),
     /** The owner's opt-in to the one-question GEO preview (D-236). */
     aiConsent: freeAiConsentSchema.optional(),
-    /**
-     * The language the GEO preview asks and is evaluated in: the owner's
-     * choice, else the site's, else the UI's (D-237). Absent: the stored
-     * profile's site language, else English.
-     */
+    /** Compatibility with older clients; new clients send aiLanguage. */
     language: reportLanguageSchema.optional(),
+    aiLanguage: aiLanguageSchema.optional(),
   })
   .optional();
 const scanListQuerySchema = pageQuerySchema.extend({
@@ -111,9 +109,10 @@ export function scansRouter(deps: ScansRouterDeps): Router {
     );
     const profileId = requiredParam(req.params.profileId, 'profileId');
     const profile = await findOwnProfile(deps.prisma, accountId, profileId);
-    // Free does not choose a country: whatever the body says, it leaves from
-    // the default location — and is refused, like any launch, while that
-    // location is down, rather than spending the one free check on our outage.
+    // The country is the owner's when the launch screen sent one, else the
+    // one the site's domain and the visitor's locales point to (D-228). Either
+    // way it is checked like any launch, and refused while that location is
+    // down rather than spending the one free check on our outage.
     const created = await createFreeScan(deps.prisma, {
       accountId,
       siteProfileId: profile.id,
@@ -123,7 +122,16 @@ export function scansRouter(deps: ScansRouterDeps): Router {
       expectedProfileConfigVersion: body?.expectedProfileConfigVersion,
       aiConsent: body?.aiConsent,
       language: body?.language,
-      egress: await resolveLaunchEgressLocation(deps.egress, undefined),
+      aiLanguage: body?.aiLanguage,
+      egress: await resolveLaunchEgressLocation(
+        deps.egress,
+        await chosenOrSuggestedEgress(
+          deps.egress,
+          body?.scope?.egressLocation,
+          profile,
+          req.get('accept-language'),
+        ),
+      ),
     });
     deps.enqueueScan(created.id);
     sendOk(res, toScanDto(created, []), { status: 201 });
@@ -150,7 +158,15 @@ export function scansRouter(deps: ScansRouterDeps): Router {
       now: deps.now(),
       allowedOrigins: freeCheckAllowedOrigins,
       requestedScope: input.scope,
-      egress: await resolveLaunchEgressLocation(deps.egress, undefined),
+      egress: await resolveLaunchEgressLocation(
+        deps.egress,
+        await chosenOrSuggestedEgress(
+          deps.egress,
+          input.scope?.egressLocation,
+          profile,
+          req.get('accept-language'),
+        ),
+      ),
     });
     deps.enqueueScan(scan.id);
     sendOk(res, toScanDto(scan, []), { status: 201 });
@@ -378,9 +394,10 @@ export interface CreateFreeScanParams {
    * nothing and reports ConsentMissing; the homepage check and score still run.
    */
   readonly aiConsent?: FreeAiConsentInput | undefined;
-  /** The GEO preview's language; absent means the site's language, else English. */
+  /** Legacy EN/UK client field; aiLanguage takes priority. */
   readonly language?: ReportLanguage | undefined;
-  /** The default egress location, checked at launch (`resolveLaunchEgressLocation`). */
+  readonly aiLanguage?: AiLanguage | undefined;
+  /** The egress location the route chose, checked at launch (`resolveLaunchEgressLocation`). */
   readonly egress: LaunchEgress;
 }
 
@@ -396,8 +413,8 @@ export interface CreateFreeScanParams {
  *
  * `requestedScope` is what the caller asked for, not what is stored: Free runs a
  * fixed homepage check, so the row records the settings that check will actually
- * apply (see free-scan-scope.ts), plus the default egress location checked at
- * launch — never one the request named.
+ * apply (see free-scan-scope.ts), plus the egress location checked at
+ * launch, which the route chose (the owner's, or the suggested one).
  */
 export async function createFreeScan(
   prisma: PrismaClient,
@@ -448,15 +465,14 @@ export async function createFreeScan(
         status: 'Pending',
         scopeJson: JSON.stringify(scope),
         profileConfigVersion: profile.scanConfigVersion,
-        // The AI question's language: the client's (the owner's choice, else
-        // the site's, else the UI's), else the site's from the stored profile,
-        // else English (D-237). Accept-Language is never read.
+        // Capture the submitted interface language. Older clients without it use
+        // their legacy language or deterministic English, never the live profile.
         executionConfigJson: JSON.stringify(
           captureExecutionConfig(
             profile,
             'Free',
             scope,
-            params.language ?? resolveSiteLanguage(profile) ?? 'en',
+            params.aiLanguage ?? params.language ?? 'en',
           ),
         ),
         rulesetVersion: RULESET_VERSION,

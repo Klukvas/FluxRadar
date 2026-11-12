@@ -1,8 +1,6 @@
-// The AI question's language on a Free check (D-237: the owner's choice, else
-// the site's language, else the UI language): validated at the route, captured
-// into the scan's execution config at creation, and read back intact. No
-// database: the transaction runs against an in-memory stand-in that records
-// what createFreeScan writes.
+// Legacy EN/UK and current EN/UK/RU request languages are validated separately.
+// Launches freeze the submitted AI language without consulting profile language.
+// The transaction stand-in records the real createFreeScan write.
 
 import { CURRENT_AI_PROCESSING_NOTICE_VERSION } from '@fluxradar/ai';
 import { executionConfigSchema } from '@fluxradar/contracts';
@@ -81,7 +79,7 @@ async function createWith(language: 'en' | 'uk' | undefined, profile: SiteProfil
   return config;
 }
 
-describe('free-check body language', () => {
+describe('legacy free-check body language', () => {
   it('accepts en and uk beside the consent object, and no language at all', () => {
     for (const language of ['en', 'uk'] as const) {
       expect(parseInput(freeCheckBodySchema, { language })?.language).toBe(language);
@@ -117,26 +115,24 @@ describe('free-check body language', () => {
 
 describe('createFreeScan language capture', () => {
   it('stores the body language in the execution config and reads it back', async () => {
-    expect((await createWith('uk'))?.language).toBe('uk');
+    expect((await createWith('uk'))?.aiLanguage).toBe('uk');
   });
 
-  // D-237 (owner decision, superseding W1's "reader language wins"): a body
-  // without a language asks in the site's language from the stored profile.
   it.each([
-    ['Ukrainian, English', null, 'uk'],
-    ['Russian, Ukrainian', null, 'uk'],
-    ['English, Ukrainian', 'uk', 'en'],
-    ['Українська', null, 'uk'],
-    ['uk-UA', null, 'uk'],
-    [null, 'uk', 'uk'],
-    ['Russian', 'ru', 'en'],
-    [null, null, 'en'],
-    [null, 'Polish', 'en'],
+    ['Ukrainian, English', null],
+    ['Russian, Ukrainian', null],
+    ['English, Ukrainian', 'uk'],
+    ['Українська', null],
+    ['uk-UA', null],
+    [null, 'uk'],
+    ['Russian', 'ru'],
+    [null, null],
+    [null, 'Polish'],
   ] as const)(
-    'with no body language, targets %o and language %o ask in %s',
-    async (targetLanguages, language, expected) => {
+    'without a submitted language uses deterministic English despite profile %o / %o',
+    async (targetLanguages, language) => {
       const profile = { ...PROFILE, targetLanguages, language } as SiteProfile;
-      expect((await createWith(undefined, profile))?.language).toBe(expected);
+      expect((await createWith(undefined, profile))?.aiLanguage).toBe('en');
     },
   );
 
@@ -146,9 +142,9 @@ describe('createFreeScan language capture', () => {
       targetLanguages: 'Ukrainian',
       language: 'uk',
     } as SiteProfile;
-    expect((await createWith('en', ukrainianSite))?.language).toBe('en');
+    expect((await createWith('en', ukrainianSite))?.aiLanguage).toBe('en');
     const config = await createWith('uk');
-    expect(config?.language).toBe('uk');
+    expect(config?.aiLanguage).toBe('uk');
     expect(config?.profile.language).toBe('ru');
   });
 });
@@ -177,4 +173,27 @@ describe('executionConfigSchema language', () => {
   it('rejects an unknown language rather than guessing', () => {
     expect(executionConfigSchema.safeParse({ ...base, language: 'ru' }).success).toBe(false);
   });
+});
+
+describe('interface AI language captured independently of site/report language', () => {
+  it.each(['en', 'uk', 'ru'] as const)(
+    'validates and freezes %s even when the profile differs',
+    async (aiLanguage) => {
+      const body = parseInput(freeCheckBodySchema, { aiLanguage });
+      expect(body).toEqual({ aiLanguage });
+      const { prisma, created } = fakePrisma({
+        ...PROFILE,
+        language: 'uk',
+        targetLanguages: 'Ukrainian',
+      });
+      await createFreeScan(prisma, {
+        accountId: 'account-1',
+        siteProfileId: PROFILE.id,
+        now: new Date('2026-11-07T00:00:00.000Z'),
+        egress: NO_EGRESS,
+        ...body,
+      });
+      expect(JSON.parse(String(created().executionConfigJson))).toMatchObject({ aiLanguage });
+    },
+  );
 });

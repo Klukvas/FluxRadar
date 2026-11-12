@@ -1,5 +1,6 @@
 import type { CheckoutConfig } from './api';
 import { Button, FieldRow } from './components';
+import { FreeAiSummary } from './FreeAiSummary';
 import { formatCount } from './format-count';
 import { copy, type Language } from './i18n';
 import { newScanCopy } from './new-scan-copy';
@@ -77,6 +78,13 @@ export function OrderSummary(props: {
             value={pagesValue(plan, scope.maxPages, props.language)}
           />
           <FieldRow label={c.summary.checks} value={c.summary.checksByPlan[plan]} />
+          {plan === 'Free' ? (
+            <FreeAiSummary
+              language={props.language}
+              consent={props.form.freeAiConsent}
+              answerLanguage={props.form.freeAiLanguage.language}
+            />
+          ) : null}
         </div>
         <p className="order-summary__total">
           <span>{c.summary.total}</span>

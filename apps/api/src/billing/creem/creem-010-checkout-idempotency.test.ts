@@ -141,6 +141,66 @@ describe('CREEM-010 checkout idempotency', () => {
     };
   }
 
+  it.each(['en', 'uk', 'ru'] as const)(
+    'freezes GEO %s through replay and signed webhook despite profile changes',
+    async (aiLanguage) => {
+      const calls: StubCall[] = [];
+      const app = buildApp({
+        fetchImpl: stubCreem({ body: pendingCheckout('ch_language') }, calls),
+      });
+      const { agent, cookie, profileId } = await signIn(app, `language-${aiLanguage}@example.com`);
+      const launch = () =>
+        agent
+          .post('/billing/checkout-session')
+          .set('Cookie', cookie)
+          .set('Idempotency-Key', KEY)
+          .send(draft(profileId, { aiLanguage }));
+      const first = await launch();
+      expect(first.status).toBe(201);
+      const row = await db.prisma.checkoutSession.findFirstOrThrow({ where: { clientKey: KEY } });
+      expect(JSON.parse(row.executionConfigJson ?? '{}')).toMatchObject({ aiLanguage });
+      await db.prisma.siteProfile.update({
+        where: { id: profileId },
+        data: {
+          language: 'pl',
+          targetLanguages: 'Polish',
+          name: 'Changed after checkout',
+          scanConfigVersion: { increment: 1 },
+        },
+      });
+      expect((await launch()).body.data).toEqual(first.body.data);
+      const changed = await agent
+        .post('/billing/checkout-session')
+        .set('Cookie', cookie)
+        .set('Idempotency-Key', KEY)
+        .send(draft(profileId, { aiLanguage: aiLanguage === 'ru' ? 'uk' : 'ru' }));
+      expect(changed.status).toBe(409);
+      expect(changed.body.error.code).toBe('CHECKOUT_IDEMPOTENCY_CONFLICT');
+      expect(calls).toHaveLength(1);
+      expect(JSON.stringify(calls[0]?.body)).not.toContain('aiLanguage');
+      const delivery = signedCreemDelivery({
+        id: 'evt_language',
+        eventType: CREEM_EVENT_TYPES.checkoutCompleted,
+        object: checkoutCompletedObject({
+          checkoutId: 'ch_language',
+          orderId: 'ord_language',
+          reference: first.body.data.reference as string,
+          productId: 'prod_basic',
+          amountCents: 3900,
+        }),
+      });
+      expect((await postWebhook(app, delivery.rawBody, delivery.signature)).status).toBe(200);
+      const scan = await db.prisma.scan.findFirstOrThrow();
+      expect(scan.executionConfigJson).toBe(row.executionConfigJson);
+      expect(JSON.parse(scan.executionConfigJson ?? '{}')).toMatchObject({
+        aiLanguage,
+        profile: { name: 'Fixture Site' },
+      });
+      expect((await postWebhook(app, delivery.rawBody, delivery.signature)).status).toBe(200);
+      expect(await db.prisma.scan.count()).toBe(1);
+    },
+  );
+
   it('persists the key, hash and URL, and replays the stored view without a second provider call', async () => {
     const calls: StubCall[] = [];
     const app = buildApp({ fetchImpl: stubCreem({ body: pendingCheckout('ch_replay') }, calls) });
@@ -166,9 +226,7 @@ describe('CREEM-010 checkout idempotency', () => {
     const stored = await db.prisma.checkoutSession.findFirstOrThrow();
     expect(stored.clientKey).toBe(KEY);
     expect(stored.requestHash).toMatch(/^[0-9a-f]{64}$/);
-    expect(stored.checkoutUrl).toBe(
-      'https://www.creem.io/test/checkout/prod_basic/ch_replay',
-    );
+    expect(stored.checkoutUrl).toBe('https://www.creem.io/test/checkout/prod_basic/ch_replay');
     expect(stored.providerSessionId).toBe('ch_replay');
     expect(stored.status).toBe('created');
   });

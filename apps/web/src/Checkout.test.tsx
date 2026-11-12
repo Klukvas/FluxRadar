@@ -88,7 +88,7 @@ function reachabilityEnvelope(): Response {
   });
 }
 
-function stubApi(handler: (path: string, init?: RequestInit) => Response) {
+function stubApi(handler: (path: string, init?: RequestInit) => Response | Promise<Response>) {
   const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
     const path = new URL(String(input)).pathname;
     if (path.endsWith('/reachability')) return Promise.resolve(reachabilityEnvelope());
@@ -119,7 +119,9 @@ function called(fetchMock: ReturnType<typeof stubApi>, path: string): boolean {
   return fetchMock.mock.calls.some(([input]) => new URL(String(input)).pathname === path);
 }
 
-async function openNewScan(handler: (path: string, init?: RequestInit) => Response) {
+async function openNewScan(
+  handler: (path: string, init?: RequestInit) => Response | Promise<Response>,
+) {
   const fetchMock = stubApi(handler);
   render(<App />);
   await screen.findByText(account.email);
@@ -248,6 +250,7 @@ describe('paid checkout flow', () => {
     );
     expect(JSON.parse(String((posted?.[1] as RequestInit).body))).toEqual({
       siteProfileId: profile.id,
+      aiLanguage: 'en',
       plan: 'Complete',
       scope: expect.objectContaining({ includeSubdomains: false }),
       aiConsent: {

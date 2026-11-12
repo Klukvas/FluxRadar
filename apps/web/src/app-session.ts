@@ -30,6 +30,7 @@ type SessionBoot = Pick<
   | 'setSessionError'
   | 'sessionAttempt'
   | 'setProfiles'
+  | 'setProfilesFailed'
   | 'setScreen'
   | 'setSelectedProfile'
   | 'setSelectedScan'
@@ -142,9 +143,14 @@ export function useSessionBoot(boot: SessionBoot): void {
 async function restoreSignedInSession(value: Account, boot: SessionBoot): Promise<void> {
   const { entryRoute, confirmEmailSignedIn, openScanById, setProfiles } = boot;
   const { setAccount, setScreen, setSelectedProfile, setSelectedScan, setTourOpen } = boot;
+  const { setProfilesFailed } = boot;
   setAccount(value);
   try {
-    const profiles = await loadProfiles(setProfiles);
+    const profiles = await loadProfiles(setProfiles).catch((caught: unknown) => {
+      setProfilesFailed(true);
+      throw caught;
+    });
+    setProfilesFailed(false);
     // The site a new-scan address names. Matched against the owner's own
     // profiles, so an id that was edited, deleted or simply made up selects
     // nothing and the form falls back to its first site as before.

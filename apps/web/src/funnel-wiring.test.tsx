@@ -115,6 +115,7 @@ function scanRequest(plan: ScanRequest['plan']): ScanRequest {
   return {
     accountId: 'account-1',
     profileId: profile.id,
+    aiLanguage: 'en',
     plan,
     scope: {} as ScanScopePayload,
     expectedProfileConfigVersion: undefined,

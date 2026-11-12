@@ -2,9 +2,24 @@
 // which sentence leads it, how many claims fall in each state, and the order
 // they are listed in. Kept apart from the markup so they are tested as rules.
 
-import type { GeoClaimVerdict, GeoEvaluatedClaim, GeoEvaluation, ScanModule } from './api';
+import type {
+  GeoClaimVerdict,
+  GeoEvaluatedClaim,
+  GeoEvaluation,
+  GeoObservation,
+  ScanModule,
+} from './api';
 import type { Language } from './i18n';
 import type { AiLanguage } from './site-language';
+
+/** An answered row must contain visible text before the Free UI claims an answer exists. */
+export function hasFreeAiAnswer(observation: GeoObservation): boolean {
+  return (
+    observation.status === 'answered' &&
+    observation.answer !== null &&
+    observation.answer.trim().length > 0
+  );
+}
 
 /** Contradictions first: they are the one thing an owner may need to act on. */
 export const CLAIM_ORDER: readonly GeoClaimVerdict[] = ['contradicted', 'matched', 'unverified'];
@@ -48,7 +63,7 @@ export function freeGeoHeadline(evaluation: GeoEvaluation | null): FreeGeoHeadli
  */
 export function aiAnswerLanguage(module: ScanModule | undefined): AiLanguage | null {
   const language = module?.metadata?.language;
-  return language === 'uk' || language === 'en' ? language : null;
+  return language === 'uk' || language === 'en' || language === 'ru' ? language : null;
 }
 
 /**

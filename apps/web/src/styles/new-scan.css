@@ -155,9 +155,7 @@
   display: block;
   height: 12px;
   border-radius: var(--r-1);
-  background: linear-gradient(90deg, var(--plat-200), var(--plat-50), var(--plat-200));
-  background-size: 200% 100%;
-  animation: skeleton-shimmer 1.2s linear infinite;
+  background: var(--plat-200);
 }
 .plan-card--skeleton .plan-card__name,
 .plan-card--skeleton .plan-card__price,

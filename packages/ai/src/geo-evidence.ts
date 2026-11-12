@@ -13,6 +13,7 @@
 // so two answers cannot be judged against different evidence and disagree for
 // a reason nobody can see afterwards.
 
+import { quoteOccursIn } from './quote-match.js';
 import { redact } from './redaction.js';
 import type { RedactionOptions } from './redaction.js';
 
@@ -361,7 +362,54 @@ export function renderGeoEvidence(snapshot: GeoEvidenceSnapshot): readonly strin
   );
 }
 
-/** Whether a quote the evaluator attributed to a source is really in that source. */
+/**
+ * Whether a quote the evaluator attributed to a source is really in it: in its
+ * excerpt, or — for a page — the page's own address, which the evaluator is
+ * shown beside the text (`url=` in `renderGeoEvidence`). A judge backing "the
+ * official site is gov.uk" with that address was losing its whole verdict.
+ *
+ * The address counts only whole (not part of it, not another page), and only
+ * for a claim that itself names that address: like a matching name, an address
+ * says which site this is and never what the business does, where or for whom.
+ * Enforced here rather than in the judge's rubric, whose bytes are pinned.
+ */
+export function quoteOccursInSource(
+  source: Pick<GeoEvidenceSource, 'excerpt' | 'url'>,
+  quote: string,
+  claim: string,
+): boolean {
+  if (quoteOccursIn(source.excerpt, quote)) return true;
+  if (!quoteIsAddressOf(source.url, quote) || source.url === null) return false;
+  return claimNamesHost(claim, source.url);
+}
+
+function claimNamesHost(claim: string, url: string): boolean {
+  const host = bareAddress(url).split('/')[0] ?? '';
+  return host !== '' && claim.toLowerCase().includes(host);
+}
+
+function quoteIsAddressOf(url: string | null, quote: string): boolean {
+  if (url === null) return false;
+  const quoted = bareAddress(quote);
+  return quoted !== '' && quoted === bareAddress(url);
+}
+
+/**
+ * `https://www.gov.uk/` and `gov.uk` are one address as a reader writes it —
+ * and so is `url=https://www.gov.uk/`, the field as the evaluator was shown it
+ * (`renderGeoEvidence`), which a judge copied label and all in a live report.
+ */
+function bareAddress(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/^url\s*=\s*/, '')
+    .replace(/^https?:\/\//, '')
+    .replace(/^www\./, '')
+    .replace(/\/+$/, '');
+}
+
+/** The source a claim cites, by the id the evaluator was given. */
 export function evidenceSourceById(
   snapshot: GeoEvidenceSnapshot,
   id: string,

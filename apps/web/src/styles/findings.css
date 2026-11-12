@@ -416,8 +416,9 @@
   font-size: 12px;
 }
 .report-block--warning {
-  border-color: #8a5b00;
-  background: #fff4de;
+  border-color: var(--warn-line);
+  background: var(--warn-fill);
+  color: var(--warn-text);
 }
 
 /* The AI Action Plan block. A settled Action stays on screen but steps back:

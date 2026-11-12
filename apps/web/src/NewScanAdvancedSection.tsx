@@ -74,6 +74,8 @@ function TechnicalRows(props: { form: NewScanForm; language: Language }) {
       <LaunchSummary
         language={props.language}
         plan={plan}
+        freeAiConsent={props.form.freeAiConsent}
+        freeAiLanguage={props.form.freeAiLanguage.language}
         labelledBy="scan-technical-title"
         scope={scope}
         egressLocation={egressLocation}

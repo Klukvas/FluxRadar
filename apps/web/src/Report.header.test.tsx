@@ -272,6 +272,7 @@ describe('a Free report of a site that could not be read', () => {
     expect(document.querySelector('.score-dial')).toBeNull();
     expect(screen.queryByRole('status', { name: 'Unavailable' })).toBeNull();
     expect(screen.queryByText(/insufficient/i)).toBeNull();
+    expect(document.querySelector('.complete-check-catalog')).toBeNull();
   });
 
   it('still counts the checks of a Free scan that failed for a platform reason', async () => {
@@ -391,31 +392,23 @@ describe('the report header and its details fold', () => {
 });
 
 describe('check names and the reading guide', () => {
-  it('names the Free checks in Ukrainian, not in the registry’s English', async () => {
+  it('counts the recorded Free checks in Ukrainian without a wall of titles', async () => {
     const scan = scanOf('Free');
     stubApi(freeDashboard(scan), summaryWith(0));
     renderReport(scan, 'uk');
 
-    // The section card's line, word for word; the scope footnote repeats it.
-    expect(
-      await screen.findByText(
-        'Заголовок сторінки (title) · Структура заголовків (H1–H6) · Опис сторінки для пошуку (meta description) · Чи може пошуковик показувати сторінку (noindex)',
-      ),
-    ).toBeInTheDocument();
+    // The card summarizes the count; individual check names belong in its expanded panel.
+    expect(await screen.findByText('Перевірок у цьому звіті: 4')).toBeInTheDocument();
     expect(screen.queryByText(/H1-H6 structure/)).toBeNull();
     expect(screen.queryByText(/index\/noindex/)).toBeNull();
   });
 
-  it('names the Free checks in plain English', async () => {
+  it('counts the recorded Free checks in plain English', async () => {
     const scan = scanOf('Free');
     stubApi(freeDashboard(scan), summaryWith(0));
     renderReport(scan);
 
-    expect(
-      await screen.findByText(
-        'Page title · Heading structure (H1–H6) · Page description for search (meta description) · Whether search engines may list the page (noindex)',
-      ),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('Checks in this report: 4')).toBeInTheDocument();
   });
 
   it('folds "How to read this report" with all of its content, after the problems', async () => {

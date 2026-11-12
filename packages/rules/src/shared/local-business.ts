@@ -1,6 +1,11 @@
 // Shared observations are cached once per immutable crawl/snapshot. Never infer
 // a clinic from a keyword in a news article or compare unrelated branch contacts.
-import { parseHtml, type CrawlResult, type PageSnapshot } from '@fluxradar/crawler';
+import {
+  parseHtml,
+  RENDER_COVERAGE_LIMIT_REASONS,
+  type CrawlResult,
+  type PageSnapshot,
+} from '@fluxradar/crawler';
 import type { HTMLElement } from 'node-html-parser';
 
 import { visibleText } from '../content/visible-text.js';
@@ -246,7 +251,15 @@ export function addressKey(
 export function readable(page: PageSnapshot): boolean {
   if (!isSuccessfulHtmlPage(page) || page.truncated || page.rendering?.status === 'Unavailable')
     return false;
-  if (page.rendering?.status === 'Rendered' && page.rendering.blocked.length > 0) return false;
+  // Only our own limits leave the DOM short. A skipped image, a refused beacon
+  // POST or a blocked navigation is render policy: the page still built the DOM
+  // a visitor sees, and counting it made every rendered page with a picture
+  // "unreadable", which switched the local rules off on nearly every site.
+  if (
+    page.rendering?.status === 'Rendered' &&
+    page.rendering.blocked.some((request) => RENDER_COVERAGE_LIMIT_REASONS.includes(request.reason))
+  )
+    return false;
   const root = parsePage(page);
   const mount = root.querySelector('#app, #root, #__next, #__nuxt');
   if (

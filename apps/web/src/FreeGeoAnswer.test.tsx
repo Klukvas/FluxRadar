@@ -598,21 +598,22 @@ describe('the printed report', () => {
 });
 
 // D-237 follow-up: the answer may be in another language than the report (the
-// question follows the site's language). The lead says so in one clause, and
+// question keeps its launch-time language). The lead says so in one clause, and
 // the model-written text carries `lang` so a screen reader voices it right.
 describe('the language the AI question was asked in', () => {
-  const askedIn = (language: 'uk' | 'en'): ScanModule => ({
+  const askedIn = (language: 'uk' | 'en' | 'ru'): ScanModule => ({
     ...GEO,
     metadata: { ...GEO.metadata, language },
   });
   const leadOf = (block: HTMLElement): string =>
     block.querySelector('.free-geo-answer__lead')?.textContent ?? '';
 
-  it.each<[Language, 'uk' | 'en', string]>([
+  it.each<[Language, 'uk' | 'en' | 'ru', string]>([
     ['en', 'uk', 'It was asked in Ukrainian.'],
     ['uk', 'en', 'Запитали англійською.'],
-    // Russian is an interface language only: the answer is always uk or en,
-    // so a Russian reader always gets the clause.
+    ['en', 'ru', 'It was asked in Russian.'],
+    ['uk', 'ru', 'Запитали російською.'],
+    // Saved EN/UK answers remain unchanged in Russian chrome.
     ['ru', 'uk', 'Спрашивали по-украински.'],
     ['ru', 'en', 'Спрашивали по-английски.'],
   ])('a %s report of a %s answer says so in the lead', async (reader, asked, clause) => {
@@ -623,10 +624,13 @@ describe('the language the AI question was asked in', () => {
     expect(block.textContent).not.toContain(REAL_QUESTION);
   });
 
-  it.each<'en' | 'uk'>(['en', 'uk'])('says nothing when the languages match (%s)', async (lang) => {
-    const block = await renderFreeBlock(answered(MISMATCH), lang, EVIDENCE, askedIn(lang));
-    expect(leadOf(block)).not.toMatch(/asked in|Запитали/);
-  });
+  it.each<'en' | 'uk' | 'ru'>(['en', 'uk', 'ru'])(
+    'says nothing when the languages match (%s)',
+    async (lang) => {
+      const block = await renderFreeBlock(answered(MISMATCH), lang, EVIDENCE, askedIn(lang));
+      expect(leadOf(block)).not.toMatch(/asked in|Запитали/);
+    },
+  );
 
   it('says nothing and guesses no lang when the row does not record the language', async () => {
     const block = await renderFreeBlock(answered(MISMATCH), 'en');

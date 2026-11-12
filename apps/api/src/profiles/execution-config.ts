@@ -3,7 +3,7 @@ import {
   scanScopeSchema,
   type ExecutionConfig,
   type Plan,
-  type ReportLanguage,
+  type AiLanguage,
   type ScanScopeInput,
 } from '@fluxradar/contracts';
 import { redact } from '@fluxradar/ai';
@@ -48,7 +48,7 @@ export function captureExecutionConfig(
   profile: SiteProfile,
   plan: Plan,
   scope: ScanScopeInput,
-  language?: ReportLanguage,
+  aiLanguage?: AiLanguage,
 ): ExecutionConfig {
   const competitors = competitorsFromJson(profile.competitorsJson);
   return executionConfigSchema.parse({
@@ -57,10 +57,7 @@ export function captureExecutionConfig(
     profileConfigVersion: profile.scanConfigVersion,
     plan,
     scope,
-    // The Free AI question's language as resolved at launch (D-237: the owner's
-    // choice, else the site's, else the UI's), never re-resolved later: a report
-    // read after a UI language switch keeps the texts it was produced with.
-    ...(language !== undefined ? { language } : {}),
+    ...(aiLanguage !== undefined ? { aiLanguage } : {}),
     // T7-fix F8: captured at launch, alongside the rest of this snapshot, so a
     // scan's share of voice always reflects the competitor list as it stood at
     // purchase time — never omitted here to reach the AI provider, only kept

@@ -264,7 +264,7 @@ describe('a section that has finished', () => {
     const meter = screen.getByRole('meter', { name: 'SEO coverage' });
     // Checks, not a share of the site: that reading is the mistake the "How
     // much of the site was read" panel exists to stop.
-    expect(meter.textContent).toBe('Checks done100%');
+    expect(meter.textContent).toBe('Free checks done100%');
     // The zebra is the progress texture; a finished measurement is not progress.
     expect(meter).toHaveClass('progress--result');
   });

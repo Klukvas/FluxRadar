@@ -789,3 +789,38 @@ describe('independent QA regressions', () => {
     expect(run('SEO-STRUCT-003', ssr)).toHaveLength(1);
   });
 });
+
+describe('rendered pages and render policy refusals', () => {
+  const rendered = (blocked: readonly { url: string; reason: string }[]) => {
+    const ctx = siteContext({ pages: [page('/contact', business())] });
+    const pages = ctx.crawl.pages.map((snapshot) => ({
+      ...snapshot,
+      rendering: {
+        status: 'Rendered' as const,
+        subresourceCount: 3,
+        subresourceBytes: 1024,
+        blocked,
+        timingMs: 800,
+      },
+    }));
+    return { ...ctx, crawl: { ...ctx.crawl, pages } } as SiteContext;
+  };
+
+  it('keeps a rendered page readable when only policy refused a request', () => {
+    const ctx = rendered([
+      { url: `${FIXTURE_ORIGIN}/hero.jpg`, reason: 'resource-kind' },
+      { url: `${FIXTURE_ORIGIN}/api/event`, reason: 'method-not-allowed' },
+      { url: `${FIXTURE_ORIGIN}/elsewhere`, reason: 'navigation-blocked' },
+    ]);
+    expect(localFacts(ctx).complete).toBe(true);
+    const seo = runModuleRules('SEO', ctx);
+    expect(seo.completedApplicableChecks).toBe(seo.applicableChecks);
+  });
+
+  it('treats a page whose own resource our limits refused as not fully read', () => {
+    const ctx = rendered([{ url: `${FIXTURE_ORIGIN}/api/session`, reason: 'robots-disallowed' }]);
+    expect(localFacts(ctx).complete).toBe(false);
+    const seo = runModuleRules('SEO', ctx);
+    expect(seo.completedApplicableChecks).toBeLessThan(seo.applicableChecks);
+  });
+});

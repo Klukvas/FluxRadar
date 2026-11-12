@@ -8,11 +8,9 @@ import type { GeoObservation, Scan, ScanModule } from './api';
 
 // ─── The scored Free report and its AI preview (D-236) ───────────────────────
 //
-// Free now carries a homepage score and, with the owner's opt-in, one real GEO
-// answer. After it come locked cards for what the complete verification adds.
-// Those cards are client-side decoys: these tests pin that they carry nothing
-// from the scan, stay out of the accessibility tree, and that their one button
-// opens the paid flow. A paid report must show none of it.
+// Free carries a homepage score and, with the owner's opt-in, one real GEO
+// answer. A separate catalog describes the checks a new paid audit can run;
+// the AI block never suggests that hidden paid results already exist.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const REAL_ANSWER = 'Smile Clinic is a dental practice I know little else about.';
@@ -255,44 +253,23 @@ describe('a scored Free report', () => {
     expect(screen.getByRole('meter', { name: 'Homepage score' })).toHaveTextContent('35 / 40');
   });
 
-  it('draws locked decoys with no scan data, hidden from assistive technology', async () => {
+  it('shows no blurred teaser or unlock action for results that do not exist', async () => {
     renderDashboard(freeDashboard([SEO, geoModule()], [ANSWERED]));
-    const decoys = await screen.findByTestId('free-locked-decoys');
-    expect(decoys).toHaveAttribute('aria-hidden', 'true');
-    expect(decoys.querySelectorAll('a, button, input, select, textarea, [tabindex]')).toHaveLength(
-      0,
-    );
-    const text = decoys.textContent ?? '';
-    for (const scanValue of [REAL_ANSWER, REAL_QUESTION, 'smile.example', '35', 'claude']) {
-      expect(text).not.toContain(scanValue);
-    }
-    // What the decoys stand for is said in words outside them.
-    expect(screen.getByText(/Locked in the free check:/)).toBeInTheDocument();
+    await screen.findByRole('region', { name: 'What AI says about your business' });
+    expect(screen.queryByTestId('free-locked-decoys')).toBeNull();
+    expect(screen.queryByRole('button', { name: /Unlock/ })).toBeNull();
   });
 
-  it('unlocks through a real, described button that opens the Complete scan form', async () => {
-    const onUpgrade = renderDashboard(freeDashboard([SEO, geoModule()], [ANSWERED]));
-    const button = await screen.findByRole('button', {
-      name: 'Unlock with the complete verification',
-    });
-    expect(button).toHaveAccessibleDescription(/Locked in the free check:/);
-    fireEvent.click(button);
-    expect(onUpgrade).toHaveBeenCalledWith(expect.objectContaining({ plan: 'Free' }), 'Complete');
-  });
-
-  it('leads every upgrade button on the report to the Complete scan form', async () => {
+  it('leads Complete audit buttons to the Complete scan form', async () => {
     const onUpgrade = renderDashboard(freeDashboard([SEO, geoModule()], [ANSWERED]));
     const scoreButton = await screen.findByRole('button', {
       // From the score copy itself: its wording is owned there, not here.
       name: freeScoreCopy.en.upgrade(FULL_SCORE_MAX),
     });
-    const lockedButton = screen.getByRole('button', {
-      name: 'Unlock with the complete verification',
-    });
     const upsellButton = await screen.findByRole('button', {
       name: /^Run the complete verification for /,
     });
-    for (const button of [scoreButton, lockedButton, upsellButton]) {
+    for (const button of [scoreButton, upsellButton]) {
       onUpgrade.mockClear();
       fireEvent.click(button);
       expect(onUpgrade).toHaveBeenCalledWith(expect.objectContaining({ plan: 'Free' }), 'Complete');

@@ -1,5 +1,4 @@
 import { Checkbox, Field, SelectField, TextAreaField } from './components';
-import { EgressLocationField } from './EgressLocationField';
 import { ScanCallout } from './ScanCallout';
 import { copy, type Language } from './i18n';
 import { newScanCopy } from './new-scan-copy';
@@ -19,14 +18,14 @@ import type { ScanScopeForm } from './scan-scope';
 
 /**
  * The crawl settings inside "For advanced users": subdomains, user agent,
- * country, limits, JavaScript, robots.txt.
+ * limits, JavaScript, robots.txt. The country is in the first step.
  */
 export function ExpertSettings(props: { form: NewScanForm; language: Language }) {
   const t = copy[props.language];
   const c = newScanCopy[props.language];
-  const { carriedOver, expertConfigured, expertOpen, launchConfig, paidScopeControls } = props.form;
+  const { carriedOver, expertConfigured, expertOpen, paidScopeControls } = props.form;
   const { scope } = props.form;
-  const { egressLocation, toggleExpert, updateScope } = props.form;
+  const { toggleExpert, updateScope } = props.form;
   return (
     <details
       className="scan-advanced scan-expert"
@@ -70,16 +69,6 @@ export function ExpertSettings(props: { form: NewScanForm; language: Language })
             { value: 'mobile', label: t.newScan.userAgentMobile },
           ]}
         />
-        {/* Free does not choose a country: it leaves from the default one, which
-            the launch summary names (D-228). The picker carries its own hint. */}
-        {paidScopeControls ? (
-          <EgressLocationField
-            language={props.language}
-            config={launchConfig}
-            selected={egressLocation}
-            onChange={(value) => updateScope({ egressLocation: value })}
-          />
-        ) : null}
         {paidScopeControls ? (
           <>
             <CrawlLimits form={props.form} language={props.language} />

@@ -67,7 +67,7 @@ export const russianReportCopy = {
   helpFindingsBody:
     'Конкретные проблемы, которые мы обнаружили, каждая с доказательством. Откройте список находок ниже, чтобы просмотреть их и увидеть рекомендованные исправления.',
   noScore: 'Без оценки',
-  informationalLabel: 'Только наблюдения',
+  informationalLabel: 'Без отдельного балла',
   coverageUnavailable: 'покрытие недоступно',
   siteCoverageTitle: 'Какую часть сайта прочитали',
   siteCoverageCaption: 'Прочитано адресов',

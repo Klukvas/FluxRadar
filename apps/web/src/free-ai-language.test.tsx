@@ -3,46 +3,23 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from './App';
 import { saveCookieConsent } from './browser-consent';
-import { freeAiLanguageCopy } from './free-ai-language-copy';
-import { defaultAiLanguage, effectiveAiLanguage, resolveSiteLanguage } from './site-language';
+import { freeAiLanguageCopy, freeAiInterfaceHint } from './free-ai-language-copy';
+import { choosePlanCard } from './new-scan-test-support';
+import { NewScanScreen } from './NewScanScreen';
+import type { SiteProfile } from './api';
+import type { Language } from './i18n';
+import { defaultAiLanguage, effectiveAiLanguage } from './site-language';
 
-// D-237 (owner decision, superseding W1's "reader language wins"): the Free AI
-// question is asked in the site's language when its profile names Ukrainian or
-// English, else in the UI language at launch; the owner can pick either, and
-// the pick is what the request carries.
-
-describe('the AI question language', () => {
-  it.each([
-    ['site uk, UI en', { targetLanguages: 'Ukrainian' }, 'en', 'uk', 'site'],
-    ['site en, UI uk', { targetLanguages: 'English' }, 'uk', 'en', 'site'],
-    ['site ru, UI uk', { targetLanguages: 'Russian', language: 'ru' }, 'uk', 'uk', 'interface'],
-    ['site ru, UI en', { targetLanguages: 'Russian' }, 'en', 'en', 'interface'],
-    ['empty site, UI uk', { targetLanguages: null, language: null }, 'uk', 'uk', 'interface'],
-    ['"Russian, Ukrainian", UI en', { targetLanguages: 'Russian, Ukrainian' }, 'en', 'uk', 'site'],
-    ['legacy "Українська"', { targetLanguages: 'Українська' }, 'en', 'uk', 'site'],
-    ['legacy tag "uk-UA"', { targetLanguages: 'uk-UA' }, 'en', 'uk', 'site'],
-    ['only the language field', { targetLanguages: null, language: 'uk' }, 'en', 'uk', 'site'],
-    ['no profile, UI uk', null, 'uk', 'uk', 'interface'],
-    // Russian is an interface language, not an AI language (D-237).
-    ['site uk, UI ru', { targetLanguages: 'Ukrainian' }, 'ru', 'uk', 'site'],
-    ['site en, UI ru', { targetLanguages: 'English' }, 'ru', 'en', 'site'],
-    ['site ru, UI ru', { targetLanguages: 'Russian', language: 'ru' }, 'ru', 'en', 'fallback'],
-    ['legacy "Русский", UI ru', { targetLanguages: 'Русский' }, 'ru', 'en', 'fallback'],
-    ['no profile, UI ru', null, 'ru', 'en', 'fallback'],
-  ] as const)('%s', (_case, profile, ui, language, source) => {
-    expect(defaultAiLanguage(profile, ui)).toEqual({ language, source });
-  });
-
-  it('lets the explicit choice win over the site and the UI', () => {
-    const ukrainianSite = { targetLanguages: 'Ukrainian' };
-    expect(effectiveAiLanguage('en', ukrainianSite, 'uk')).toBe('en');
-    expect(effectiveAiLanguage('uk', { targetLanguages: 'English' }, 'en')).toBe('uk');
-    expect(effectiveAiLanguage(null, ukrainianSite, 'en')).toBe('uk');
-  });
-
-  it('names no site language for an unsupported one', () => {
-    expect(resolveSiteLanguage({ targetLanguages: 'Russian, Polish', language: 'ru' })).toBeNull();
-  });
+describe('GEO language default and explicit choice', () => {
+  it.each(['en', 'uk', 'ru'] as const)(
+    'uses interface %s regardless of the site profile',
+    (language) => {
+      expect(
+        defaultAiLanguage({ targetLanguages: 'Ukrainian, English', language: 'uk' }, language),
+      ).toEqual({ language, source: 'interface' });
+      expect(effectiveAiLanguage('ru', { targetLanguages: 'Ukrainian' }, language)).toBe('ru');
+    },
+  );
 });
 
 const account = { accountId: 'account-1', email: 'operator@example.com' };
@@ -120,90 +97,102 @@ afterEach(() => {
   window.localStorage.clear();
 });
 
-describe('the Free plan step language selector', () => {
-  it('sends no language at all when the AI consent box is left unticked', async () => {
+describe('Free follows the interface at submission', () => {
+  it.each([
+    ['en', CONSENT_EN, 'Run free check'],
+    [
+      'uk',
+      'Поставити Anthropic (Claude) одне питання про мій бізнес',
+      'Запустити безкоштовну перевірку',
+    ],
+    [
+      'ru',
+      'Задать Anthropic (Claude) один вопрос о моём бизнесе',
+      'Запустить проверку главной страницы',
+    ],
+  ] as const)(
+    '%s ignores a conflicting Ukrainian site and offers no override',
+    async (language, consentLabel, launchLabel) => {
+      const fetchMock = renderNewScan(language, 'Ukrainian');
+      fireEvent.click(await screen.findByLabelText(consentLabel));
+      expect(document.querySelector('[name="scan-ai-language"]')).toBeNull();
+      expect(screen.getByText(freeAiInterfaceHint[language])).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: launchLabel }));
+      expect(await freeCheckBody(fetchMock)).toMatchObject({ aiLanguage: language });
+    },
+  );
+
+  it('captures the interface language even with consent off, without sending consent', async () => {
     const fetchMock = renderNewScan('en', 'Ukrainian');
     await screen.findByLabelText(CONSENT_EN);
     fireEvent.click(screen.getByRole('button', { name: 'Run free check' }));
     const body = await freeCheckBody(fetchMock);
-    expect(body).not.toHaveProperty('language');
+    expect(body.aiLanguage).toBe('en');
     expect(body).not.toHaveProperty('aiConsent');
   });
+});
 
-  it('appears only once the AI consent box is ticked', async () => {
-    renderNewScan('en', 'Ukrainian');
-    const consent = await screen.findByLabelText(CONSENT_EN);
-    expect(screen.queryByLabelText('Language of the AI answer')).toBeNull();
-    fireEvent.click(consent);
-    expect(screen.getByLabelText('Language of the AI answer')).toBeEnabled();
-    fireEvent.click(consent);
-    expect(screen.queryByLabelText('Language of the AI answer')).toBeNull();
-  });
+const paidProfile = {
+  id: 'profile-1',
+  name: 'My Site',
+  domain: 'https://example.com',
+  targetLanguages: 'Ukrainian',
+} as SiteProfile;
+function paidForm(language: Language) {
+  return (
+    <NewScanScreen
+      accountId="account-1"
+      profiles={[paidProfile]}
+      selectedProfile={paidProfile}
+      internalFreeAccess
+      language={language}
+      initialPlan="Basic"
+      onCreated={() => undefined}
+      onCheckoutStarted={() => undefined}
+      onProfilesChanged={() => Promise.resolve()}
+      onClose={() => undefined}
+      onError={() => undefined}
+      onCreateProfile={() => undefined}
+    />
+  );
+}
+describe('paid GEO language choice', () => {
+  it.each(['en', 'uk', 'ru'] as const)(
+    'defaults to interface %s and offers all three languages',
+    async (language) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() => Promise.resolve(envelope(null))),
+      );
+      render(paidForm(language));
+      const select = await screen.findByRole('combobox', {
+        name: freeAiLanguageCopy[language].label,
+      });
+      expect(select).toHaveValue(language);
+      const cards = document.querySelector('.plan-cards');
+      expect(cards?.nextElementSibling?.contains(select)).toBe(true);
 
-  it('preselects the site language for an English reader and asks in Ukrainian', async () => {
-    const fetchMock = renderNewScan('en', 'Ukrainian, English');
-    fireEvent.click(await screen.findByLabelText(CONSENT_EN));
-    const select = screen.getByRole('combobox', { name: 'Language of the AI answer' });
-    expect(select).toHaveValue('uk');
-    expect(screen.getByRole('option', { name: 'Українська' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'English' })).toBeInTheDocument();
-    expect(select).toHaveAccessibleDescription(freeAiLanguageCopy.en.hint.site);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Run free check' }));
-    expect(await freeCheckBody(fetchMock)).toMatchObject({ language: 'uk' });
-  });
-
-  it('sends the owner’s explicit choice instead of the site language', async () => {
-    const fetchMock = renderNewScan('en', 'Ukrainian');
-    fireEvent.click(await screen.findByLabelText(CONSENT_EN));
-    fireEvent.change(screen.getByRole('combobox', { name: 'Language of the AI answer' }), {
-      target: { value: 'en' },
+      expect([...(select as HTMLSelectElement).options].map((option) => option.value)).toEqual([
+        'en',
+        'ru',
+        'uk',
+      ]);
+    },
+  );
+  it('preserves a paid override across Free, Complete and interface switches', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(envelope(null))),
+    );
+    const view = render(paidForm('en'));
+    fireEvent.change(await screen.findByRole('combobox', { name: freeAiLanguageCopy.en.label }), {
+      target: { value: 'uk' },
     });
-    expect(screen.getByText(freeAiLanguageCopy.en.chosen)).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Run free check' }));
-    expect(await freeCheckBody(fetchMock)).toMatchObject({ language: 'en' });
-  });
-
-  it('falls back to the interface language for a Russian site, and says why', async () => {
-    const fetchMock = renderNewScan('uk', 'Russian');
-    fireEvent.click(
-      await screen.findByLabelText('Поставити Anthropic (Claude) одне питання про мій бізнес'),
-    );
-    const select = screen.getByRole('combobox', { name: 'Мова відповіді ШІ' });
-    expect(select).toHaveValue('uk');
-    expect(screen.getByText(freeAiLanguageCopy.uk.hint.interface)).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Запустити безкоштовну перевірку' }));
-    expect(await freeCheckBody(fetchMock)).toMatchObject({ language: 'uk' });
-  });
-
-  // A Russian interface is not an AI language: English is preselected, the hint
-  // says why, and the selector still offers only Ukrainian and English.
-  it('preselects English for a Russian interface reading a Russian site', async () => {
-    const fetchMock = renderNewScan('ru', 'Russian');
-    fireEvent.click(
-      await screen.findByLabelText('Задать Anthropic (Claude) один вопрос о моём бизнесе'),
-    );
-    const select = screen.getByRole('combobox', { name: 'Язык ответа ИИ' });
-    expect(select).toHaveValue('en');
-    expect(select).toHaveAccessibleDescription(freeAiLanguageCopy.ru.hint.fallback);
-    expect([...(select as HTMLSelectElement).options].map((option) => option.textContent)).toEqual([
-      'Українська',
-      'English',
-    ]);
-
-    fireEvent.click(screen.getByRole('button', { name: 'Запустить проверку главной страницы' }));
-    expect(await freeCheckBody(fetchMock)).toMatchObject({ language: 'en' });
-  });
-
-  it('preselects Ukrainian for a Russian interface reading a Ukrainian site', async () => {
-    renderNewScan('ru', 'Ukrainian');
-    fireEvent.click(
-      await screen.findByLabelText('Задать Anthropic (Claude) один вопрос о моём бизнесе'),
-    );
-    const select = screen.getByRole('combobox', { name: 'Язык ответа ИИ' });
-    expect(select).toHaveValue('uk');
-    expect(select).toHaveAccessibleDescription(freeAiLanguageCopy.ru.hint.site);
+    choosePlanCard('Free');
+    expect(document.querySelector('[name="scan-ai-language"]')).toBeNull();
+    choosePlanCard('Complete');
+    expect(screen.getByRole('combobox', { name: freeAiLanguageCopy.en.label })).toHaveValue('uk');
+    view.rerender(paidForm('ru'));
+    expect(screen.getByRole('combobox', { name: freeAiLanguageCopy.ru.label })).toHaveValue('uk');
   });
 });

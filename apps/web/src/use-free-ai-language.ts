@@ -1,10 +1,5 @@
-// The Free check's AI-answer language, as the new-scan form holds it (D-237).
-//
-// The default follows the site being checked, so the owner's explicit choice is
-// dropped when they switch to another site: the next site's own language is
-// the better guess, and a choice made for one business is not carried to another.
-
-import { useEffect, useState } from 'react';
+// Paid GEO choice remains part of the draft across site, plan and UI switches.
+import { useState } from 'react';
 
 import type { SiteProfile } from './api';
 import type { Language } from './i18n';
@@ -13,7 +8,7 @@ import { defaultAiLanguage, type AiLanguage, type AiLanguageSource } from './sit
 export interface FreeAiLanguage {
   /** The language the question will be asked in. */
   readonly language: AiLanguage;
-  /** Why: the site's language, the interface language, or the owner's choice. */
+  /** The interface default or the explicit paid GEO choice. */
   readonly source: AiLanguageSource | 'choice';
   readonly choose: (language: AiLanguage) => void;
 }
@@ -23,10 +18,6 @@ export function useFreeAiLanguage(
   interfaceLanguage: Language,
 ): FreeAiLanguage {
   const [choice, setChoice] = useState<AiLanguage | null>(null);
-  const profileId = profile?.id ?? null;
-  useEffect(() => {
-    setChoice(null);
-  }, [profileId]);
   const fallback = defaultAiLanguage(profile, interfaceLanguage);
   return choice === null
     ? { language: fallback.language, source: fallback.source, choose: setChoice }

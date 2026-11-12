@@ -43,6 +43,9 @@ function useRouteState(initialRoute?: InitialRoute) {
 function useSessionState() {
   const [account, setAccount] = useState<Account | null>(null);
   const [profiles, setProfiles] = useState<SiteProfile[]>([]);
+  // A failed load is not an empty account: without this the workspace said
+  // "no sites yet" and invited the owner to add a duplicate.
+  const [profilesFailed, setProfilesFailed] = useState(false);
   const [booting, setBooting] = useState(true);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const [sessionAttempt, setSessionAttempt] = useState(0);
@@ -58,6 +61,8 @@ function useSessionState() {
     setAccount,
     profiles,
     setProfiles,
+    profilesFailed,
+    setProfilesFailed,
     booting,
     setBooting,
     sessionError,

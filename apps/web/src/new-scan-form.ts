@@ -16,7 +16,8 @@ import { parseApiCheckLines, type ApiCheckLineProblem } from './api-check-lines'
 import { useCheckoutConfig, type PendingCheckout } from './Checkout';
 import {
   effectiveEgressLocation,
-  freeEgressLocation,
+  ownerEgressChoice,
+  suggestedEgressLocationId,
   useLaunchConfig,
   type LaunchConfigState,
 } from './egress-location';
@@ -168,8 +169,9 @@ export interface NewScanForm {
   /** Free only: whether the owner opted in to the one-question AI preview. */
   readonly freeAiConsent: boolean;
   readonly setFreeAiConsent: (selected: boolean) => void;
-  /** Free only: the language the AI question is asked in (site's first, D-237). */
+  /** Free follows the current interface; paid GEO has a separate draft override. */
   readonly freeAiLanguage: FreeAiLanguage;
+  readonly paidAiLanguage: FreeAiLanguage;
   /** What the submit button says right now, including while it is working. */
   readonly launchLabel: string;
   readonly paidAvailable: boolean;
@@ -307,11 +309,18 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   // Off until the owner ticks it: a Free check sends nothing to an AI service
   // on its own (D-236).
   const [freeAiConsent, setFreeAiConsent] = useState(false);
-  const freeAiLanguage = useFreeAiLanguage(
+  const paidAiLanguage = useFreeAiLanguage(
     props.profiles.find((profile) => profile.id === target) ?? null,
     props.language,
   );
+  const freeAiLanguage: FreeAiLanguage = {
+    ...paidAiLanguage,
+    language: props.language,
+    source: 'interface',
+  };
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  // Whether the country on screen was picked here rather than loaded (ownerEgressChoice).
+  const [egressPicked, setEgressPicked] = useState(false);
   // A profile switch loads a fresh persisted configuration. Its fields must not
   // inherit a discard warning from the profile the owner just left.
   useEffect(() => {
@@ -374,7 +383,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   const checkoutKeyRef = useRef<string | null>(null);
   useEffect(() => {
     checkoutKeyRef.current = null;
-  }, [target, plan, scope, optInAiProviders]);
+  }, [target, plan, scope, optInAiProviders, paidAiLanguage.language]);
   const [savingConfiguration, setSavingConfiguration] = useState(false);
   const [savedConfigFingerprint, setSavedConfigFingerprint] = useState<string | null>(() =>
     props.selectedProfile?.scanConfig == null
@@ -416,6 +425,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   const updateScope = (change: Partial<ScanScopeForm>): void => {
     setHasUnsavedChanges(true);
     setScope((current) => ({ ...current, ...change }));
+    if (change.egressLocation !== undefined) setEgressPicked(true);
     // Editing a field withdraws the complaint about it: the message described
     // the value that has just been replaced.
     const edited = Object.keys(change);
@@ -497,6 +507,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
       selectedConfigVersion === writtenVersionRef.current;
     if (ownWrite) return;
     lastLoadedTargetRef.current = target;
+    setEgressPicked(false);
     writtenVersionRef.current = null;
     if (selected?.scanConfig != null) {
       setConfigLoading(false);
@@ -613,12 +624,14 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     }
   };
 
-  // The location this launch will actually ask for: Free always leaves from the
-  // default one; a paid plan from the owner's choice while it is on offer.
-  const egressLocation =
-    plan === 'Free'
-      ? freeEgressLocation(egressConfig)
-      : effectiveEgressLocation(scope.egressLocation, egressConfig);
+  // The location this launch will actually ask for: the owner's choice while it
+  // is on offer, else the country the site's domain, region or the browser
+  // points to.
+  const egressLocation = effectiveEgressLocation(
+    ownerEgressChoice(scope.egressLocation, egressPicked),
+    egressConfig,
+    suggestedEgressLocationId(selected, egressConfig),
+  );
   // The server refuses such a launch anyway; this keeps the owner from meeting
   // that refusal at the button.
   const egressBlocked =
@@ -664,6 +677,11 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     // robots.txt override, an unreachable site or no egress must not start a
     // scan or open a checkout.
     if (!canLaunch) return;
+    // Bind the key to the draft the owner submitted before any profile write.
+    // Editing language during that write clears the ref for the next draft;
+    // this continuation must never put its old key back into the new draft.
+    const checkoutKey = checkoutKeyRef.current ?? mintIdempotencyKey();
+    checkoutKeyRef.current = checkoutKey;
     setBusy(true);
     try {
       const profileId = await resolveTargetProfileId();
@@ -677,8 +695,6 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
       // payload is identical on retry because an unchanged configuration save
       // does not bump the profile's configuration version, so the server's
       // stored hash still matches.
-      const checkoutKey = checkoutKeyRef.current ?? mintIdempotencyKey();
-      checkoutKeyRef.current = checkoutKey;
       const scan = await requestScan({
         accountId: props.accountId,
         profileId,
@@ -700,7 +716,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
         // inaccuracy as the notice promising a transfer that does not happen.
         optInAiProviders: selectedOptInAiProviders,
         freeAiConsent: plan === 'Free' && freeAiConsent,
-        language: freeAiLanguage.language,
+        aiLanguage: plan === 'Free' ? props.language : paidAiLanguage.language,
         internalFreeAccess: props.internalFreeAccess,
         idempotencyKey: checkoutKey,
         onCheckoutStarted: props.onCheckoutStarted,
@@ -767,11 +783,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     paidScopeControls && !scope.respectRobots && !scope.robotsOverrideConfirmed;
   const robotsOverrideStale =
     robotsUnconfirmed && selected?.scanConfig?.scope.robotsOverrideConfirmed === true;
-  const expertConfigured = expertSettingsChanged(
-    scope,
-    paidScopeControls,
-    egressConfig?.defaultLocationId ?? null,
-  );
+  const expertConfigured = expertSettingsChanged(scope, paidScopeControls);
   const expertOpen = expertChoice ?? expertConfigured;
   // Both buttons refuse for the same reasons; saving refuses for two more,
   // because settings nobody can store are worse than a scan nobody can start.
@@ -829,6 +841,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     freeAiConsent,
     setFreeAiConsent,
     freeAiLanguage,
+    paidAiLanguage,
     launchLabel,
     paidAvailable,
     paidScopeControls,

@@ -27,7 +27,7 @@ import {
   probeSiteReachability,
   type SiteReachabilityOptions,
 } from '../integrations/site-reachability.ts';
-import { resolveLaunchEgressLocation } from '../scans/launch-egress.ts';
+import { chosenOrSuggestedEgress, resolveLaunchEgressLocation } from '../scans/launch-egress.ts';
 import { findOwnProfile } from './routes.ts';
 
 const egressLocationQuerySchema = z.object({ egressLocation: egressLocationIdSchema.optional() });
@@ -78,8 +78,16 @@ export function reachabilityRouter(deps: ReachabilityRouterDeps): Router {
       where: { siteProfileId: profile.id },
     });
     // The location the reader is about to buy from: the one they named, or
-    // the one a scan gets when nobody names any.
-    const location = query.egressLocation ?? deps.egress.defaultLocation?.location.id ?? null;
+    // the one a launch that names none would get.
+    const location =
+      (await chosenOrSuggestedEgress(
+        deps.egress,
+        query.egressLocation,
+        profile,
+        req.get('accept-language'),
+      )) ??
+      deps.egress.defaultLocation?.location.id ??
+      null;
     sendOk(res, toDto(stored, profile.domain, location, deps.now()));
   });
 
@@ -96,7 +104,15 @@ export function reachabilityRouter(deps: ReachabilityRouterDeps): Router {
     );
     // Checked before the probe, not read from it: through a proxy that is down
     // every site is unreachable, and storing that would blame this one for it.
-    const { location } = await resolveLaunchEgressLocation(deps.egress, body?.egressLocation);
+    const { location } = await resolveLaunchEgressLocation(
+      deps.egress,
+      await chosenOrSuggestedEgress(
+        deps.egress,
+        body?.egressLocation,
+        profile,
+        req.get('accept-language'),
+      ),
+    );
     const result = await probeSiteReachability(profile.domain, {
       egressProxy: location?.proxy ?? null,
       ...deps.probe,

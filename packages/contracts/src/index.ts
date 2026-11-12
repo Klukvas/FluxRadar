@@ -11,3 +11,4 @@ export * from './crawl-summary.js';
 export * from './domain-verification.js';
 export * from './statuses.js';
 export * from './action-plan.js';
+export * from './egress-suggestion.js';

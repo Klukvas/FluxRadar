@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { FREE_UNLOCK_PLAN } from './FreeAiPreview';
 import { FREE_UPSELL_PLAN } from './FreeUpsell';
 import { faqCopyEn, faqCopyUk } from './faq-copy';
 import {
@@ -54,8 +53,7 @@ describe('Free score mirrors of the contract', () => {
     expect(FULL_SCORE_MAX).toBe(contractNumber('FULL_SCORE_MAX'));
   });
 
-  it('sends the score call to action where every other Free upgrade goes', () => {
-    expect(FREE_SCORE_UPGRADE_PLAN).toBe(FREE_UNLOCK_PLAN);
+  it('sends the score call to action to the primary Complete audit', () => {
     expect(FREE_SCORE_UPGRADE_PLAN).toBe(FREE_UPSELL_PLAN);
   });
 });
@@ -83,7 +81,7 @@ describe('the Free score disclosure', () => {
     expect(freeScoreCopy.ru.capRule(6, 40, 100)).toBe(RU_RULE);
     expect(freeScoreCopy.ru.valueOfMax(39, 40)).toBe('39 из 40');
     expect(freeScoreCopy.ru.upgrade(100)).toBe(
-      'Полная проверка: проверить весь сайт (оценка из 100)',
+      'Complete · $87 разово: проверить весь сайт (оценка из 100)',
     );
   });
 
@@ -136,10 +134,10 @@ describe('the Free score disclosure', () => {
 
   it('puts the full-audit promise on the call to action', () => {
     expect(freeScoreCopy.en.upgrade(100)).toBe(
-      'Run the complete verification to check the whole site (scored out of 100)',
+      'Complete · $87 one-time: whole-site audit (scored out of 100)',
     );
     expect(freeScoreCopy.uk.upgrade(100)).toBe(
-      'Повна перевірка: перевірити весь сайт (оцінка зі 100)',
+      'Complete · $87 разово: перевірити весь сайт (оцінка зі 100)',
     );
   });
 

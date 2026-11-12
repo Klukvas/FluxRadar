@@ -14,7 +14,8 @@ import { EgressLocationField } from './EgressLocationField';
 import {
   effectiveEgressLocation,
   egressLocationLabel,
-  freeEgressLocation,
+  ownerEgressChoice,
+  suggestedEgressLocationId,
   type LaunchConfigState,
 } from './egress-location';
 import type { Language } from './i18n';
@@ -34,6 +35,12 @@ const FRANKFURT: EgressLocation = {
   countryCode: 'DE',
   city: 'Frankfurt',
   label: { en: 'Germany, Frankfurt', uk: 'Німеччина, Франкфурт' },
+};
+const LONDON: EgressLocation = {
+  id: 'gb',
+  countryCode: 'GB',
+  city: 'London',
+  label: { en: 'United Kingdom, London', uk: 'Велика Британія, Лондон' },
 };
 
 function proxyConfig(locations: readonly EgressLocation[]): EgressLaunchConfig {
@@ -82,9 +89,35 @@ describe('which location a launch asks for', () => {
     expect(effectiveEgressLocation('ua', null)).toBeNull();
   });
 
-  it('sends a Free check only from the default location, never a substitute', () => {
-    expect(freeEgressLocation(proxyConfig([KYIV, FRANKFURT]))).toEqual(KYIV);
-    expect(freeEgressLocation(proxyConfig([FRANKFURT]))).toBeNull();
+  it('prefers the suggested country to the default when nobody chose', () => {
+    expect(effectiveEgressLocation('', proxyConfig([KYIV, FRANKFURT]), 'de')).toEqual(FRANKFURT);
+    expect(effectiveEgressLocation('ua', proxyConfig([KYIV, FRANKFURT]), 'de')).toEqual(KYIV);
+    expect(effectiveEgressLocation('', proxyConfig([KYIV]), 'de')).toEqual(KYIV);
+  });
+
+  // Every profile saved before there was a choice says Kyiv without anyone
+  // having chosen it; a UK site among them is offered London instead.
+  it('reads an auto-saved Kyiv as no choice, until the owner picks it here', () => {
+    expect(ownerEgressChoice('ua', false)).toBe('');
+    expect(ownerEgressChoice('ua', true)).toBe('ua');
+    expect(ownerEgressChoice('gb', false)).toBe('gb');
+    expect(
+      effectiveEgressLocation(ownerEgressChoice('ua', false), proxyConfig([KYIV, LONDON]), 'gb'),
+    ).toEqual(LONDON);
+  });
+
+  it('suggests the country a site’s domain points to, among those answering', () => {
+    const shop = { domain: 'https://shop.co.uk', region: null };
+    expect(suggestedEgressLocationId(shop, proxyConfig([KYIV, LONDON]), [])).toBe('gb');
+    expect(suggestedEgressLocationId(shop, proxyConfig([KYIV]), [])).toBeNull();
+    expect(
+      suggestedEgressLocationId(
+        { domain: 'https://studio.dev', region: 'Київ, Україна' },
+        proxyConfig([KYIV, LONDON]),
+        ['en-GB'],
+      ),
+    ).toBe('ua');
+    expect(suggestedEgressLocationId(undefined, proxyConfig([KYIV, LONDON]), [])).toBeNull();
   });
 
   it('names a location in the reader’s language, and an unknown one by its code', () => {
@@ -114,7 +147,6 @@ describe('the country field on the launch screen', () => {
     const select = screen.getByRole('combobox', { name: /^Країна, з якої йде перевірка/ });
     const options = within(select).getAllByRole('option');
     expect(options.map((option) => option.textContent)).toEqual(['Україна, Київ']);
-    expect(screen.getByText('Інші країни з’являться пізніше.')).toBeInTheDocument();
   });
 
   it('explains why the country matters, and that it does not change the speed numbers', () => {
@@ -164,6 +196,8 @@ describe('the launch summary', () => {
   function renderSummary(plan: 'Free' | 'Complete', egressLocation: EgressLocation | null) {
     render(
       <LaunchSummary
+        freeAiConsent={false}
+        freeAiLanguage="en"
         language="uk"
         plan={plan}
         labelledBy="technical-rows"
@@ -182,11 +216,12 @@ describe('the launch summary', () => {
     );
   });
 
-  it('says a Free check runs from the default location', () => {
-    renderSummary('Free', KYIV);
+  // Free leaves from a country of its own too, so it is named like any other.
+  it('names the country a Free check runs from', () => {
+    renderSummary('Free', LONDON);
 
     expect(screen.getByText('Країна перевірки').nextSibling).toHaveTextContent(
-      'Україна, Київ · за замовчуванням для Free',
+      /^Велика Британія, Лондон$/,
     );
   });
 });

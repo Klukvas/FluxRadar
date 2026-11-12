@@ -8,10 +8,21 @@ import { ReportsScreen } from './Reports';
 export function DesktopRoute({ app }: { readonly app: AppModel }) {
   const { account, language, navigate, openScanById, retryScan, setError, setNotice } = app;
   const { profiles, setProfiles, setNewScanPlan, setReportsProfile, setSelectedProfile } = app;
-  const { tourOpen, setTourOpen } = app;
+  const { profilesFailed, setProfilesFailed, tourOpen, setTourOpen } = app;
+  const reloadProfiles = async () => {
+    try {
+      await loadProfiles(setProfiles);
+      setProfilesFailed(false);
+    } catch (caught: unknown) {
+      console.error('FluxRadar profiles unavailable', caught);
+      setProfilesFailed(true);
+    }
+  };
   return (
     <DesktopScreen
       profiles={profiles}
+      profilesFailed={profilesFailed}
+      onRetryProfiles={reloadProfiles}
       initialDomain={new URLSearchParams(window.location.search).get('add')}
       // Null until the session has been read: the half-written profile the
       // browser kept belongs to one account and is restored for no other.

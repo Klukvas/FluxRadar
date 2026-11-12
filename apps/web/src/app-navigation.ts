@@ -106,9 +106,15 @@ export function useNavigate(
       // Pushed, not replaced, so that Back returns to the previous screen instead
       // of leaving the workspace entirely. Re-entering the screen you are already
       // on replaces instead, so a repeated tab click does not fill the history.
+      const enteringNewScan = valid === 'new-scan' && path !== window.location.pathname;
       if (path === window.location.pathname) window.history.replaceState(null, '', path + search);
       else window.history.pushState(null, '', path + search);
       setScreen(valid);
+      // Explicit entry starts a new form at its beginning. Back/Forward keeps
+      // the browser's restoration, and edits on the open form never land here.
+      if (enteringNewScan) {
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      }
     },
     [language],
   );

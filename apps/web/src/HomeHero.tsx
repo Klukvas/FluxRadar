@@ -8,7 +8,7 @@
 import { HeroExampleReport } from './HeroExampleReport';
 import { HeroSiteForm } from './HeroSiteForm';
 import { copy, fillCopy, type Language } from './i18n';
-import { BASIC_PRICE } from './tariff-prices';
+import { BASIC_PRICE, COMPLETE_PRICE } from './tariff-prices';
 import './styles/home-hero.css';
 
 export function HomeHero(props: {
@@ -28,9 +28,7 @@ export function HomeHero(props: {
           label={t.formLabel}
           placeholder={t.formPlaceholder}
           submitLabel={t.submit}
-          // The cheapest paid report, read from the one table every price on
-          // the site comes from.
-          note={fillCopy(t.note, { price: BASIC_PRICE })}
+          note={fillCopy(t.note, { price: BASIC_PRICE, completePrice: COMPLETE_PRICE })}
           onStart={props.onStartSite}
         />
         {/* role="list": Safari drops list semantics from a list styled with

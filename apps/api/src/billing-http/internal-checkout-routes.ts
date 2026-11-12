@@ -8,7 +8,7 @@
 
 import { Router } from 'express';
 import type { PrismaClient } from '@prisma/client';
-import { TARIFFS, scanScopeSchema } from '@fluxradar/contracts';
+import { TARIFFS, scanScopeSchema, aiLanguageSchema } from '@fluxradar/contracts';
 import type { AiProviderName } from '@fluxradar/ai';
 import { z } from 'zod';
 
@@ -24,7 +24,7 @@ import { paymentRequired, unauthorized } from '../http/errors.ts';
 import { parseInput } from '../http/validate.ts';
 import { findOwnProfile } from '../profiles/routes.ts';
 import type { EgressLocationMonitor } from '../integrations/crawl-egress-monitor.ts';
-import { resolveLaunchEgressLocation } from '../scans/launch-egress.ts';
+import { chosenOrSuggestedEgress, resolveLaunchEgressLocation } from '../scans/launch-egress.ts';
 import { RequestRateLimiter, scanActionRules } from '../auth/rate-limit.ts';
 
 const internalCheckoutInputSchema = z
@@ -33,6 +33,7 @@ const internalCheckoutInputSchema = z
     plan: z.enum(PAID_PLANS),
     scope: scanScopeSchema,
     aiConsent: aiConsentSchema.optional(),
+    aiLanguage: aiLanguageSchema.optional(),
     expectedProfileConfigVersion: z.number().int().min(1).optional(),
   })
   .superRefine((input, ctx) => {
@@ -89,7 +90,15 @@ export function internalCheckoutRouter(deps: InternalCheckoutRouterDeps): Router
       );
     }
     const profile = await findOwnProfile(deps.prisma, accountId, input.siteProfileId);
-    const egress = await resolveLaunchEgressLocation(deps.egress, input.scope.egressLocation);
+    const egress = await resolveLaunchEgressLocation(
+      deps.egress,
+      await chosenOrSuggestedEgress(
+        deps.egress,
+        input.scope.egressLocation,
+        profile,
+        req.get('accept-language'),
+      ),
+    );
     const scan = await createInternalFreeScan({
       prisma: deps.prisma,
       accountId,
@@ -98,6 +107,7 @@ export function internalCheckoutRouter(deps: InternalCheckoutRouterDeps): Router
       scope: input.scope,
       egress,
       aiConsent: input.aiConsent,
+      aiLanguage: input.aiLanguage,
       expectedProfileConfigVersion: input.expectedProfileConfigVersion,
       now: deps.now(),
     });

@@ -24,7 +24,7 @@ describe('statusKind', () => {
     expect(statusKind('Critical')).toBe('error');
     expect(statusKind('High')).toBe('high');
     expect(statusKind('Medium')).toBe('warning');
-    expect(statusKind('Low')).toBe('ok');
+    expect(statusKind('Low')).toBe('neutral');
   });
 
   it('keeps the score verdicts the report dashboard hands it', () => {

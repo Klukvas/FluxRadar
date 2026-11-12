@@ -52,6 +52,16 @@ if [ -L "$APP_DIR/current" ] || [ -e "$APP_DIR/current" ]; then
   fi
   PREVIOUS_RELEASE_ID="${PREVIOUS_RELEASE##*/}"
 fi
+# Containers are named by commit, so deploying the commit that is already live
+# would `docker rm -f` the containers serving production before starting their
+# replacements, with that same commit as the only rollback target. A re-run of
+# the live commit's deploy took production down this way on 2026-11-09. Stop
+# before anything is touched; a new commit gets a new id.
+if [ -n "${RELEASE_ID:-}" ] && [ "${RELEASE_ID:-}" = "$PREVIOUS_RELEASE_ID" ]; then
+  echo "ERROR: $RELEASE_ID is already the live release; redeploying it would remove the containers serving production." >&2
+  echo "Nothing was changed. To redeploy, push a new commit to main (an empty commit is enough)." >&2
+  exit 1
+fi
 # fluxradar:end-rollback-target-detection
 API_IMAGE="fluxradar-api:$RELEASE_ID"
 WEB_IMAGE="fluxradar-web:$RELEASE_ID"
@@ -77,7 +87,20 @@ fi
 # Resolve actual active images: a host patch may differ from the current release tag.
 PREVIOUS_API_IMAGE="fluxradar-api:$PREVIOUS_RELEASE_ID"
 PREVIOUS_WEB_IMAGE="fluxradar-web:$PREVIOUS_RELEASE_ID"
-if [ -n "$PREVIOUS_API_CONTAINER" ] || [ -n "$PREVIOUS_WEB_CONTAINER" ]; then
+PREVIOUS_CONTAINERS_EXIST=true
+for previous_container in "$PREVIOUS_API_CONTAINER" "$PREVIOUS_WEB_CONTAINER"; do
+  if [ -n "$previous_container" ] && ! docker container inspect "$previous_container" >/dev/null 2>&1; then
+    PREVIOUS_CONTAINERS_EXIST=false
+  fi
+done
+if [ "$PREVIOUS_CONTAINERS_EXIST" = false ]; then
+  # The state file names containers that are gone — production is already
+  # down (a rerun of the live commit removed them on 2026-11-09). Refusing
+  # here made every later deploy fail before it could start the release that
+  # repairs it. The release tags are the rollback target instead; the gate
+  # below still refuses when those images are missing too.
+  echo "WARNING: the active release's containers ($PREVIOUS_API_CONTAINER, $PREVIOUS_WEB_CONTAINER) no longer exist; using the $PREVIOUS_RELEASE_ID image tags as the rollback target." >&2
+elif [ -n "$PREVIOUS_API_CONTAINER" ] || [ -n "$PREVIOUS_WEB_CONTAINER" ]; then
   PREVIOUS_API_IMAGE="$(docker inspect --format '{{.Image}}' "$PREVIOUS_API_CONTAINER")"
   PREVIOUS_WEB_IMAGE="$(docker inspect --format '{{.Image}}' "$PREVIOUS_WEB_CONTAINER")"
   if ! [[ "$PREVIOUS_API_IMAGE" =~ ^sha256:[a-f0-9]{64}$ && "$PREVIOUS_WEB_IMAGE" =~ ^sha256:[a-f0-9]{64}$ ]]; then

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { CheckoutSession, PrismaClient } from '@prisma/client';
-import type { ScanScopeInput } from '@fluxradar/contracts';
+import type { AiLanguage, ScanScopeInput } from '@fluxradar/contracts';
 
 import { captureExecutionConfig, lockOwnProfile } from '../../profiles/execution-config.ts';
 import { scopeWithEgressLocation, type LaunchEgress } from '../../scans/launch-egress.ts';
@@ -65,6 +65,7 @@ export interface CreemCheckoutSessionParams {
   readonly accountId: string;
   readonly siteProfileId: string;
   readonly plan: PaidPlan;
+  readonly aiLanguage?: AiLanguage | undefined;
   readonly scope: ScanScopeInput;
   /** The egress location checked at launch; it, not `scope`, names where the scan goes. */
   readonly egress: LaunchEgress;
@@ -157,7 +158,7 @@ export async function createCreemCheckoutSession(
         scopeJson: JSON.stringify(scope),
         profileConfigVersion: lockedProfile.scanConfigVersion,
         executionConfigJson: JSON.stringify(
-          captureExecutionConfig(lockedProfile, params.plan, scope),
+          captureExecutionConfig(lockedProfile, params.plan, scope, params.aiLanguage),
         ),
         aiConsentJson: params.aiConsent === undefined ? null : JSON.stringify(params.aiConsent),
         clientKey: params.clientKey ?? null,

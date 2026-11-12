@@ -26,7 +26,7 @@ export function HeroSiteForm(props: {
   label: string;
   placeholder: string;
   submitLabel: string;
-  /** What the check covers, said under the field until an error replaces it. */
+  /** The check and payment terms stay visible even after invalid input. */
   note: string;
   /** The normalised origin the visitor typed, or null when they left the field empty. */
   onStart: (site: string | null) => void;
@@ -35,6 +35,7 @@ export function HeroSiteForm(props: {
   const [invalid, setInvalid] = useState(false);
   const inputId = useId();
   const hintId = useId();
+  const errorId = useId();
   const submit = (event: FormEvent): void => {
     event.preventDefault();
     if (address.trim() === '') {
@@ -69,18 +70,19 @@ export function HeroSiteForm(props: {
             if (invalid) setInvalid(false);
           }}
           aria-invalid={invalid ? true : undefined}
-          aria-describedby={hintId}
+          aria-describedby={invalid ? `${hintId} ${errorId}` : hintId}
         />
         <Button type="submit" variant="primary">
           {props.submitLabel}
         </Button>
       </div>
-      <p
-        id={hintId}
-        className={invalid ? 'home__site-hint home__site-hint--error' : 'home__site-hint'}
-        role={invalid ? 'alert' : undefined}
-      >
-        {invalid ? INVALID_ADDRESS[props.language] : props.note}
+      {invalid ? (
+        <p id={errorId} className="home__site-hint home__site-hint--error" role="alert">
+          {INVALID_ADDRESS[props.language]}
+        </p>
+      ) : null}
+      <p id={hintId} className="home__site-hint">
+        {props.note}
       </p>
     </form>
   );

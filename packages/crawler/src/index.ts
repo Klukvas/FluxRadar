@@ -26,7 +26,11 @@ export type {
 } from './render/request-policy.js';
 export { probeMediaResources } from './resources.js';
 export type { ProbeMediaOptions } from './resources.js';
-export { BLOCKED_REQUEST_REASONS, RENDER_FAILURE_REASONS } from './render/types.js';
+export {
+  BLOCKED_REQUEST_REASONS,
+  RENDER_COVERAGE_LIMIT_REASONS,
+  RENDER_FAILURE_REASONS,
+} from './render/types.js';
 export type {
   BlockedRequest,
   BlockedRequestReason,

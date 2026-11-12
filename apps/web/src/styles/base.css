@@ -468,6 +468,11 @@ code,
     min-height: 40px;
     min-width: 40px;
   }
+  /* Fields are tapped as often as buttons; at 24px they cleared WCAG's
+     minimum but not a thumb. */
+  .control {
+    min-height: 40px;
+  }
 }
 .button-row {
   display: flex;
@@ -2186,9 +2191,7 @@ code,
   min-height: 30px;
   padding: 6px;
   border: 1px solid var(--plat-300);
-  background: linear-gradient(90deg, var(--plat-200), var(--plat-50), var(--plat-200));
-  background-size: 200% 100%;
-  animation: skeleton-shimmer 1.2s linear infinite;
+  background: var(--plat-200);
 }
 .skeleton-row span {
   display: block;
@@ -2202,13 +2205,11 @@ code,
   height: 12px;
   background: var(--plat-300);
 }
-/* A placeholder shell: the bordered, shimmering face of a card, dial or page
+/* A placeholder shell: the bordered, still face of a card, dial or page
    whose contents are not there yet. Sized by the surface that uses it. */
 .skeleton-shell {
   border: 1px solid var(--plat-300);
-  background: linear-gradient(90deg, var(--plat-200), var(--plat-50), var(--plat-200));
-  background-size: 200% 100%;
-  animation: skeleton-shimmer 1.2s linear infinite;
+  background: var(--plat-200);
 }
 /* Field-row placeholders: the same 180px label / value split as `.field-row`,
    so the rows that replace them land in the same columns. */
@@ -2467,6 +2468,12 @@ code,
 .auth__text-action:focus-visible {
   outline: 2px solid var(--selection);
   outline-offset: 3px;
+}
+/* At 25px the link cleared WCAG's minimum but not a thumb. */
+@media (pointer: coarse) {
+  .auth__text-action {
+    min-height: 40px;
+  }
 }
 .home__section {
   padding: 128px 0 0;
@@ -3469,14 +3476,6 @@ code,
   49%,
   100% {
     opacity: 0;
-  }
-}
-@keyframes skeleton-shimmer {
-  from {
-    background-position: 200% 0;
-  }
-  to {
-    background-position: -200% 0;
   }
 }
 @keyframes open-window {
