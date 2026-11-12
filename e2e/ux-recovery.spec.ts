@@ -30,6 +30,28 @@ const scan = (ready: boolean) => ({
   modules: [],
 });
 
+// Two countries to check from, so the new-scan form has a setting to change.
+const LAUNCH_CONFIG = {
+  egress: {
+    mode: 'proxy',
+    defaultLocationId: 'ua',
+    locations: [
+      {
+        id: 'ua',
+        countryCode: 'UA',
+        city: 'Kyiv',
+        label: { en: 'Ukraine, Kyiv', uk: 'Україна, Київ' },
+      },
+      {
+        id: 'de',
+        countryCode: 'DE',
+        city: 'Frankfurt',
+        label: { en: 'Germany, Frankfurt', uk: 'Німеччина, Франкфурт' },
+      },
+    ],
+  },
+};
+
 function json(route: Route, data: unknown): Promise<void> {
   return route.fulfill({
     contentType: 'application/json',
@@ -145,11 +167,17 @@ test('dirty scan dialog traps keyboard focus, restores it on Escape, and has tou
   });
   const page = await context.newPage();
   try {
-    await isolate(page, new URL(baseURL!).origin, (route) => baseApi(route));
+    await isolate(page, new URL(baseURL!).origin, (route) =>
+      new URL(route.request().url()).pathname === '/scans/launch-config'
+        ? json(route, LAUNCH_CONFIG)
+        : baseApi(route),
+    );
     await page.goto('/scan');
     await dismissCookies(page);
-    await page.getByRole('combobox', { name: 'Profile' }).selectOption('new-address');
-    await page.getByRole('textbox', { name: 'Site address' }).fill('dirty.example.test');
+    // The form only offers saved sites now, so the edit that makes it dirty is
+    // a setting on the form itself: the country the check runs from.
+    await expect(page.getByRole('combobox', { name: 'Site', exact: true })).toHaveValue(profile.id);
+    await page.getByRole('combobox', { name: 'Country the check runs from' }).selectOption('de');
     const close = page.getByRole('button', { name: 'Close window' });
     await close.click();
 

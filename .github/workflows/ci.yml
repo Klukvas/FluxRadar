@@ -34,6 +34,42 @@ jobs:
     with:
       build-images: true
 
+  e2e:
+    name: End-to-end (Playwright)
+    # Pull requests only, like the rest of this file: the suite drives the web
+    # app against a stubbed API, so it proves the screens still match the specs
+    # and needs no secret, database or deployed service. It stays out of the
+    # reusable quality gates so the deploy does not pay for it a second time.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up the workspace
+        uses: ./.github/actions/node-workspace
+
+      - name: Build workspace packages
+        run: pnpm -r --filter "./packages/**" build
+
+      # The browser version follows the @playwright/test version in the lockfile.
+      - name: Install Chromium for Playwright
+        run: pnpm exec playwright install --with-deps chromium
+
+      # CI=true gives the config's 2 retries, so a one-off timing miss on a
+      # shared runner is retried instead of failing the merge gate.
+      - name: Run the Playwright suite
+        run: pnpm exec playwright test
+
+      - name: Upload traces of failed tests
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-test-results
+          path: test-results/
+          retention-days: 7
+
   dependencies:
     name: Dependency advisories
     runs-on: ubuntu-latest
