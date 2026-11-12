@@ -1,3 +1,4 @@
+import type { AuthFieldProblem } from './auth-validation';
 import type { Language } from './i18n';
 
 export type AuthCopy = {
@@ -52,6 +53,10 @@ export type AuthCopy = {
   readonly forgotLink: string;
   readonly failed: string;
   readonly verificationFailed: string;
+  /** A field the form checked itself before sending, in the reader's words. */
+  readonly problems: Readonly<Record<AuthFieldProblem, string>>;
+  /** The server refused the fields; its own wording is for developers, not shown. */
+  readonly checkFields: string;
   readonly googleContinue: string;
   readonly googleOrEmail: string;
   readonly googleUnavailable: string;
@@ -119,6 +124,14 @@ export const authCopy: Record<Language, AuthCopy> = {
     forgotLink: 'Forgot password?',
     failed: 'Authentication failed',
     verificationFailed: 'Verification failed',
+    problems: {
+      emailMissing: 'Enter your email address.',
+      emailInvalid: 'This email address does not look right. Check it for typos.',
+      passwordMissing: 'Enter your password.',
+      passwordTooShort: 'Choose a password of at least 8 characters.',
+      passwordTooLong: 'This password is too long. Use a shorter one.',
+    },
+    checkFields: 'Check the email and password and try again.',
     googleEmailChanged:
       'Your Google email has changed. For account security, use your FluxRadar password or contact support to recover access.',
     googleUseEmail:
@@ -190,6 +203,14 @@ export const authCopy: Record<Language, AuthCopy> = {
     forgotLink: 'Забули пароль?',
     failed: 'Не вдалося увійти',
     verificationFailed: 'Не вдалося підтвердити email',
+    problems: {
+      emailMissing: 'Введіть адресу email.',
+      emailInvalid: 'Ця адреса email виглядає неправильно. Перевірте, чи немає помилки.',
+      passwordMissing: 'Введіть пароль.',
+      passwordTooShort: 'Пароль має містити щонайменше 8 символів.',
+      passwordTooLong: 'Пароль задовгий. Оберіть коротший.',
+    },
+    checkFields: 'Перевірте email і пароль та спробуйте ще раз.',
     googleEmailChanged:
       'Email вашого Google-акаунта змінився. Для безпеки увійдіть із паролем FluxRadar або зверніться до підтримки для відновлення доступу.',
     googleUseEmail:
@@ -261,6 +282,14 @@ export const authCopy: Record<Language, AuthCopy> = {
     forgotLink: 'Забыли пароль?',
     failed: 'Не удалось войти',
     verificationFailed: 'Не удалось подтвердить email',
+    problems: {
+      emailMissing: 'Введите адрес email.',
+      emailInvalid: 'Этот адрес email выглядит неправильно. Проверьте, нет ли опечатки.',
+      passwordMissing: 'Введите пароль.',
+      passwordTooShort: 'Пароль должен быть не короче 8 символов.',
+      passwordTooLong: 'Пароль слишком длинный. Выберите покороче.',
+    },
+    checkFields: 'Проверьте email и пароль и попробуйте ещё раз.',
     googleEmailChanged:
       'Email вашего Google-аккаунта изменился. Для безопасности войдите с паролем FluxRadar или обратитесь в поддержку для восстановления доступа.',
     googleUseEmail:

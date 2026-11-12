@@ -17,10 +17,11 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
 import { trackEvent } from './analytics';
-import { apiRequest, type Account } from './api';
+import { ApiRequestError, apiRequest, type Account } from './api';
 import { prepareGoogleReturn } from './google-auth-return';
 import { readInitialRoute } from './app-routes';
 import { authCopy } from './auth-copy';
+import { authFormProblem } from './auth-validation';
 import { AlertDialog, Button, Checkbox, Field, Window } from './components';
 import { copy, type Language } from './i18n';
 import { plausibleGoal } from './plausible';
@@ -141,13 +142,22 @@ export function AuthScreen(props: {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    setBusy(true);
     props.onError(null);
+    const problem = authFormProblem({
+      kind: forgotPassword ? 'forgot' : isReset ? 'reset' : mode,
+      email,
+      password,
+    });
+    if (problem !== null) {
+      props.onError(t.problems[problem]);
+      return;
+    }
+    setBusy(true);
     try {
       if (forgotPassword) {
         await apiRequest<{ status: string }>('/auth/password-reset/request', {
           method: 'POST',
-          body: JSON.stringify({ email }),
+          body: JSON.stringify({ email: email.trim() }),
         });
         setSent(true);
         return;
@@ -162,7 +172,7 @@ export function AuthScreen(props: {
       }
       const account = await apiRequest<Account>(`/auth/${mode}`, {
         method: 'POST',
-        body: JSON.stringify({ email, password, rememberMe: false }),
+        body: JSON.stringify({ email: email.trim(), password, rememberMe: false }),
       });
       // GA4's recommended names, so both land in the standard acquisition reports.
       trackEvent(mode === 'register' ? 'sign_up' : 'login', { method: 'email' });
@@ -173,7 +183,7 @@ export function AuthScreen(props: {
       if (mode === 'register') plausibleGoal('sign_up');
       await props.onAuthed(account);
     } catch (caught) {
-      props.onError(caught instanceof Error ? caught.message : t.failed);
+      props.onError(submitErrorMessage(caught, t));
     } finally {
       setBusy(false);
     }
@@ -229,7 +239,9 @@ export function AuthScreen(props: {
       onClose={props.onBack}
       closeLabel={siteChromeCopy[props.language].closeWindow}
     >
-      <form className="stack" onSubmit={submit}>
+      {/* noValidate: the browser's own bubble speaks the browser's language, not
+          the page's; authFormProblem says the same things in the reader's. */}
+      <form className="stack" onSubmit={submit} noValidate>
         <div>
           <h1 id="auth-title" className="section-heading">
             {heading}
@@ -350,4 +362,17 @@ export function AuthScreen(props: {
       </form>
     </Window>
   );
+}
+
+/**
+ * The server's refusals are friendly sentences except VALIDATION, whose message
+ * lists schema issues for developers. The form checks the usual mistakes before
+ * sending, so this only covers what slipped past it.
+ */
+function submitErrorMessage(
+  caught: unknown,
+  t: { readonly failed: string; readonly checkFields: string },
+): string {
+  if (caught instanceof ApiRequestError && caught.code === 'VALIDATION') return t.checkFields;
+  return caught instanceof Error ? caught.message : t.failed;
 }
