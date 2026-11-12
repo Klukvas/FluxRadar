@@ -760,7 +760,12 @@ export function ScoreDial(props: {
    * A stated scale (Free, D-237): the number is shown as a whole number followed
    * by `suffix` ("/ 100") and announced as a meter with that maximum.
    */
-  scale?: { readonly max: number; readonly suffix: string; readonly valueText: string };
+  scale?: {
+    readonly max: number;
+    readonly suffix: string;
+    readonly valueText: string;
+    readonly digits?: number;
+  };
   /** Plan-specific context immediately beside the score, before execution status. */
   scoreContext?: ReactNode;
   /** A sentence kept next to the number, such as the rule that caps it. */
@@ -773,7 +778,7 @@ export function ScoreDial(props: {
       ? '—'
       : scale === undefined
         ? props.score.toFixed(2)
-        : props.score.toFixed(0);
+        : props.score.toFixed(scale.digits ?? 0);
   const scoreText = scale === undefined ? score : scale.valueText;
   const verdictLabel =
     props.score === null

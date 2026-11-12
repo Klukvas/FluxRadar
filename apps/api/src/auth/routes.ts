@@ -60,6 +60,7 @@ function accountDto(
     readonly id: string;
     readonly email: string;
     readonly emailVerifiedAt?: Date | null;
+    readonly freeCheckUsedAt?: Date | null;
     readonly onboardingCompletedAt?: Date | null;
     readonly onboardingSkippedAt?: Date | null;
   },
@@ -70,6 +71,8 @@ function accountDto(
     email: account.email,
     internalFreeAccess: isInternalFreeEmail(account.email, internalFreeEmails),
     emailVerified: account.emailVerifiedAt !== null,
+    // The new-scan screen marks Free as spent beforehand instead of refusing it after Run.
+    freeCheckUsed: account.freeCheckUsedAt != null,
     onboarding: {
       status:
         account.onboardingCompletedAt !== null
@@ -199,7 +202,7 @@ export function authRouter(deps: AuthRouterDeps): Router {
     const passwordOk =
       account !== null && (await verifyPassword(input.password, account.passwordHash));
     if (account === null || !passwordOk) {
-      throw unauthorized('invalid email or password');
+      throw unauthorized('Invalid email or password');
     }
 
     deps.loginRateLimiter.reset(email, ip);

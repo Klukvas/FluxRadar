@@ -75,6 +75,8 @@ export interface NewScanFormProps {
   profiles: readonly SiteProfile[];
   selectedProfile: SiteProfile | null;
   internalFreeAccess: boolean;
+  /** The account's one free check is spent, so Free is shown unavailable. */
+  freeCheckUsed?: boolean;
   language: Language;
   onCreated: (scan: Scan) => void;
   /** Reloads saved profiles after their configuration changes. */
@@ -178,6 +180,8 @@ export interface NewScanForm {
   readonly plan: Plan;
   /** The plans this form can run right now, cheapest first. */
   readonly planOptions: readonly Plan[];
+  /** Free is spent and a paid plan can be chosen instead, so the Free card is disabled. */
+  readonly freeCheckSpent: boolean;
   /**
    * The paid plans this deployment can open a checkout for, cheapest first.
    * The plan step's skeletons reserve exactly these slots while the checkout
@@ -750,6 +754,16 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   // Only the plans this app knows are drawn, whatever an older server lists.
   const paidPlanOptions = PAID_PLAN_ORDER.filter((paidPlan) => offersPlan(paidPlan));
   const planOptions: readonly Plan[] = ['Free', ...(paidAvailable ? paidPlanOptions : [])];
+  // Free stays selectable only while it is the sole option: with nothing else to
+  // choose, the server's refusal after Run is still the honest answer.
+  const freeCheckSpent =
+    props.freeCheckUsed === true && paidPlanOptions.length > 0 && paidAvailable;
+  const firstPaidPlan = paidPlanOptions[0];
+  useEffect(() => {
+    if (!freeCheckSpent || plan !== 'Free' || firstPaidPlan === undefined) return;
+    setPlan(firstPaidPlan);
+    setScope((current) => clampScopeToPlan(current, firstPaidPlan));
+  }, [freeCheckSpent, plan, firstPaidPlan]);
   usePlanSelected(plan, planOptions.includes(plan));
   // Free is the fixed homepage check: the crawl controls below do not reach it,
   // so they are not offered on it. The server enforces the same thing whatever
@@ -833,6 +847,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     paidScopeControls,
     plan,
     planOptions,
+    freeCheckSpent,
     paidPlanOptions,
     robotsUnconfirmed,
     robotsOverrideStale,

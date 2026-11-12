@@ -1020,9 +1020,9 @@ const BILINGUAL = {
     reports: {
       windowTitle: 'Reports',
       heading: 'Your audit reports',
-      lead: 'Every check you have started, newest first. Open one to read its score, its findings and what to fix.',
+      lead: 'Your checks, newest first. Open one to read its score, its findings and what to fix.',
       profileHeading: 'Reports for {name}',
-      profileLead: 'Every check of {domain}, newest first.',
+      profileLead: 'Your checks of {domain}, newest first.',
       showAll: 'Show all reports',
       refresh: 'Refresh',
       emptyTitle: 'No reports yet',
@@ -3078,9 +3078,9 @@ const BILINGUAL = {
     reports: {
       windowTitle: 'Звіти',
       heading: 'Ваші звіти перевірок',
-      lead: 'Усі перевірки, які ви запускали, найновіші вгорі. Відкрийте звіт, щоб побачити оцінку, знахідки та що виправити.',
+      lead: 'Ваші перевірки, найновіші вгорі. Відкрийте звіт, щоб побачити оцінку, знахідки та що виправити.',
       profileHeading: 'Звіти для {name}',
-      profileLead: 'Усі перевірки сайту {domain}, найновіші вгорі.',
+      profileLead: 'Ваші перевірки сайту {domain}, найновіші вгорі.',
       showAll: 'Показати всі звіти',
       refresh: 'Оновити',
       emptyTitle: 'Звітів ще немає',

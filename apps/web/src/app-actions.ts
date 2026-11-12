@@ -66,6 +66,7 @@ function scanProfileAddress() {
 function scanActions({
   navigate,
   openScanById,
+  setAccount,
   setError,
   setNewScanPlan,
   setSelectedScan,
@@ -88,6 +89,11 @@ function scanActions({
   };
 
   function onScanCreated(scan: Scan): void {
+    // The free check is once per account: the new-scan screen marks it spent
+    // from here on without waiting for the next session read.
+    if (scan.plan === 'Free') {
+      setAccount((current) => (current === null ? null : { ...current, freeCheckUsed: true }));
+    }
     setSelectedScan(scan);
     setNewScanPlan(null);
     navigate('scan', scan.id);

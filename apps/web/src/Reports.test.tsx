@@ -336,7 +336,7 @@ describe('Reports scoped to one website', () => {
 
     // The button produces a visible result, not a silent state change.
     expect(await screen.findByText('Reports for Product website')).toBeInTheDocument();
-    expect(screen.getByText('Every check of example.com, newest first.')).toBeInTheDocument();
+    expect(screen.getByText('Your checks of example.com, newest first.')).toBeInTheDocument();
     expect(window.location.pathname).toBe('/reports');
 
     fireEvent.click(screen.getByRole('button', { name: 'Show all reports' }));

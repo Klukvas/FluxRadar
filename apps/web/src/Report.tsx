@@ -46,7 +46,7 @@ import { FreeScore } from './FreeScore';
 import { freeReportCopy } from './free-report-copy';
 import { FreeModuleSummary } from './FreeModuleSummary';
 import { hasDeclaredFreeSeoChecks } from './FreeSeoChecks';
-import { freeCheckCountOf } from './free-score-copy';
+import { freeCheckCountOf, fullScoreScale } from './free-score-copy';
 import {
   checksSummary,
   FreeCheckStatus,
@@ -275,6 +275,7 @@ export function ResultsScreen(props: {
               language={props.language}
               verdict={overall.verdict}
               coverage={overall.weightedCoverage}
+              {...(overall.score === null ? {} : { scale: fullScoreScale(overall.score) })}
             />
           )}
         </div>

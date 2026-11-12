@@ -29,10 +29,11 @@ import { PLAUSIBLE_SITE_SCRIPT, plausibleSiteScriptProblem } from './src/plausib
  *
  * Production deployment (nginx)
  * ─────────────────────────────
- * The production nginx config uses `try_files $uri $uri/index.html /index.html`
+ * The production nginx config uses `try_files $uri $uri/index.html @spa`
  * which achieves the same result without a redirect: nginx tests the request as
- * a real file first, then the explicit <path>/index.html, then the SPA entry
- * point. See deploy/nginx.conf.
+ * a real file first, then the explicit <path>/index.html, then `@spa`, which
+ * serves the SPA entry point for the app's own addresses and answers any other
+ * path with a 404. See deploy/nginx.conf.
  *
  * Why `$uri/index.html` instead of `$uri $uri/`
  * ───────────────────────────────────────────────

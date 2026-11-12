@@ -20,8 +20,8 @@
 .home__site-input {
   flex: 1 1 auto;
   min-width: 0;
-  min-height: 40px;
-  padding: 4px 12px;
+  min-height: 48px;
+  padding: 4px 14px;
   border: 1px solid var(--term-bg);
   background: #fff;
   color: var(--plat-900);
@@ -39,9 +39,12 @@
   outline-offset: 1px;
 }
 .home__site-form .button--primary {
-  min-height: 40px;
-  padding: 0 18px;
-  font-size: 15px;
+  min-height: 48px;
+  padding: 0 22px;
+  font-size: 16px;
+  font-weight: 700;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.45);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
   background: var(--term-green);
   color: var(--term-bg);
   border-color: var(--term-bg);
@@ -49,6 +52,10 @@
 }
 .home__site-form .button--primary:hover:not(:disabled) {
   background: #b8ffc8;
+}
+.home__site-form .button--primary:active:not(:disabled) {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.45);
 }
 .home__site-hint {
   margin: 4px 0 0;

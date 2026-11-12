@@ -15,6 +15,7 @@ import { CookieConsent } from './CookieConsent';
 import { DesktopRoute, IntegrationsRoute, ReportsRoute } from './SiteRoutes';
 import { HomeRoute } from './HomeRoute';
 import { copy, readInitialLanguage, storeLanguage, type Language } from './i18n';
+import { NotFoundScreen } from './NotFoundScreen';
 import { OnboardingTour } from './OnboardingTour';
 import { PublicDocument } from './PublicDocument';
 import {
@@ -88,6 +89,7 @@ function AppContent(props: AppModelProps) {
       <Styleguide onNavigate={navigate} language={language} onLanguageChange={changeLanguage} />
     );
   }
+  if (screen === 'not-found') return <NotFoundScreen app={app} />;
   if (isPublicDocument(screen)) {
     return (
       <PublicDocument

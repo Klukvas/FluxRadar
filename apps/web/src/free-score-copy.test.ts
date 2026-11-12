@@ -12,6 +12,7 @@ import {
   freeDialProps,
   freeScoreCopy,
   freeScoreHelp,
+  fullScoreScale,
   showsRulePenalty,
 } from './free-score-copy';
 import { copy } from './i18n';
@@ -240,5 +241,16 @@ describe('descriptions of the Free check', () => {
     for (const answer of [en, uk]) {
       expect(answer).not.toMatch(/by design|за задумом|up to 40|щонайбільше|\b80\b/);
     }
+  });
+});
+
+describe('fullScoreScale', () => {
+  it('states the full audit on its own 100-point scale and keeps two decimals', () => {
+    expect(fullScoreScale(79)).toEqual({
+      max: FULL_SCORE_MAX,
+      suffix: '/ 100',
+      valueText: '79.00',
+      digits: 2,
+    });
   });
 });

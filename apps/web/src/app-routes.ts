@@ -15,6 +15,7 @@ import { WORKSPACE_PATHS, type WorkspaceTabScreen } from './workspace-paths';
 export type Screen =
   | 'home'
   | 'auth'
+  | 'not-found'
   | 'desktop'
   | 'new-scan'
   | 'reports'
@@ -230,8 +231,28 @@ function emailActionFrom(search: string): InitialRoute['emailAction'] {
       : null;
 }
 
-/** A path no table knows: an email link signs in first, else the legacy hash screens, else home. */
-function fallbackRoute(emailAction: InitialRoute['emailAction'], hash: string): InitialRoute {
+/** The address of the sign-in dialog on its own: it opens over the home page. */
+const LOGIN_PATH = '/login';
+
+/** Paths that are the home page under another spelling, not a missing page. */
+const HOME_ALIAS_PATHS: readonly string[] = ['/', '/index.html'];
+
+/** The screen for a path no table knows: the home page only for its own spellings, else "not found". */
+function unknownPathScreen(path: string): Screen {
+  return HOME_ALIAS_PATHS.includes(path) ? 'home' : 'not-found';
+}
+
+/**
+ * A path no table knows: an email link signs in first, else the legacy hash
+ * screens, else a "page not found" screen. Only the home page's own spellings
+ * land on home, so a mistyped or removed address no longer looks like a
+ * working page (nginx answers such paths with a 404 status to match).
+ */
+function fallbackRoute(
+  emailAction: InitialRoute['emailAction'],
+  hash: string,
+  path: string,
+): InitialRoute {
   const route = hash.slice(1);
   return {
     screen:
@@ -241,7 +262,7 @@ function fallbackRoute(emailAction: InitialRoute['emailAction'], hash: string): 
           ? 'styleguide'
           : route === 'integrations'
             ? 'integrations'
-            : 'home',
+            : unknownPathScreen(path),
     scanId: null,
     profileId: null,
     emailAction,
@@ -274,6 +295,7 @@ export function readInitialRoute(): InitialRoute {
   if (path === EXAMPLE_REPORT_PATH) return plainRoute('example-report');
   if (path === '/faq') return plainRoute('faq');
   if (path === ACCOUNT_PATH) return plainRoute('account');
+  if (path === LOGIN_PATH) return plainRoute('auth');
   // Owner-only and linked from no menu; the API decides who sees numbers.
   if (path === ADMIN_STATS_PATH) return plainRoute('admin-stats');
   // The standalone plans screen was folded into the home pricing section. Old
@@ -286,7 +308,7 @@ export function readInitialRoute(): InitialRoute {
     return { ...plainRoute(workspaceScreen), profileId: profileId === '' ? null : profileId };
   }
   if (workspaceScreen !== undefined) return plainRoute(workspaceScreen);
-  return readScanRoute(path) ?? fallbackRoute(emailAction, window.location.hash);
+  return readScanRoute(path) ?? fallbackRoute(emailAction, window.location.hash, path);
 }
 
 /** `/scans/:id`, `/scans/:id/issues` and `/scans/:id/report`, or null when the path is none. */

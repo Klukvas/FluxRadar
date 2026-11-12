@@ -92,6 +92,12 @@ export function useSessionBoot(boot: SessionBoot): void {
   const { entryRoute, setAccount, setBooting, setScreen, setSessionError, sessionAttempt } = boot;
   const { openScanById, confirmEmailSignedIn } = boot;
   useEffect(() => {
+    if (entryRoute.screen === 'not-found') {
+      // A missing page needs no session, and a signed-in owner must not be moved
+      // on to a running scan from an address that names nothing.
+      setBooting(false);
+      return;
+    }
     if (isPublicDocument(entryRoute.screen)) {
       // A public document renders at once for anyone and never waits on the API.
       // The session is read alongside only so its header can offer the workspace
@@ -220,6 +226,12 @@ async function restoreSignedInSession(value: Account, boot: SessionBoot): Promis
         window.history.replaceState(null, '', targetUrl.pathname + targetUrl.search);
         if (value.onboarding?.status === 'pending') setTourOpen(true);
       }
+      return;
+    }
+    // Someone already signed in who opens /login has nothing to sign in to.
+    if (entryRoute.screen === 'auth') {
+      setScreen('desktop');
+      window.history.replaceState(null, '', pathForScreen('desktop', null));
       return;
     }
     if (entryRoute.scanId !== null) {

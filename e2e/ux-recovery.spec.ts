@@ -145,11 +145,26 @@ test('dirty scan dialog traps keyboard focus, restores it on Escape, and has tou
   });
   const page = await context.newPage();
   try {
-    await isolate(page, new URL(baseURL!).origin, (route) => baseApi(route));
+    // The scan screen starts from a saved site now (there is no inline "new
+    // address" field), and the form only becomes unsaved once the owner changes
+    // something on it — choosing a paid plan, which needs checkout to be on.
+    await isolate(page, new URL(baseURL!).origin, (route) =>
+      new URL(route.request().url()).pathname === '/billing/checkout-config'
+        ? json(route, {
+            provider: 'creem',
+            available: true,
+            mode: 'test',
+            unavailableReason: null,
+            plans: [
+              { plan: 'Basic', priceUsd: 39, currency: 'USD', available: true },
+              { plan: 'Complete', priceUsd: 87, currency: 'USD', available: true },
+            ],
+          })
+        : baseApi(route),
+    );
     await page.goto('/scan');
     await dismissCookies(page);
-    await page.getByRole('combobox', { name: 'Profile' }).selectOption('new-address');
-    await page.getByRole('textbox', { name: 'Site address' }).fill('dirty.example.test');
+    await page.getByRole('radio', { name: /^Basic/ }).check();
     const close = page.getByRole('button', { name: 'Close window' });
     await close.click();
 
