@@ -14,6 +14,16 @@
   background: var(--term-bg);
   color: #fff;
   box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.35);
+  position: relative;
+}
+/* A green status strip along the panel's top edge: the one place the page's
+   terminal colour shows before the button, so the eye lands on this column. */
+.home-hero__panel::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--term-green) 0 38%, var(--term-dim) 38% 100%);
 }
 /* The global focus ring is --selection blue, which all but disappears on the
    dark panel; the field takes the green ring the panel's button and link do. */
@@ -21,15 +31,34 @@
   outline-color: var(--term-green);
 }
 
+/* Hierarchy: a larger title with a tighter measure, a lede one step quieter
+   than the title and the form. Scoped under the hero so `.home h1` elsewhere
+   keeps its size. */
+.home__hero-copy.home-hero__panel h1 {
+  margin-bottom: 16px;
+  font-size: clamp(32px, 4vw, 52px);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+}
+.home__hero-copy.home-hero__panel .home__lede {
+  font-size: clamp(16px, 1.5vw, 18px);
+  color: #dbe3ee;
+}
+
 .home-hero__trust {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 20px;
-  margin: 22px 0 0;
+  gap: 8px 10px;
+  margin: 24px 0 0;
   padding: 0;
   list-style: none;
   color: #fff;
   font-size: 14px;
+}
+.home-hero__trust li {
+  padding: 4px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.05);
 }
 .home-hero__check {
   margin-right: 0.35em;
@@ -37,7 +66,8 @@
   font-weight: 700;
 }
 .home__hero-copy > .home__text-action {
-  margin-top: 20px;
+  display: inline-block;
+  margin-top: 24px;
   font-size: 14px;
 }
 
@@ -48,7 +78,12 @@
   border: 1px solid var(--plat-900);
   background: var(--plat-50);
   color: var(--plat-900);
-  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.35);
+  position: relative;
+  /* Two hard offsets read as sheets stacked under the report. */
+  box-shadow:
+    6px 6px 0 var(--plat-200),
+    7px 7px 0 var(--plat-900),
+    12px 12px 0 rgba(0, 0, 0, 0.3);
 }
 .home-hero__window-bar {
   display: flex;
@@ -71,7 +106,7 @@
 }
 .home-hero__window-site {
   margin: 0;
-  font: bold 15px var(--mono-font);
+  font: bold clamp(15px, 1.4vw, 17px) var(--mono-font);
   overflow-wrap: anywhere;
 }
 .home-hero__window-meta {
@@ -89,7 +124,11 @@
   gap: 4px;
   padding: 12px 16px;
   border-bottom: 1px solid var(--plat-300);
-  border-left: 4px solid var(--term-amber);
+  border-left: 6px solid var(--term-amber);
+  transition: background-color 0.15s ease;
+}
+.home-hero__finding:hover {
+  background: #fff;
 }
 .home-hero__finding--first {
   border-left-color: var(--term-red);
@@ -130,8 +169,22 @@
   font-weight: 700;
 }
 
+@media (max-width: 899px) {
+  /* One column: the stacked-sheet shadow must not push past the page edge. */
+  .home-hero__window {
+    box-shadow:
+      4px 4px 0 var(--plat-200),
+      5px 5px 0 var(--plat-900);
+    margin-right: 5px;
+  }
+}
+
 @media (max-width: 699px) {
   .home-hero__panel {
-    padding: 20px 16px;
+    padding: 24px 16px 20px;
+  }
+  .home-hero__trust {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
