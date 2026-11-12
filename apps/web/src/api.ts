@@ -230,6 +230,8 @@ export interface Account {
   readonly email: string;
   readonly internalFreeAccess?: boolean;
   readonly emailVerified?: boolean;
+  /** Whether this account's one free check has been used. */
+  readonly freeCheckUsed?: boolean;
   /** Present only immediately after registration; later reads stay non-enumerating. */
   readonly emailVerification?: { readonly status: 'sent' | 'not-configured' | 'provider-error' };
   readonly onboarding?: { readonly status: 'pending' | 'completed' | 'skipped' };

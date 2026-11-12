@@ -320,9 +320,12 @@ describe('a section that has finished', () => {
       ]),
     );
 
-    // Neither role: there is no measurement to show and nothing is running.
-    expect(screen.queryByRole('meter')).toBeNull();
-    expect(screen.queryByRole('progressbar')).toBeNull();
+    // Neither role on the section: there is no measurement to show and nothing
+    // is running. Scoped to the grid, because the report's own score dial is a
+    // meter out of 100.
+    const grid = document.querySelector('.module-grid') as HTMLElement;
+    expect(within(grid).queryByRole('meter')).toBeNull();
+    expect(within(grid).queryByRole('progressbar')).toBeNull();
     expect(screen.getByText(/coverage unavailable/)).toBeTruthy();
   });
 

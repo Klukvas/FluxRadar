@@ -32,6 +32,8 @@ export type NewScanClarityCopy = {
   readonly planRecommendedSpoken: string;
   /** The price on a card when an internal account pays nothing. */
   readonly planInternalPrice: string;
+  /** The Free card's line once the account's one free check is used. */
+  readonly freeCheckSpent: string;
   /** Step 3: why the question is asked, and what replaces it where nothing is bought. */
   readonly reach: {
     readonly hint: string;
@@ -150,6 +152,7 @@ export const newScanCopy: Record<Language, NewScanClarityCopy> = {
     planRecommended: 'GOOD PLACE TO START',
     planRecommendedSpoken: 'recommended',
     planInternalPrice: 'internal',
+    freeCheckSpent: 'Already used on this account. Choose Basic or Complete.',
     reach: {
       hint: 'We check this before payment so you never pay for a site we cannot read.',
       freeNote: 'The free check does not need this step: nothing is paid for.',
@@ -253,6 +256,7 @@ export const newScanCopy: Record<Language, NewScanClarityCopy> = {
     planRecommended: 'РАДИМО ПОЧАТИ',
     planRecommendedSpoken: 'радимо',
     planInternalPrice: 'внутрішній',
+    freeCheckSpent: 'Уже використано на цьому акаунті. Оберіть Basic або Complete.',
     reach: {
       hint: 'Перевіряємо це до оплати, щоб ви не заплатили за сайт, який неможливо прочитати.',
       freeNote: 'Безкоштовній перевірці цей крок не потрібен: ви нічого не оплачуєте.',
@@ -360,6 +364,7 @@ export const newScanCopy: Record<Language, NewScanClarityCopy> = {
     planRecommended: 'СОВЕТУЕМ НАЧАТЬ',
     planRecommendedSpoken: 'советуем',
     planInternalPrice: 'внутренний',
+    freeCheckSpent: 'Уже использовано на этом аккаунте. Выберите Basic или Complete.',
     reach: {
       hint: 'Проверяем это до оплаты, чтобы вы не заплатили за сайт, который невозможно прочитать.',
       freeNote: 'Проверке Free этот шаг не нужен: вы ничего не оплачиваете.',

@@ -130,6 +130,8 @@ export interface ScoreScale {
   readonly suffix: string;
   /** Announced as the meter's value: "39 of 40". */
   readonly valueText: string;
+  /** Decimals printed in the number; a Free score is whole, a full audit keeps its two. */
+  readonly digits?: number;
 }
 
 export interface FreeDialProps {
@@ -176,4 +178,21 @@ export function freeScoreHelp(overall: ShownOverall, checks: number, language: L
   return isFreeScale(overall.scoreMax)
     ? t.capRule(checks, FREE_SCORE_MAX, FULL_SCORE_MAX)
     : t.homepageOnly;
+}
+
+/**
+ * The full audit's score stated on its own scale, "79.00 / 100", so a paid
+ * report names its maximum the way a Free one does. The precision stays: the
+ * full audit's score is reported to two decimals everywhere else.
+ */
+export function fullScoreScale(score: number): ScoreScale {
+  const digits = 2;
+  return {
+    max: FULL_SCORE_MAX,
+    suffix: `/ ${FULL_SCORE_MAX}`,
+    // The meter's maximum is announced by `max`; the text stays the number the
+    // report has always read out.
+    valueText: score.toFixed(digits),
+    digits,
+  };
 }

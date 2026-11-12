@@ -1740,7 +1740,7 @@ code,
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--accent-500);
+  background: var(--selection);
   content: '';
 }
 .section-status--running::before {
@@ -2264,7 +2264,6 @@ code,
 .integration-skeleton__chip {
   width: 71.42px;
   height: 19.39px;
-  border-radius: 10px;
 }
 .integration-skeleton__button {
   width: 95.27px;

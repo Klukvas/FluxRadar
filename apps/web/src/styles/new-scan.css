@@ -93,6 +93,10 @@
   background: #fff;
   cursor: pointer;
 }
+.plan-card--spent {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
 .plan-card--checked {
   border-color: var(--selection);
   box-shadow: inset 0 0 0 1px var(--selection);

@@ -38,6 +38,12 @@ export type SiteChromeCopy = {
     readonly body: string;
     readonly retry: string;
   };
+  /** The page shown at an address that names nothing. */
+  readonly notFound: {
+    readonly title: string;
+    readonly body: string;
+    readonly home: string;
+  };
 };
 
 export const siteChromeCopy: Readonly<Record<Language, SiteChromeCopy>> = {
@@ -56,6 +62,11 @@ export const siteChromeCopy: Readonly<Record<Language, SiteChromeCopy>> = {
       body: 'We could not check your session. Check your connection and try again.',
       retry: 'Try again',
     },
+    notFound: {
+      title: 'Page not found',
+      body: 'This address does not lead anywhere. It may have been mistyped, or the page was removed.',
+      home: 'Go to the home page',
+    },
   },
   uk: {
     closeWindow: 'Закрити вікно',
@@ -72,6 +83,11 @@ export const siteChromeCopy: Readonly<Record<Language, SiteChromeCopy>> = {
       body: 'Перевірте з’єднання та спробуйте ще раз. Ви не вийшли з облікового запису.',
       retry: 'Спробувати ще раз',
     },
+    notFound: {
+      title: 'Сторінку не знайдено',
+      body: 'За цією адресою нічого немає. Можливо, в адресі помилка або сторінку видалено.',
+      home: 'На головну',
+    },
   },
   ru: {
     closeWindow: 'Закрыть окно',
@@ -87,6 +103,11 @@ export const siteChromeCopy: Readonly<Record<Language, SiteChromeCopy>> = {
       title: 'Не удаётся подключиться к FluxRadar',
       body: 'Проверьте соединение и попробуйте ещё раз. Вы не вышли из аккаунта.',
       retry: 'Попробовать ещё раз',
+    },
+    notFound: {
+      title: 'Страница не найдена',
+      body: 'По этому адресу ничего нет. Возможно, в адресе ошибка или страницу удалили.',
+      home: 'На главную',
     },
   },
 };

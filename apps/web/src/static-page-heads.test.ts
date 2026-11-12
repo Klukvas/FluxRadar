@@ -279,7 +279,7 @@ describe('what serves and verifies the static heads', () => {
   // head again, with every unit test above still green.
   it('relies on the nginx rule that maps /<path> to <path>/index.html', () => {
     const nginx = readFileSync(resolve(REPO_ROOT, 'deploy', 'nginx.conf'), 'utf8');
-    expect(nginx).toContain('try_files $uri $uri/index.html /index.html;');
+    expect(nginx).toContain('try_files $uri $uri/index.html @spa;');
     expect(nginx).toMatch(/^\s*index index\.html;/m);
   });
 

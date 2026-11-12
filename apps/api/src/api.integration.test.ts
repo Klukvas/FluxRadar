@@ -45,12 +45,19 @@ describe('T-12 API happy paths', () => {
     const agent = request.agent(app);
     const account = await register(agent, 'free@example.com');
     const profile = await createProfile(agent, account.cookie);
+    // The new-scan screen reads this to mark Free spent before Run.
+    expect((await agent.get('/auth/me').set('Cookie', account.cookie)).body.data).toMatchObject({
+      freeCheckUsed: false,
+    });
 
     const created = await agent
       .post(`/profiles/${profile.id}/free-check`)
       .set('Cookie', account.cookie)
       .send({});
     expect(created.status).toBe(201);
+    expect((await agent.get('/auth/me').set('Cookie', account.cookie)).body.data).toMatchObject({
+      freeCheckUsed: true,
+    });
     const scanId = created.body.data.id as string;
     await runScan(db, scanId);
 

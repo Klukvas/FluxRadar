@@ -59,6 +59,7 @@ export function PlanStep(props: {
     paidScopeControls,
     plan,
     planOptions,
+    freeCheckSpent,
     setFreeAiConsent,
     toggleOptInAiProvider,
   } = props.form;
@@ -80,6 +81,7 @@ export function PlanStep(props: {
             checked={plan === value}
             language={props.language}
             internalFreeAccess={props.internalFreeAccess}
+            spent={value === 'Free' && freeCheckSpent}
             onChoose={choosePlan}
           />
         ))}
@@ -118,7 +120,7 @@ export function PlanStep(props: {
       ) : (
         <p className="muted">{paidUnavailableCopy(t, checkoutConfig)}</p>
       )}
-      {paidAvailable && checkoutConfig?.mode === 'test' ? (
+      {paidAvailable && checkoutConfig?.mode === 'test' && !props.internalFreeAccess ? (
         <p className="muted">{t.checkout.testMode}</p>
       ) : null}
       {paidScopeControls ? (
@@ -233,6 +235,8 @@ function PlanCard(props: {
   checked: boolean;
   language: Language;
   internalFreeAccess: boolean;
+  /** The plan cannot be chosen again; the card says why instead of vanishing. */
+  spent: boolean;
   onChoose: (plan: Plan) => void;
 }) {
   const c = newScanCopy[props.language];
@@ -248,13 +252,16 @@ function PlanCard(props: {
   // capitals and the whole sentence as the option's name.
   const labelledBy = [`${id}-name`, `${id}-price`, ...(recommended ? [`${id}-recommended`] : [])];
   return (
-    <label className={`plan-card${props.checked ? ' plan-card--checked' : ''}`}>
+    <label
+      className={`plan-card${props.checked ? ' plan-card--checked' : ''}${props.spent ? ' plan-card--spent' : ''}`}
+    >
       <input
         className="plan-card__radio"
         type="radio"
         name="scan-plan"
         value={props.plan}
         checked={props.checked}
+        disabled={props.spent}
         aria-labelledby={labelledBy.join(' ')}
         aria-describedby={`${id}-line`}
         onChange={() => props.onChoose(props.plan)}
@@ -276,7 +283,7 @@ function PlanCard(props: {
         {price}
       </span>
       <span className="plan-card__line" id={`${id}-line`}>
-        {card.line}
+        {props.spent ? c.freeCheckSpent : card.line}
       </span>
     </label>
   );

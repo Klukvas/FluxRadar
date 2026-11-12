@@ -57,6 +57,7 @@ export function NewScanRoute({
       selectedProfile={selectedProfile}
       accountId={account.accountId}
       internalFreeAccess={account.internalFreeAccess === true}
+      freeCheckUsed={account.freeCheckUsed === true}
       language={language}
       onCreated={onScanCreated}
       initialPlan={newScanPlan}

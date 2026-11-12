@@ -959,12 +959,12 @@ describe('public /checks — audit coverage page', () => {
 //      /blog → /blog/index.html and /blog/<slug> → /blog/<slug>/index.html
 //      so Vite's static file middleware serves the correct HTML before the SPA
 //      HTML fallback is reached.
-//   2. Production nginx: try_files $uri $uri/index.html /index.html tests the
+//   2. Production nginx: try_files $uri $uri/index.html @spa tests the
 //      physical file directly, avoiding the 301→$uri/ double-slash collapse.
 //
 // What we can test at the SPA unit level:
 //   • readInitialRoute() must NOT classify /blog (or article paths) as a known
-//     SPA screen — these paths should fall through to 'home' so the SPA never
+//     SPA screen — these paths fall through to "page not found" so the SPA never
 //     claims ownership of URLs that belong to the static blog.
 //   • The SPA must not call window.location.assign or replace for /blog, which
 //     would create a redirect loop when the server is correctly configured.
@@ -1171,21 +1171,18 @@ describe('Issue Center — inline detail row', () => {
 });
 
 describe('/blog routing — SPA does not intercept static pages', () => {
-  it('does not crash or claim /blog as a known SPA route (falls back to home)', async () => {
+  it('does not crash or claim /blog as a known SPA route (shows "page not found")', async () => {
     // If the SPA ever loads for /blog (because the server is misconfigured), it
-    // must show the public home gracefully — not a blank screen or error.
+    // must say the page is missing — not a blank screen, and not the home page
+    // dressed up as the blog.
     window.history.replaceState(null, '', '/blog');
     stubApi((path) => (path === '/auth/me' ? failure(401, 'unauthenticated') : envelope(null)));
 
     render(<App />);
 
-    // The SPA shows the public home page (the blog index is served by the
-    // static layer before React ever loads in a correctly-configured server).
-    expect(
-      await screen.findByRole('heading', {
-        name: 'Online website audit: SEO, AI visibility and what to fix first',
-      }),
-    ).toBeInTheDocument();
+    // The blog index is served by the static layer before React ever loads in a
+    // correctly-configured server.
+    expect(await screen.findByText('Page not found')).toBeInTheDocument();
 
     // The URL is preserved as /blog — the SPA must not rewrite it.
     expect(window.location.pathname).toBe('/blog');
@@ -1197,11 +1194,7 @@ describe('/blog routing — SPA does not intercept static pages', () => {
 
     render(<App />);
 
-    expect(
-      await screen.findByRole('heading', {
-        name: 'Online website audit: SEO, AI visibility and what to fix first',
-      }),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('Page not found')).toBeInTheDocument();
     expect(window.location.pathname).toBe('/blog/ai-crawler-readiness');
   });
 });
