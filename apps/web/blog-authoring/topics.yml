@@ -11,7 +11,10 @@
 
 topics:
   - id: core-web-vitals-for-owners
-    status: todo
+    status: done
+    published: 2026-11-13
+    uk_slug: core-web-vitals-prosto
+    en_slug: core-web-vitals-plain-words
     title_uk: Core Web Vitals простими словами для власника сайту
     title_en: Core Web Vitals in plain words for site owners
     angle: >-
@@ -21,7 +24,10 @@ topics:
     related: [/blog/uk/shvydkist-i-zaiavky, /knowledge-base/shvydkist-saitu]
 
   - id: internal-linking
-    status: todo
+    status: done
+    published: 2026-11-13
+    uk_slug: vnutrishni-posylannia
+    en_slug: internal-links-important-pages
     title_uk: Внутрішні посилання, щоб важливі сторінки знаходили
     title_en: Internal links that get important pages found
     angle: >-
