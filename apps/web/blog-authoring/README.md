@@ -10,8 +10,12 @@ Thursday mornings (Kyiv time).
   If only one is left, write that one. If none are left, skip to the queue step.
 - Write each topic **in Ukrainian and in English**. One run therefore adds 2–4
   articles: two topics, two languages each.
-- Open **one pull request** for the run. Never merge it, never deploy, never push
-  to `main`. The owner reviews and merges.
+- Open **one pull request** for the run, then **merge it yourself once every check
+  is green**. A push to `main` starts `.github/workflows/deploy.yml`, which runs the
+  quality gates again, releases, checks the live site and rolls back by itself if
+  the site is broken. The owner asked for this (2026-11-13): articles go to
+  production without a manual review. This authorization covers only blog content
+  that follows this playbook.
 
 ## Steps
 
@@ -27,9 +31,11 @@ Thursday mornings (Kyiv time).
 5. Add both to the blog index and the sitemap (see _Listing_).
 6. Update the queue (see _Queue_).
 7. Run the checks (see _Verify_). Fix what fails. If a check still fails after two
-   fix attempts, open the PR as a **draft** and put the failure output in the body.
+   fix attempts, open the PR as a **draft**, put the failure output in the body, and
+   stop. A draft is never merged.
 8. Commit with `content: add blog articles <slugs>`, push the branch and open the PR
    (see _Pull request_).
+9. Merge and follow the deploy (see _Merge and deploy_).
 
 ## Page contract
 
@@ -175,5 +181,27 @@ not the test.
 - Body: a table with the topic, both addresses and the word count of each article,
   the sources cited, the test output, and anything the owner should check by hand,
   such as a claim you could not fully verify.
-- Change only the new article files, `blog/index.html`, `sitemap.xml` and
-  `apps/web/blog-authoring/topics.yml`. Nothing else.
+- Change only the new article files, `blog/index.html`, `sitemap.xml`,
+  `apps/web/blog-authoring/topics.yml` and the `related-reading` lists of existing
+  articles. Nothing else.
+
+## Merge and deploy
+
+1. Wait for the PR's checks: `gh pr checks <number> --watch`. Merge only when every
+   check passed. If any check fails, fix the pages, push, and wait again. After two
+   failed rounds, leave the PR open, mark it draft and stop.
+2. Before merging, confirm the diff touches only the paths listed under _Pull request_
+   (`gh pr diff <number> --name-only`). If it touches anything else, do not merge.
+3. Merge with `gh pr merge <number> --squash --delete-branch`. If `gh` cannot merge
+   (missing, not authenticated, refused), do not look for another route to `main`.
+   Leave the PR open and report why.
+4. Follow the deploy the merge started: find the `Deploy production` run for the merge
+   commit (`gh run list --workflow deploy.yml --commit <sha>`) and wait for it
+   (`gh run watch <id> --exit-status`). It takes about 15–25 minutes.
+5. When it succeeds, open each new address on `https://fluxradar.net` and confirm it
+   answers 200 with the article's `<h1>`.
+6. If the deploy fails, **never re-run it, never revert or push a fix to `main`
+   yourself.** The workflow already rolled back if traffic was switched. Report the
+   failing job and its link to the owner.
+
+Never touch a deploy that this run did not start, and never start one by hand.
