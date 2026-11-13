@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Core Web Vitals простими словами | FluxRadar</title>
+    <meta
+      name="description"
+      content="LCP, INP і CLS без жаргону: що відчуває відвідувач, чому польові й лабораторні дані різняться і які правки робить контент, а які розробник."
+    />
+    <link rel="canonical" href="https://fluxradar.net/blog/uk/core-web-vitals-prosto" />
+    <link
+      rel="alternate"
+      hreflang="uk"
+      href="https://fluxradar.net/blog/uk/core-web-vitals-prosto"
+    />
+    <link
+      rel="alternate"
+      hreflang="en"
+      href="https://fluxradar.net/blog/core-web-vitals-plain-words"
+    />
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href="https://fluxradar.net/blog/core-web-vitals-plain-words"
+    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Core Web Vitals простими словами для власника сайту" />
+    <meta
+      property="og:description"
+      content="LCP, INP і CLS без жаргону: що відчуває відвідувач, чому польові й лабораторні дані різняться і які правки робить контент, а які розробник."
+    />
+    <meta property="og:url" content="https://fluxradar.net/blog/uk/core-web-vitals-prosto" />
+    <meta property="og:locale" content="uk_UA" />
+    <meta property="og:image" content="https://fluxradar.net/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="FluxRadar · fluxradar.net" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://fluxradar.net/og-image.png" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "BlogPosting",
+            "headline": "Core Web Vitals простими словами для власника сайту",
+            "description": "LCP, INP і CLS без жаргону: що відчуває відвідувач, чому польові й лабораторні дані різняться і які правки робить контент, а які розробник.",
+            "inLanguage": "uk",
+            "datePublished": "2026-11-13",
+            "dateModified": "2026-11-13",
+            "mainEntityOfPage": "https://fluxradar.net/blog/uk/core-web-vitals-prosto",
+            "publisher": {
+              "@type": "Organization",
+              "name": "FluxLab",
+              "url": "https://fluxradar.net"
+            }
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "FluxRadar",
+                "item": "https://fluxradar.net/"
+              },
+              {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "Блог",
+                "item": "https://fluxradar.net/blog"
+              },
+              {
+                "@type": "ListItem",
+                "position": 3,
+                "name": "Core Web Vitals простими словами для власника сайту",
+                "item": "https://fluxradar.net/blog/uk/core-web-vitals-prosto"
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+    <link rel="stylesheet" href="/blog/blog.css" />
+    <link rel="stylesheet" href="/blog/content.css" />
+  </head>
+  <body data-blog-page="article" data-content-section="blog">
+    <nav class="menubar" aria-label="Меню сайту">
+      <a class="menubar__apple" href="/uk"
+        ><svg viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+        </svg>
+        FluxRadar</a
+      >
+      <button
+        class="menubar__toggle"
+        type="button"
+        data-menu-toggle
+        data-t-label="nav.openMenu"
+        aria-label="Відкрити меню"
+        aria-expanded="false"
+        aria-controls="menubar-links"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" fill="none" />
+        </svg>
+      </button>
+      <div id="menubar-links" class="menubar__links">
+        <div class="menubar__sheet-head">
+          <span class="menubar__sheet-brand"
+            ><svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+            </svg>
+            FluxRadar</span
+          ><span class="menubar__sheet-status" data-t="nav.systemStatus"
+            >СТАНЦІЯ АУДИТУ ПУБЛІЧНИХ САЙТІВ · v0.1</span
+          ><button
+            class="menubar__close"
+            type="button"
+            data-menu-close
+            data-t-label="nav.closeMenu"
+            aria-label="Закрити меню"
+          >
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.5" fill="none" />
+            </svg>
+          </button>
+        </div>
+        <div class="menubar__nav">
+          <span class="menubar__group-label" data-t="nav.navigate">Навігація</span
+          ><a class="menubar__item" href="/uk" data-t="nav.home">Головна</a
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Ваші збережені сайти та історія їхніх перевірок."
+            data-t="nav.profiles"
+            data-t-title="nav.profilesHint"
+          >
+            Мої сайти</button
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Налаштуйте та запустіть нову перевірку."
+            data-t="nav.scan"
+            data-t-title="nav.scanHint"
+          >
+            Перевірка</button
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Готові та поточні результати перевірок."
+            data-t="nav.reports"
+            data-t-title="nav.reportsHint"
+          >
+            Звіти</button
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Необовʼязкові підключення даних. Публічна перевірка працює без них."
+            data-t="nav.integrations"
+            data-t-title="nav.integrationsHint"
+          >
+            Інтеграції</button
+          ><a class="menubar__item" href="/uk/faq" data-t="nav.faq">FAQ</a
+          ><a class="menubar__item is-active" href="/blog" aria-current="true" data-t="nav.blog"
+            >Блог</a
+          ><span class="menubar__spacer"></span>
+        </div>
+        <div class="menubar__meta">
+          <span class="menubar__group-label" data-t="nav.system">Система</span>
+          <div class="menubar__language" data-language>
+            <span id="menubar-language-label" data-t="nav.language">Мова</span
+            ><button
+              type="button"
+              role="combobox"
+              class="menubar__language-button"
+              data-language-button
+              aria-haspopup="listbox"
+              aria-expanded="false"
+              aria-controls="menubar-language-listbox"
+              aria-labelledby="menubar-language-label"
+            >
+              <span data-language-current>Українська</span
+              ><svg class="menubar__language-caret" viewBox="0 0 10 6" aria-hidden="true">
+                <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" />
+              </svg>
+            </button>
+            <ul
+              id="menubar-language-listbox"
+              class="menubar__language-listbox"
+              role="listbox"
+              aria-labelledby="menubar-language-label"
+              hidden
+            >
+              <li
+                class="menubar__language-option"
+                role="option"
+                data-language-option="en"
+                aria-selected="false"
+              >
+                English
+              </li>
+              <li
+                class="menubar__language-option is-active"
+                role="option"
+                data-language-option="uk"
+                aria-selected="true"
+              >
+                Українська
+              </li>
+            </ul>
+          </div>
+          <span class="menubar__system" data-t="nav.systemStatus"
+            >СТАНЦІЯ АУДИТУ ПУБЛІЧНИХ САЙТІВ · v0.1</span
+          >
+        </div>
+      </div>
+    </nav>
+    <div class="blog-page content-page">
+      <main id="blog-main">
+        <nav class="breadcrumbs" aria-label="Навігаційний ланцюжок">
+          <a href="/uk">Головна</a> / <a href="/blog">Блог</a> /
+          <span>Core Web Vitals простими словами для власника сайту</span>
+        </nav>
+        <header>
+          <p class="kicker">ШВИДКОДІЯ · УКРАЇНСЬКОЮ</p>
+          <h1>Core Web Vitals простими словами для власника сайту</h1>
+          <p class="lede">
+            LCP, INP і CLS без жаргону: що відчуває відвідувач, чому польові й лабораторні дані
+            різняться і які правки робить контент, а які розробник.
+          </p>
+          <p class="content-date">
+            Опубліковано й перевірено: <time datetime="2026-11-13">13 листопада 2026</time>
+          </p>
+        </header>
+        <article class="content-article">
+          <p>
+            Звіт про швидкодію часто виглядає як набір абревіатур: LCP, INP, CLS. Для власника сайту
+            за ними стоять три прості відчуття відвідувача: чи швидко з’явилося головне, чи сайт
+            відгукується на дію і чи не стрибає сторінка під пальцем. Цей матеріал пояснює показники
+            без жаргону, показує, чому різні інструменти дають різні цифри, і допомагає розділити
+            роботу між командою контенту та розробником.
+          </p>
+          <nav class="article-toc" aria-label="Зміст">
+            <h2>У цьому матеріалі</h2>
+            <ul>
+              <li><a href="#section-1">Три запитання, які ставить відвідувач</a></li>
+              <li><a href="#section-2">Польові й лабораторні дані: чому цифри різні</a></li>
+              <li><a href="#section-3">Що часто може виправити команда контенту</a></li>
+              <li><a href="#section-4">Що зазвичай належить розробнику</a></li>
+              <li><a href="#section-5">Як поставити задачу й перевірити результат</a></li>
+            </ul>
+          </nav>
+          <section id="section-1">
+            <h2>Три запитання, які ставить відвідувач</h2>
+            <p>
+              Core Web Vitals — набір показників, якими Google описує реальний досвід людини на
+              сторінці. Зараз їх три, і кожен відповідає на одне просте запитання.
+            </p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Показник</th>
+                  <th>Що відчуває відвідувач</th>
+                  <th>Добра межа</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>LCP (Largest Contentful Paint)</td>
+                  <td>Чи з’явився головний вміст: банер, заголовок, фото товару</td>
+                  <td>до 2,5 секунди</td>
+                </tr>
+                <tr>
+                  <td>INP (Interaction to Next Paint)</td>
+                  <td>Чи сайт реагує на натискання, дотик або клавішу</td>
+                  <td>до 200 мілісекунд</td>
+                </tr>
+                <tr>
+                  <td>CLS (Cumulative Layout Shift)</td>
+                  <td>Чи не зсувається вміст, поки людина читає або цілиться в кнопку</td>
+                  <td>до 0,1</td>
+                </tr>
+              </tbody>
+            </table>
+            <p>
+              Межі оцінюють на 75-му процентилі відвідувань, окремо для мобільних і настільних
+              пристроїв. Простіше кажучи, щонайменше три з чотирьох відвідувань мають укладатися в
+              межу. Сторінка проходить оцінку, лише коли всі три показники добрі. CLS вимірюють не в
+              секундах: це число, яке описує, наскільки сильно і на яку частину екрана зсунувся
+              вміст.
+            </p>
+            <p>
+              INP враховує кліки мишею, дотики до екрана та натискання клавіш. Прокручування,
+              наведення курсора й масштабування до нього не входять. Значення понад 500 мілісекунд
+              уже вважають поганим: людина натискає «Додати в кошик» і помітно чекає, перш ніж на
+              екрані щось зміниться.
+            </p>
+          </section>
+          <section id="section-2">
+            <h2>Польові й лабораторні дані: чому цифри різні</h2>
+            <p>
+              Польові дані збирають у реальних відвідувачів. Публічне джерело таких даних — Chrome
+              User Experience Report (CrUX): знеособлена статистика від користувачів Chrome, яку
+              показують PageSpeed Insights і звіт Core Web Vitals у Search Console. Вони
+              відповідають на запитання «як було насправді», але оновлюються не миттєво й можуть
+              бути недоступні для сайту з невеликою кількістю відвідувань.
+            </p>
+            <p>
+              Лабораторні дані дає запуск інструмента, наприклад Lighthouse, у заданих умовах:
+              певний пристрій, мережа, одна сторінка. Лабораторія зручна, щоб знайти причину й
+              перевірити правку до релізу. Проте вона не бачить реальних натискань, тому INP у
+              лабораторії не виміряти. Lighthouse показує замість нього Total Blocking Time —
+              непрямий показник того, наскільки довго скрипти тримають браузер зайнятим.
+            </p>
+            <ul>
+              <li>
+                <strong>Поле погане, лабораторія добра.</strong> Можливо, реальні відвідувачі мають
+                слабші телефони чи повільнішу мережу, ніж у тесті, або проблема виникає лише після
+                взаємодії.
+              </li>
+              <li>
+                <strong>Лабораторія погана, поле добре.</strong> Тест міг бути суворішим за реальні
+                умови. Причину варто зрозуміти, але це не аварія.
+              </li>
+              <li>
+                <strong>Польових даних немає.</strong> Це не нуль і не провал, а брак вибірки.
+                Зазначте це у звіті й спирайтеся на повторні лабораторні вимірювання.
+              </li>
+            </ul>
+            <p>
+              Для рішень потрібні обидва джерела. Поле показує, чи є проблема в людей, а лабораторія
+              — де її шукати.
+            </p>
+          </section>
+          <section id="section-3">
+            <h2>Що часто може виправити команда контенту</h2>
+            <p>
+              Частина проблем зі швидкодією виникає не в коді, а в тому, що публікують на сторінках.
+              Тут власник сайту або редактор може діяти без розробника.
+            </p>
+            <ul>
+              <li>
+                <strong>Розмір зображень.</strong> Фото з камери на кілька мегабайтів у головному
+                банері затримує появу головного вмісту. Завантажуйте зображення в розмірі, близькому
+                до того, у якому його показують, і стискайте перед публікацією, якщо система
+                керування сайтом не робить цього сама.
+              </li>
+              <li>
+                <strong>Важкі блоки на першому екрані.</strong> Слайдер із п’ятьма великими кадрами,
+                відео й кілька віджетів угорі сторінки змагаються за ту саму мережу. Залиште на
+                першому екрані те, що допомагає зрозуміти пропозицію.
+              </li>
+              <li>
+                <strong>Вбудований вміст і банери.</strong> Відео, карта, рекламний блок або
+                оголошення, що з’являється над текстом, часто зсувають сторінку. Перш ніж додати
+                такий блок, запитайте, чи передбачено для нього місце в шаблоні.
+              </li>
+              <li>
+                <strong>Сторонні віджети.</strong> Кожен чат, лічильник чи кнопка соцмережі додає
+                скрипт. Регулярно переглядайте, які з них ще потрібні бізнесу.
+              </li>
+            </ul>
+            <p>
+              Правки контенту не замінюють технічної оптимізації, але часто прибирають найпомітніші
+              проблеми на конкретних сторінках, і їх можна зробити вже сьогодні.
+            </p>
+          </section>
+          <section id="section-4">
+            <h2>Що зазвичай належить розробнику</h2>
+            <p>
+              Інші причини криються в шаблоні, на сервері або в скриптах. Корисно знати, з чого
+              складається затримка, щоб правильно поставити задачу.
+            </p>
+            <p>
+              <strong>LCP.</strong> web.dev розкладає його на чотири частини: час до першого байта
+              від сервера, затримку перед початком завантаження головного ресурсу, тривалість цього
+              завантаження й затримку до відображення. Повільний сервер, пізно виявлене зображення
+              та блокувальні стилі чи скрипти потребують різних виправлень. Головне зображення не
+              варто завантажувати ліниво: web.dev прямо радить ніколи не застосовувати lazy loading
+              до LCP-зображення, бо браузер почне завантажувати його пізніше. Атрибут
+              <code>fetchpriority="high"</code> може допомогти, якщо поставити його одному-двом
+              справді важливим зображенням, а не всім.
+            </p>
+            <p>
+              <strong>INP.</strong> Повільна реакція зазвичай означає, що в момент натискання
+              браузер зайнятий виконанням JavaScript. Розробник шукає довгі задачі, важкі обробники
+              подій і сторонні скрипти, які працюють одночасно з інтерфейсом.
+            </p>
+            <p>
+              <strong>CLS.</strong> Зображенням і відео потрібні атрибути <code>width</code> та
+              <code>height</code> або зарезервоване місце через CSS. Для реклами, вбудованого вмісту
+              й банерів шаблон має заздалегідь тримати простір. Вебшрифти теж можуть зсувати текст,
+              коли запасний шрифт замінюється основним; це налаштовують через спосіб завантаження
+              шрифтів і близький за розмірами запасний шрифт.
+            </p>
+          </section>
+          <section id="section-5">
+            <h2>Як поставити задачу й перевірити результат</h2>
+            <p>
+              Добра задача описує не лише метрику, а й ситуацію: «На мобільному головне фото
+              категорії з’являється пізно», «Кнопка заявки зсувається, коли з’являється банер
+              згоди». Додайте адресу, пристрій, джерело даних і дату вимірювання.
+            </p>
+            <ol>
+              <li>
+                Виберіть представників ключових шаблонів: головну, категорію, товар чи послугу,
+                сторінку заявки.
+              </li>
+              <li>
+                Запишіть поточні польові й лабораторні значення окремо для мобільних і настільних
+                пристроїв.
+              </li>
+              <li>
+                Внесіть одну групу змін і повторіть лабораторні вимірювання на тих самих адресах і в
+                тих самих умовах.
+              </li>
+              <li>
+                Польові дані перевірте пізніше: вони накопичуються за період, тож одразу після
+                релізу зміни в них ще не видно.
+              </li>
+              <li>Переконайтеся, що після оптимізації працюють форма, меню й банер згоди.</li>
+            </ol>
+            <p>
+              У FluxRadar повний аудит Complete має окремий розділ продуктивності, а серед перевірок
+              надійності є правило про повільну відповідь сервера: воно позначає сторінку, якщо під
+              час обходу відповідь надійшла пізніше ніж за 1,8 секунди. Як читати розділ
+              продуктивності, пояснює
+              <a href="/knowledge-base/shvydkist-saitu">інструкція в базі знань</a>.
+            </p>
+            <p>
+              Добрі Core Web Vitals роблять сторінку зручнішою, але не гарантують позицій у пошуку
+              чи зростання продажів. Це одна з ознак якості сайту, а не заміна корисного змісту.
+            </p>
+          </section>
+          <aside class="related-reading">
+            <h2>Читайте також</h2>
+            <ul>
+              <li><a href="/blog/core-web-vitals-plain-words" hreflang="en">English version</a></li>
+              <li>
+                <a href="/blog/uk/shvydkist-i-zaiavky"
+                  >Швидкість сайту й заявки: як перевірити зв’язок</a
+                >
+              </li>
+              <li>
+                <a href="/knowledge-base/shvydkist-saitu"
+                  >Як перевірити швидкодію й прочитати Core Web Vitals</a
+                >
+              </li>
+              <li>
+                <a href="/blog/uk/vnutrishni-posylannia"
+                  >Внутрішні посилання, щоб важливі сторінки знаходили</a
+                >
+              </li>
+            </ul>
+          </aside>
+          <section class="article-sources">
+            <h2>Джерела та перевірка</h2>
+            <ul>
+              <li><a href="https://web.dev/articles/vitals">web.dev: Web Vitals</a></li>
+              <li><a href="https://web.dev/articles/inp">web.dev: Interaction to Next Paint</a></li>
+              <li><a href="https://web.dev/articles/optimize-lcp">web.dev: оптимізація LCP</a></li>
+              <li><a href="https://web.dev/articles/optimize-cls">web.dev: оптимізація CLS</a></li>
+            </ul>
+            <p>
+              Зовнішні настанови перевірено 13 листопада 2026 року. Навчальні приклади не описують
+              результати клієнтів і не обіцяють позицій у пошуку.
+            </p>
+          </section>
+        </article>
+        <p class="content-cta">
+          <a href="/uk">Перевірте свій сайт</a> ·
+          <a href="/knowledge-base">Практичні інструкції</a> ·
+          <a href="/blog">Статті для власників сайтів</a>
+        </p>
+        <footer class="site-footer">
+          <a href="/blog">&#x2190; Усі нотатки</a> <a href="/knowledge-base">База знань</a
+          ><span class="powered-by"
+            ><a
+              class="powered-by__link"
+              href="https://flux-lab.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-t-label="blog.poweredByAria"
+              aria-label="Створено FluxLab (відкривається в новій вкладці)"
+              ><span class="powered-by__mark" aria-hidden="true">◈</span
+              ><span data-t="blog.poweredBy">Створено FluxLab</span></a
+            ></span
+          >
+        </footer>
+      </main>
+    </div>
+    <script src="/blog/public-links.js"></script>
+    <script src="/blog/attribution.js"></script>
+    <script src="/blog/blog.js"></script>
+  </body>
+</html>

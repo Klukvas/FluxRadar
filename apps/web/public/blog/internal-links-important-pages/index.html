@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Internal links that get pages found | FluxRadar</title>
+    <meta
+      name="description"
+      content="Orphan pages, click depth, descriptive anchor text and JavaScript-only menus: how to find the important pages on your site that nothing links to."
+    />
+    <link rel="canonical" href="https://fluxradar.net/blog/internal-links-important-pages" />
+    <link
+      rel="alternate"
+      hreflang="uk"
+      href="https://fluxradar.net/blog/uk/vnutrishni-posylannia"
+    />
+    <link
+      rel="alternate"
+      hreflang="en"
+      href="https://fluxradar.net/blog/internal-links-important-pages"
+    />
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href="https://fluxradar.net/blog/internal-links-important-pages"
+    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Internal links that get important pages found" />
+    <meta
+      property="og:description"
+      content="Orphan pages, click depth, descriptive anchor text and JavaScript-only menus: how to find the important pages on your site that nothing links to."
+    />
+    <meta property="og:url" content="https://fluxradar.net/blog/internal-links-important-pages" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://fluxradar.net/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="FluxRadar · fluxradar.net" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://fluxradar.net/og-image.png" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "BlogPosting",
+            "headline": "Internal links that get important pages found",
+            "description": "Orphan pages, click depth, descriptive anchor text and JavaScript-only menus: how to find the important pages on your site that nothing links to.",
+            "inLanguage": "en",
+            "datePublished": "2026-11-13",
+            "dateModified": "2026-11-13",
+            "mainEntityOfPage": "https://fluxradar.net/blog/internal-links-important-pages",
+            "publisher": {
+              "@type": "Organization",
+              "name": "FluxLab",
+              "url": "https://fluxradar.net"
+            }
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "FluxRadar",
+                "item": "https://fluxradar.net/"
+              },
+              {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "Blog",
+                "item": "https://fluxradar.net/blog"
+              },
+              {
+                "@type": "ListItem",
+                "position": 3,
+                "name": "Internal links that get important pages found",
+                "item": "https://fluxradar.net/blog/internal-links-important-pages"
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+    <link rel="stylesheet" href="/blog/blog.css" />
+    <link rel="stylesheet" href="/blog/content.css" />
+  </head>
+  <body data-blog-page="article" data-content-section="blog">
+    <nav class="menubar" aria-label="Site menu">
+      <a class="menubar__apple" href="/"
+        ><svg viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+        </svg>
+        FluxRadar</a
+      >
+      <button
+        class="menubar__toggle"
+        type="button"
+        data-menu-toggle
+        data-t-label="nav.openMenu"
+        aria-label="Open menu"
+        aria-expanded="false"
+        aria-controls="menubar-links"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" fill="none" />
+        </svg>
+      </button>
+      <div id="menubar-links" class="menubar__links">
+        <div class="menubar__sheet-head">
+          <span class="menubar__sheet-brand"
+            ><svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+            </svg>
+            FluxRadar</span
+          ><span class="menubar__sheet-status" data-t="nav.systemStatus"
+            >PUBLIC WEB AUDIT STATION · v0.1</span
+          ><button
+            class="menubar__close"
+            type="button"
+            data-menu-close
+            data-t-label="nav.closeMenu"
+            aria-label="Close menu"
+          >
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.5" fill="none" />
+            </svg>
+          </button>
+        </div>
+        <div class="menubar__nav">
+          <span class="menubar__group-label" data-t="nav.navigate">Navigate</span
+          ><a class="menubar__item" href="/" data-t="nav.home">Home</a
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Your saved sites and their check history."
+            data-t="nav.profiles"
+            data-t-title="nav.profilesHint"
+          >
+            My sites</button
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Set up and start a new audit."
+            data-t="nav.scan"
+            data-t-title="nav.scanHint"
+          >
+            Scan</button
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Completed and in-progress audit results."
+            data-t="nav.reports"
+            data-t-title="nav.reportsHint"
+          >
+            Reports</button
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Optional data connections. The public-site scan works without them."
+            data-t="nav.integrations"
+            data-t-title="nav.integrationsHint"
+          >
+            Integrations</button
+          ><a class="menubar__item" href="/faq" data-t="nav.faq">FAQ</a
+          ><a class="menubar__item is-active" href="/blog" aria-current="true" data-t="nav.blog"
+            >Blog</a
+          ><span class="menubar__spacer"></span>
+        </div>
+        <div class="menubar__meta">
+          <span class="menubar__group-label" data-t="nav.system">System</span>
+          <div class="menubar__language" data-language>
+            <span id="menubar-language-label" data-t="nav.language">Language</span
+            ><button
+              type="button"
+              role="combobox"
+              class="menubar__language-button"
+              data-language-button
+              aria-haspopup="listbox"
+              aria-expanded="false"
+              aria-controls="menubar-language-listbox"
+              aria-labelledby="menubar-language-label"
+            >
+              <span data-language-current>English</span
+              ><svg class="menubar__language-caret" viewBox="0 0 10 6" aria-hidden="true">
+                <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" />
+              </svg>
+            </button>
+            <ul
+              id="menubar-language-listbox"
+              class="menubar__language-listbox"
+              role="listbox"
+              aria-labelledby="menubar-language-label"
+              hidden
+            >
+              <li
+                class="menubar__language-option is-active"
+                role="option"
+                data-language-option="en"
+                aria-selected="true"
+              >
+                English
+              </li>
+              <li
+                class="menubar__language-option"
+                role="option"
+                data-language-option="uk"
+                aria-selected="false"
+              >
+                Українська
+              </li>
+            </ul>
+          </div>
+          <span class="menubar__system" data-t="nav.systemStatus"
+            >PUBLIC WEB AUDIT STATION · v0.1</span
+          >
+        </div>
+      </div>
+    </nav>
+    <div class="blog-page content-page">
+      <main id="blog-main">
+        <nav class="breadcrumbs" aria-label="Breadcrumb">
+          <a href="/">Home</a> / <a href="/blog">Blog</a> /
+          <span>Internal links that get important pages found</span>
+        </nav>
+        <header>
+          <p class="kicker">SEO · IN ENGLISH</p>
+          <h1>Internal links that get important pages found</h1>
+          <p class="lede">
+            Orphan pages, click depth, descriptive anchor text and JavaScript-only menus: how to
+            find the important pages on your site that nothing links to.
+          </p>
+          <p class="content-date">
+            Published and checked: <time datetime="2026-11-13">November 13, 2026</time>
+          </p>
+        </header>
+        <article class="content-article">
+          <p>
+            An important page can be well written, carry a proper title and sit in the sitemap, yet
+            stay almost invisible. The reason is often simple: nothing links to it, or reaching it
+            takes five levels of menus. Internal links are the paths that both visitors and search
+            crawlers use to move through a site. This article looks at how those paths break and how
+            to find the pages nobody can reach.
+          </p>
+          <nav class="article-toc" aria-label="Contents">
+            <h2>In this article</h2>
+            <ul>
+              <li>
+                <a href="#section-1">Links are the map of your site for people and crawlers</a>
+              </li>
+              <li><a href="#section-2">Orphan pages and pages held by one link</a></li>
+              <li><a href="#section-3">Click depth: how many steps to reach a page</a></li>
+              <li><a href="#section-4">Anchor text that means something</a></li>
+              <li><a href="#section-5">Navigation that only exists in JavaScript</a></li>
+              <li><a href="#section-6">How to find important pages that nothing links to</a></li>
+            </ul>
+          </nav>
+          <section id="section-1">
+            <h2>Links are the map of your site for people and crawlers</h2>
+            <p>
+              A search crawler finds new pages much like a visitor does: by following links.
+              Google’s documentation is direct about it: every page you care about should have a
+              link from at least one other page on your site.
+            </p>
+            <p>
+              A sitemap helps you tell a search engine about your addresses, but it does not
+              guarantee that they will all be crawled and indexed. Google notes that a small site
+              (about 500 pages or fewer meant for search) that is comprehensively linked internally
+              may not need a sitemap at all. Links are the foundation; the sitemap is a safety net.
+            </p>
+            <p>
+              For a business this is also about sales. If a service page can only be reached from an
+              ad, a visitor who lands on the home page will never find it.
+            </p>
+          </section>
+          <section id="section-2">
+            <h2>Orphan pages and pages held by one link</h2>
+            <p>An orphan page is a page that no internal link points to. Common causes:</p>
+            <ul>
+              <li>the page was built for a campaign and never added to a menu or section;</li>
+              <li>a redesign removed the block that used to link to it;</li>
+              <li>
+                a product or article still exists in the CMS, but the section that listed it was
+                hidden;
+              </li>
+              <li>links still point to an old address while the new page lives on its own.</li>
+            </ul>
+            <p>
+              A weaker version of the same problem is a page held by a single link. While that link
+              exists, all is well. Remove one banner or rewrite one paragraph, and the page becomes
+              an orphan.
+            </p>
+            <p>
+              FluxRadar has two checks for this. The first flags a page that the sitemap lists and
+              the crawl read successfully, but that no crawled page links to. If the sitemap could
+              not be read or the crawl did not collect the full link graph, the rule draws no
+              conclusion, so a page is not called an orphan just because its only source was left
+              out of the crawl. The second check flags a page that exactly one other page links to
+              and names that source.
+            </p>
+            <p>
+              Finding an orphan does not always mean you should rush to add a link. First decide
+              whether the page is still needed. If it is current, link to it from the section it
+              logically belongs to. If it is outdated, update it, merge it with another page, or
+              remove it from the sitemap and set up a proper server response. A page you are not
+              ready to show visitors in the site structure probably does not belong in the sitemap
+              either.
+            </p>
+          </section>
+          <section id="section-3">
+            <h2>Click depth: how many steps to reach a page</h2>
+            <p>
+              Click depth is the number of link steps from the home page or another entry point to a
+              page. The deeper a page sits, the fewer people reach it and the longer crawlers may
+              take to find it.
+            </p>
+            <p>
+              Depth on its own is not an error: a large catalogue will always have deep pages. What
+              matters is that the pages that bring enquiries or answer customers’ main questions do
+              not end up buried.
+            </p>
+            <p>
+              FluxRadar measures this distance from the crawl’s entry page by following links, and
+              flags pages that are four or more steps away. A page that cannot be reached through
+              links at all does not get this finding: it is the orphan case from the previous
+              section.
+            </p>
+            <p>Ways to reduce depth without overloading the menu:</p>
+            <ul>
+              <li>add hub pages for the main sections that link to the key subsections;</li>
+              <li>use breadcrumbs so every page links back up the structure;</li>
+              <li>link from popular articles to the related services or products;</li>
+              <li>
+                make catalogue pagination plain links, so later pages of a list stay reachable.
+              </li>
+            </ul>
+          </section>
+          <section id="section-4">
+            <h2>Anchor text that means something</h2>
+            <p>
+              Anchor text, the visible words of a link, tells both people and search engines what to
+              expect on the other side. Google recommends that it be descriptive, reasonably concise
+              and relevant to the page it sits on. A simple test: read only the link text, without
+              the sentence around it. Is it clear where it goes?
+            </p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Weak</th>
+                  <th>Better</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Read more</td>
+                  <td>Delivery times and costs</td>
+                </tr>
+                <tr>
+                  <td>Click here</td>
+                  <td>Air conditioner installation prices</td>
+                </tr>
+                <tr>
+                  <td>An empty icon link</td>
+                  <td>An icon with a label or alt text “Basket”</td>
+                </tr>
+              </tbody>
+            </table>
+            <p>
+              For an image link, the image’s alt text acts as the anchor text, so fill it in
+              meaningfully. At the same time, do not turn anchors into strings of keywords: that
+              hurts reading and adds nothing.
+            </p>
+          </section>
+          <section id="section-5">
+            <h2>Navigation that only exists in JavaScript</h2>
+            <p>
+              Google reliably recognises a link when it is an <code>&lt;a&gt;</code> element with an
+              <code>href</code> attribute that resolves to a real address. A link inserted by a
+              script is fine too, as long as it uses the same markup. Trouble starts when navigation
+              is built another way:
+            </p>
+            <ul>
+              <li>
+                a <code>&lt;span&gt;</code> or a button that opens a page through a click handler;
+              </li>
+              <li>
+                an <code>&lt;a&gt;</code> with no <code>href</code>, or with
+                <code>href="javascript:..."</code>;
+              </li>
+              <li>
+                a menu or product list that only appears after scrolling or clicking and has no
+                addresses of its own.
+              </li>
+            </ul>
+            <p>
+              A person can use such navigation without trouble, while a crawler may see no path at
+              all. A developer only needs to confirm that the main menu, breadcrumbs and pagination
+              are plain links. Our own case study
+              <a href="/blog/uk/fluxradar-html-bez-javascript" hreflang="uk"
+                >on making FluxRadar readable without JavaScript</a
+              >
+              (in Ukrainian) shows what this looks like in practice.
+            </p>
+          </section>
+          <section id="section-6">
+            <h2>How to find important pages that nothing links to</h2>
+            <p>
+              Start with a list of the pages that earn money or answer customers’ frequent
+              questions: services, key categories, contacts, prices, delivery terms. Then:
+            </p>
+            <ol>
+              <li>Confirm these addresses are in the sitemap and open with status 200.</li>
+              <li>
+                Crawl the site from the home page and compare the pages found through links with
+                your list.
+              </li>
+              <li>
+                For each page on the list, check how many other pages link to it and how deep it
+                sits.
+              </li>
+              <li>Add links from sections, hubs and related content, not only from the footer.</li>
+              <li>Crawl again and confirm the page is now reachable.</li>
+            </ol>
+            <p>
+              Do not try to solve everything with a footer of a hundred links or an “all pages”
+              block. Such lists are hard to read and do not explain how pages relate to each other.
+              A link in the text that answers the reader’s next question does more: from an article
+              on choosing an air conditioner to the installation page, from a category to the
+              delivery terms.
+            </p>
+            <p>
+              Internal links do not guarantee indexing or rankings, but without them even the best
+              page is a room with no door.
+            </p>
+          </section>
+          <aside class="related-reading">
+            <h2>Related reading</h2>
+            <ul>
+              <li><a href="/blog/uk/vnutrishni-posylannia" hreflang="uk">Українська версія</a></li>
+              <li>
+                <a href="/blog/core-web-vitals-plain-words"
+                  >Core Web Vitals in plain words for site owners</a
+                >
+              </li>
+              <li>
+                <a href="/blog/ai-crawler-readiness">What AI crawler readiness actually means</a>
+              </li>
+            </ul>
+          </aside>
+          <section class="article-sources">
+            <h2>Sources and verification</h2>
+            <ul>
+              <li>
+                <a
+                  href="https://developers.google.com/search/docs/crawling-indexing/links-crawlable"
+                  >Google: Link best practices</a
+                >
+              </li>
+              <li>
+                <a
+                  href="https://developers.google.com/search/docs/crawling-indexing/sitemaps/overview"
+                  >Google: What is a sitemap</a
+                >
+              </li>
+            </ul>
+            <p>
+              External guidance checked on November 13, 2026. The examples are illustrative: they do
+              not describe client results and do not promise search positions.
+            </p>
+          </section>
+        </article>
+        <p class="content-cta">
+          <a href="/">Check your site</a> ·
+          <a href="/knowledge-base">Practical guides (in Ukrainian)</a> ·
+          <a href="/blog">Articles for site owners</a>
+        </p>
+        <footer class="site-footer">
+          <a href="/blog">&#x2190; All notes</a>
+          <a href="/knowledge-base">Knowledge base (in Ukrainian)</a
+          ><span class="powered-by"
+            ><a
+              class="powered-by__link"
+              href="https://flux-lab.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-t-label="blog.poweredByAria"
+              aria-label="Created by FluxLab (opens in a new tab)"
+              ><span class="powered-by__mark" aria-hidden="true">◈</span
+              ><span data-t="blog.poweredBy">Created by FluxLab</span></a
+            ></span
+          >
+        </footer>
+      </main>
+    </div>
+    <script src="/blog/public-links.js"></script>
+    <script src="/blog/attribution.js"></script>
+    <script src="/blog/blog.js"></script>
+  </body>
+</html>
