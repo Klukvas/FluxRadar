@@ -1,0 +1,213 @@
+# Blog topic queue for the scheduled blog agent. The playbook is apps/web/blog-authoring/README.md.
+#
+# The agent writes the first two `todo` topics on each run, in Ukrainian and English.
+# Status values:
+#   todo      ready to write, in queue order
+#   done      written; published, uk_slug and en_slug are filled in
+#   proposed  suggested by the agent; the owner changes it to `todo` to approve it
+#
+# Reorder, edit or delete `todo` topics freely. The agent reads the file fresh
+# on every run.
+
+topics:
+  - id: core-web-vitals-for-owners
+    status: todo
+    title_uk: Core Web Vitals простими словами для власника сайту
+    title_en: Core Web Vitals in plain words for site owners
+    angle: >-
+      What LCP, INP and CLS measure, how a visitor feels each one, field versus
+      lab data, and which fixes usually belong to a developer and which to the
+      content team.
+    related: [/blog/uk/shvydkist-i-zaiavky, /knowledge-base/shvydkist-saitu]
+
+  - id: internal-linking
+    status: todo
+    title_uk: Внутрішні посилання, щоб важливі сторінки знаходили
+    title_en: Internal links that get important pages found
+    angle: >-
+      Orphan pages, click depth, descriptive anchor text and navigation that
+      exists only in JavaScript. How to find important pages that nothing links to.
+    related: [/blog/uk/chomu-storinka-ne-indeksuietsia]
+
+  - id: security-headers
+    status: todo
+    title_uk: Заголовки безпеки без жаргону — HSTS, CSP та інші
+    title_en: Security headers without the jargon — HSTS, CSP and friends
+    angle: >-
+      What each common response header protects against, what a missing one
+      means, and how to roll out CSP without breaking the site.
+    related: [/blog/uk/bezpeka-publichnoho-saitu]
+
+  - id: email-domain-auth
+    status: todo
+    title_uk: SPF, DKIM і DMARC для домену сайту
+    title_en: SPF, DKIM and DMARC for your website's domain
+    angle: >-
+      Why a website owner should care about mail authentication, what each
+      record does, safe DMARC rollout from p=none, and common mistakes.
+    related: [/blog/uk/novi-perevirky-saitu]
+
+  - id: structured-data-small-business
+    status: todo
+    title_uk: Структуровані дані для малого бізнесу — що справді варто додати
+    title_en: Structured data for a small business — what is worth adding
+    angle: >-
+      Organization, LocalBusiness, Product, BreadcrumbList and FAQ. Eligibility is
+      not a guarantee of rich results, and markup must match the visible content.
+    related: [/knowledge-base/strukturovani-dani, /blog/uk/seo-dlia-lokalnoho-biznesu]
+
+  - id: title-and-description
+    status: todo
+    title_uk: Title і опис сторінки, на які хочеться клікнути
+    title_en: Page titles and descriptions people want to click
+    angle: >-
+      Unique titles per template, length versus truncation, when search engines
+      rewrite them, and duplicate titles across catalogue pages.
+    related: [/knowledge-base/title-opysy-zaholovky]
+
+  - id: images-alt-formats
+    status: todo
+    title_uk: Зображення на сайті — alt, формати та ліниве завантаження
+    title_en: Website images — alt text, formats and lazy loading
+    angle: >-
+      Alt text for people first, modern formats, explicit dimensions against
+      layout shift, and why the hero image must not be lazy-loaded.
+    related: [/blog/uk/dostupnist-form-zaiavky]
+
+  - id: redirect-chains-404
+    status: todo
+    title_uk: Ланцюжки редиректів і 404 після чистки контенту
+    title_en: Redirect chains and 404s after a content clean-up
+    angle: >-
+      When to redirect, when to return 404 or 410, how chains form over years
+      of changes, and how to check them after a clean-up.
+    related: [/knowledge-base/redyrekty-ta-404, /blog/uk/mihratsiia-saitu-bez-vtrat]
+
+  - id: javascript-rendered-sites
+    status: todo
+    title_uk: Сайт на JavaScript — що бачать пошукові та AI-краулери
+    title_en: JavaScript-rendered sites — what search and AI crawlers see
+    angle: >-
+      The initial HTML versus the rendered DOM, which crawlers render and which do
+      not, and how to check what a crawler receives. Link the FluxRadar
+      prerender case instead of repeating it.
+    related: [/blog/uk/fluxradar-html-bez-javascript, /knowledge-base/javascript-audyt]
+
+  - id: sitemap-hygiene
+    status: todo
+    title_uk: Що має бути в sitemap, а чого там бути не повинно
+    title_en: What belongs in a sitemap and what does not
+    angle: >-
+      Only canonical, indexable 200 pages; honest lastmod values; sitemap index
+      files; and sitemaps that contradict robots or canonical tags.
+    related: [/knowledge-base/sitemap-perevirka]
+
+  - id: mobile-usability
+    status: todo
+    title_uk: Мобільна зручність — кнопки, шрифти та viewport
+    title_en: Mobile usability — tap targets, fonts and the viewport
+    angle: >-
+      Viewport meta, tap target size, readable font sizes, horizontal scroll, and
+      interstitials that block content on phones.
+    related: [/blog/uk/shvydkist-i-zaiavky]
+
+  - id: accessibility-quick-wins
+    status: todo
+    title_uk: Доступність сайту — швидкі покращення, що мають значення
+    title_en: Website accessibility — quick wins that matter
+    angle: >-
+      Contrast, heading order, landmarks, link text, focus visibility and
+      language attributes. What an automated check finds and what needs a person.
+    related: [/blog/uk/dostupnist-form-zaiavky, /knowledge-base/dostupnist-form]
+
+  - id: llms-txt
+    status: todo
+    title_uk: llms.txt — що це і чи потрібен він вашому сайту
+    title_en: llms.txt — what it is and whether your site needs it
+    angle: >-
+      A proposal, not a standard. Who reads it as far as public information
+      shows, how it relates to robots.txt and sitemaps, and a measured
+      recommendation. No promises of AI visibility.
+    related: [/blog/uk/robots-dlia-ai-poshuku, /blog/uk/ai-poshuk-i-vidymist-brendu]
+
+  - id: ads-landing-page-checks
+    status: todo
+    title_uk: Технічна перевірка лендингу перед запуском реклами
+    title_en: Technical checks for a landing page before you run ads
+    angle: >-
+      Speed on mobile, working forms, consent and analytics firing, redirects
+      that drop UTM or click parameters, and a matching message.
+    related: [/blog/uk/shvydkist-i-zaiavky, /blog/uk/pryvachnist-ta-cookie]
+
+  - id: multilingual-structure
+    status: todo
+    title_uk: Структура багатомовного сайту — папки, піддомени чи домени
+    title_en: Multilingual site structure — folders, subdomains or domains
+    angle: >-
+      The trade-offs of each structure, language selectors that crawlers can
+      follow, and why automatic redirects by IP or browser language hurt.
+    related: [/blog/uk/hreflang-dlia-ukrainskoho-saitu]
+
+  - id: server-errors-uptime
+    status: todo
+    title_uk: Помилки 5xx і недоступність — що бачать краулери під час збою
+    title_en: 5xx errors and downtime — what crawlers see during an outage
+    angle: >-
+      503 with Retry-After for maintenance, soft errors that return 200, and how
+      repeated failures affect crawling. Monitoring basics.
+    related: [/blog/uk/kontrol-pislia-zapusku]
+
+  - id: duplicate-content-canonical
+    status: todo
+    title_uk: Дублікати сторінок і помилки canonical на практиці
+    title_en: Duplicate pages and canonical mistakes in practice
+    angle: >-
+      Parameters, trailing slashes, http/https and www variants, and canonical
+      tags that point at redirects or noindex pages. How to pick one address.
+    related: [/knowledge-base/canonical-ta-dublikaty]
+
+  - id: faq-pages
+    status: todo
+    title_uk: Сторінка FAQ — коли вона допомагає людям і пошуку
+    title_en: FAQ pages — when they help people and search
+    angle: >-
+      Answer real questions from support and sales, avoid thin duplicate answers,
+      and the current limits of FAQ rich results.
+    related: [/blog/uk/kontent-shcho-dopomahaie-obraty]
+
+  - id: measuring-fix-impact
+    status: todo
+    title_uk: Як оцінити ефект виправлень після аудиту
+    title_en: How to measure the effect of fixes after an audit
+    angle: >-
+      Rescan the same sample, separate technical health from traffic, account for
+      seasonality and crawl delay, and report honestly to a client.
+    related: [/knowledge-base/povtornyi-audyt, /blog/uk/metryky-bez-marnykh-tsyfr]
+
+  - id: choosing-audit-tool
+    status: todo
+    title_uk: Як обрати інструмент для аудиту сайту — на що дивитися
+    title_en: How to choose a website audit tool — what to compare
+    angle: >-
+      Crawl limits, JavaScript rendering, evidence per finding, exports, privacy,
+      and repeatability. No competitor names; describe FluxRadar only where the
+      code confirms it.
+    related: [/blog/uk/yak-zamovyty-audyt]
+
+  - id: pagination-infinite-scroll
+    status: todo
+    title_uk: Пагінація та нескінченна прокрутка без втрати сторінок
+    title_en: Pagination and infinite scroll without losing pages
+    angle: >-
+      Crawlable page links, canonical choices for paginated series, and infinite
+      scroll that still exposes real URLs.
+    related: [/blog/uk/seo-katalohu-tovariv]
+
+  - id: outdated-content-broken-links
+    status: todo
+    title_uk: Застарілий контент і биті зовнішні посилання
+    title_en: Outdated content and broken outbound links
+    angle: >-
+      How content decays, how to find dead outbound links and stale facts, and
+      whether to update, merge or remove a page.
+    related: [/blog/uk/rehuliarnyi-audyt-saitu]
