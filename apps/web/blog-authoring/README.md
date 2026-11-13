@@ -165,9 +165,14 @@ Run these from the repository root:
 
 ```bash
 pnpm install --frozen-lockfile
-pnpm --filter @fluxradar/web exec vitest run src/blog-catalog.test.ts src/blog-page.test.ts src/blog-public-locale.test.ts src/public-heads.test.ts src/public-links.test.ts
+pnpm --filter @fluxradar/web exec vitest run
 pnpm exec prettier --check apps/web/public/blog/index.html apps/web/public/blog/<en-slug> apps/web/public/blog/uk/<uk-slug>
 ```
+
+This runs the whole web suite, as CI does. Blog pages are checked by more than the
+blog tests: `inline-script-policy.test.ts`, for example, rejects any page whose
+text contains `javascript:` (even inside a code example or a sentence like "на
+JavaScript: як"), so write "JavaScript." or reword.
 
 `blog-catalog.test.ts` checks every article on disk. It confirms each one is on the
 index and in the sitemap, declares its own canonical address and language, has the
@@ -187,14 +192,22 @@ not the test.
 
 ## Merge and deploy
 
+In the cloud routine, `gh` may only search. Use the GitHub MCP tools for everything
+below (load them with ToolSearch): `mcp__github__pull_request_read` (checks, files),
+`mcp__github__merge_pull_request`, and `mcp__github__actions_list` /
+`mcp__github__actions_get` / `mcp__github__get_job_logs` for the deploy run. The `gh`
+commands are for people running this by hand.
+
 1. Wait for the PR's checks: `gh pr checks <number> --watch`. Merge only when every
    check passed. If any check fails, fix the pages, push, and wait again. After two
    failed rounds, leave the PR open, mark it draft and stop.
 2. Before merging, confirm the diff touches only the paths listed under _Pull request_
    (`gh pr diff <number> --name-only`). If it touches anything else, do not merge.
-3. Merge with `gh pr merge <number> --squash --delete-branch`. If `gh` cannot merge
-   (missing, not authenticated, refused), do not look for another route to `main`.
-   Leave the PR open and report why.
+3. Merge with a squash merge (`mcp__github__merge_pull_request` with
+   `merge_method: squash`, or `gh pr merge <number> --squash --delete-branch` by
+   hand), then delete the branch if the tool allows it. If the merge is refused, do
+   not look for another route to `main` (no direct push). Leave the PR open and
+   report why.
 4. Follow the deploy the merge started: find the `Deploy production` run for the merge
    commit (`gh run list --workflow deploy.yml --commit <sha>`) and wait for it
    (`gh run watch <id> --exit-status`). It takes about 15–25 minutes.

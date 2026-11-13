@@ -143,9 +143,12 @@ describe('every blog article describes itself consistently', () => {
   it.each(PUBLISHED.map((article) => [article.path, article] as const))(
     '%s declares its own address and language',
     (path, article) => {
-      expect(article.html).toContain(`<html lang="${article.language}"`);
-      expect(article.html).toContain(`<link rel="canonical" href="${articleUrl(path)}" />`);
-      expect(article.html).toContain(`<meta property="og:url" content="${articleUrl(path)}" />`);
+      // Prettier wraps a tag over several lines once a long slug pushes it past
+      // the print width, so compare with whitespace collapsed.
+      const head = article.html.replace(/\s+/g, ' ');
+      expect(head).toContain(`<html lang="${article.language}"`);
+      expect(head).toContain(`<link rel="canonical" href="${articleUrl(path)}" />`);
+      expect(head).toContain(`<meta property="og:url" content="${articleUrl(path)}" />`);
     },
   );
 
