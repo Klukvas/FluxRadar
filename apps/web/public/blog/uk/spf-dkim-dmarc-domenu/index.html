@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SPF, DKIM і DMARC для домену сайту | FluxRadar</title>
+    <meta
+      name="description"
+      content="Навіщо власнику сайту поштова автентифікація, що роблять записи SPF, DKIM і DMARC, як безпечно перейти від p=none до блокування і яких помилок уникати."
+    />
+    <link rel="canonical" href="https://fluxradar.net/blog/uk/spf-dkim-dmarc-domenu" />
+    <link
+      rel="alternate"
+      hreflang="uk"
+      href="https://fluxradar.net/blog/uk/spf-dkim-dmarc-domenu"
+    />
+    <link rel="alternate" hreflang="en" href="https://fluxradar.net/blog/spf-dkim-dmarc-domain" />
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href="https://fluxradar.net/blog/spf-dkim-dmarc-domain"
+    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="SPF, DKIM і DMARC для домену сайту" />
+    <meta
+      property="og:description"
+      content="Навіщо власнику сайту поштова автентифікація, що роблять записи SPF, DKIM і DMARC, як безпечно перейти від p=none до блокування і яких помилок уникати."
+    />
+    <meta property="og:url" content="https://fluxradar.net/blog/uk/spf-dkim-dmarc-domenu" />
+    <meta property="og:locale" content="uk_UA" />
+    <meta property="og:image" content="https://fluxradar.net/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="FluxRadar · fluxradar.net" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://fluxradar.net/og-image.png" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "BlogPosting",
+            "headline": "SPF, DKIM і DMARC для домену сайту",
+            "description": "Навіщо власнику сайту поштова автентифікація, що роблять записи SPF, DKIM і DMARC, як безпечно перейти від p=none до блокування і яких помилок уникати.",
+            "inLanguage": "uk",
+            "datePublished": "2026-11-16",
+            "dateModified": "2026-11-16",
+            "mainEntityOfPage": "https://fluxradar.net/blog/uk/spf-dkim-dmarc-domenu",
+            "publisher": {
+              "@type": "Organization",
+              "name": "FluxLab",
+              "url": "https://fluxradar.net"
+            }
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "FluxRadar",
+                "item": "https://fluxradar.net/"
+              },
+              {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "Блог",
+                "item": "https://fluxradar.net/blog"
+              },
+              {
+                "@type": "ListItem",
+                "position": 3,
+                "name": "SPF, DKIM і DMARC для домену сайту",
+                "item": "https://fluxradar.net/blog/uk/spf-dkim-dmarc-domenu"
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+    <link rel="stylesheet" href="/blog/blog.css" />
+    <link rel="stylesheet" href="/blog/content.css" />
+  </head>
+  <body data-blog-page="article" data-content-section="blog">
+    <nav class="menubar" aria-label="Меню сайту">
+      <a class="menubar__apple" href="/uk"
+        ><svg viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+        </svg>
+        FluxRadar</a
+      >
+      <button
+        class="menubar__toggle"
+        type="button"
+        data-menu-toggle
+        data-t-label="nav.openMenu"
+        aria-label="Відкрити меню"
+        aria-expanded="false"
+        aria-controls="menubar-links"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" fill="none" />
+        </svg>
+      </button>
+      <div id="menubar-links" class="menubar__links">
+        <div class="menubar__sheet-head">
+          <span class="menubar__sheet-brand"
+            ><svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+            </svg>
+            FluxRadar</span
+          ><span class="menubar__sheet-status" data-t="nav.systemStatus"
+            >СТАНЦІЯ АУДИТУ ПУБЛІЧНИХ САЙТІВ · v0.1</span
+          ><button
+            class="menubar__close"
+            type="button"
+            data-menu-close
+            data-t-label="nav.closeMenu"
+            aria-label="Закрити меню"
+          >
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.5" fill="none" />
+            </svg>
+          </button>
+        </div>
+        <div class="menubar__nav">
+          <span class="menubar__group-label" data-t="nav.navigate">Навігація</span
+          ><a class="menubar__item" href="/uk" data-t="nav.home">Головна</a
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Ваші збережені сайти та історія їхніх перевірок."
+            data-t="nav.profiles"
+            data-t-title="nav.profilesHint"
+          >
+            Мої сайти</button
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Налаштуйте та запустіть нову перевірку."
+            data-t="nav.scan"
+            data-t-title="nav.scanHint"
+          >
+            Перевірка</button
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Готові та поточні результати перевірок."
+            data-t="nav.reports"
+            data-t-title="nav.reportsHint"
+          >
+            Звіти</button
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Необовʼязкові підключення даних. Публічна перевірка працює без них."
+            data-t="nav.integrations"
+            data-t-title="nav.integrationsHint"
+          >
+            Інтеграції</button
+          ><a class="menubar__item" href="/uk/faq" data-t="nav.faq">FAQ</a
+          ><a class="menubar__item is-active" href="/blog" aria-current="true" data-t="nav.blog"
+            >Блог</a
+          ><span class="menubar__spacer"></span>
+        </div>
+        <div class="menubar__meta">
+          <span class="menubar__group-label" data-t="nav.system">Система</span>
+          <div class="menubar__language" data-language>
+            <span id="menubar-language-label" data-t="nav.language">Мова</span
+            ><button
+              type="button"
+              role="combobox"
+              class="menubar__language-button"
+              data-language-button
+              aria-haspopup="listbox"
+              aria-expanded="false"
+              aria-controls="menubar-language-listbox"
+              aria-labelledby="menubar-language-label"
+            >
+              <span data-language-current>Українська</span
+              ><svg class="menubar__language-caret" viewBox="0 0 10 6" aria-hidden="true">
+                <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" />
+              </svg>
+            </button>
+            <ul
+              id="menubar-language-listbox"
+              class="menubar__language-listbox"
+              role="listbox"
+              aria-labelledby="menubar-language-label"
+              hidden
+            >
+              <li
+                class="menubar__language-option"
+                role="option"
+                data-language-option="en"
+                aria-selected="false"
+              >
+                English
+              </li>
+              <li
+                class="menubar__language-option is-active"
+                role="option"
+                data-language-option="uk"
+                aria-selected="true"
+              >
+                Українська
+              </li>
+            </ul>
+          </div>
+          <span class="menubar__system" data-t="nav.systemStatus"
+            >СТАНЦІЯ АУДИТУ ПУБЛІЧНИХ САЙТІВ · v0.1</span
+          >
+        </div>
+      </div>
+    </nav>
+    <div class="blog-page content-page">
+      <main id="blog-main">
+        <nav class="breadcrumbs" aria-label="Навігаційний ланцюжок">
+          <a href="/uk">Головна</a> / <a href="/blog">Блог</a> /
+          <span>SPF, DKIM і DMARC для домену сайту</span>
+        </nav>
+        <header>
+          <p class="kicker">БЕЗПЕКА ДОМЕНУ · УКРАЇНСЬКОЮ</p>
+          <h1>SPF, DKIM і DMARC для домену сайту</h1>
+          <p class="lede">
+            Три DNS-записи, які допомагають поштовим сервісам відрізнити ваші листи від підроблених.
+            Пояснюємо, що робить кожен, у якому порядку їх налаштовувати і де найчастіше
+            помиляються.
+          </p>
+          <p class="content-date">
+            Опубліковано й перевірено: <time datetime="2026-11-16">16 листопада 2026</time>
+          </p>
+        </header>
+        <article class="content-article">
+          <p>
+            Домен сайту — це також адреса відправника. Від його імені йдуть сповіщення з форм,
+            рахунки, листи менеджерів і розсилки. Без поштової автентифікації будь-хто може написати
+            в полі «Від» вашу адресу, а поштовому сервісу одержувача буде важче відрізнити такий
+            лист від справжнього. SPF, DKIM і DMARC — це публічні записи в DNS, які описують, хто
+            має право надсилати пошту від імені домену і що робити з листами, які цю перевірку не
+            пройшли. Нижче — що робить кожен запис і як налаштувати їх без втрати власних листів.
+          </p>
+          <nav class="article-toc" aria-label="Зміст">
+            <h2>У цьому матеріалі</h2>
+            <ul>
+              <li><a href="#section-1">Чому це стосується власника сайту</a></li>
+              <li><a href="#section-2">SPF: хто має право надсилати</a></li>
+              <li><a href="#section-3">DKIM: підпис, який неможливо підробити дорогою</a></li>
+              <li><a href="#section-4">DMARC: правило для листів, які не пройшли перевірку</a></li>
+              <li><a href="#section-5">Безпечний перехід від спостереження до блокування</a></li>
+              <li><a href="#section-6">Що перевіряє FluxRadar</a></li>
+            </ul>
+          </nav>
+          <section id="section-1">
+            <h2>Чому це стосується власника сайту</h2>
+            <p>
+              Навіть якщо ви не робите розсилок, домен майже напевно надсилає листи: сповіщення з
+              форми заявки, підтвердження замовлення, відновлення пароля, листи з CRM. Часто ці
+              листи йдуть через різні сервіси, і кожен із них має бути «дозволеним» відправником.
+            </p>
+            <p>
+              Великі поштові сервіси вже вимагають автентифікації. У настановах Google для
+              відправників сказано, що всі, хто надсилає листи на акаунти Gmail, мають налаштувати
+              SPF або DKIM. Для тих, хто надсилає понад 5000 листів на день на адреси Gmail,
+              обов’язкові SPF, DKIM і DMARC, а домен у полі «Від» має бути узгоджений із доменом SPF
+              або DKIM. Навіть якщо ваш обсяг значно менший, ці записи допомагають не дати шахраям
+              видавати себе за вашу компанію.
+            </p>
+            <p>
+              Перш ніж щось змінювати, з’ясуйте, хто керує DNS домену і поштою: реєстратор, хостинг
+              чи ІТ-підрядник. Кожну зміну записів варто погодити й зафіксувати — коли, хто і що
+              змінив, — щоб за потреби швидко повернути попередній стан.
+            </p>
+          </section>
+          <section id="section-2">
+            <h2>SPF: хто має право надсилати</h2>
+            <p>
+              SPF — це TXT-запис у корені домену, що починається з <code>v=spf1</code> і перелічує
+              сервери та сервіси, яким дозволено надсилати пошту від вашого імені. Наприклад,
+              поштовий хостинг і сервіс розсилок підключаються через механізм <code>include:</code>,
+              який дає ваш провайдер.
+            </p>
+            <p>Що важливо знати зі специфікації SPF (RFC 7208):</p>
+            <ul>
+              <li>
+                <strong>Запис має бути один.</strong> Якщо їх кілька, перевірка завершується
+                постійною помилкою (<code>permerror</code>). Так часто стається після зміни
+                провайдера, коли новий запис додали, а старий не видалили.
+              </li>
+              <li>
+                <strong>Не більше 10 DNS-запитів.</strong> Механізми <code>include</code>,
+                <code>a</code>, <code>mx</code>, <code>ptr</code>, <code>exists</code> і модифікатор
+                <code>redirect</code> рахуються в цей ліміт. Якщо його перевищено, результат теж
+                <code>permerror</code>. Кожен новий сервіс з <code>include:</code> наближає до межі.
+              </li>
+              <li>
+                <strong>Закінчення запису має значення.</strong> <code>-all</code> чітко каже, що
+                інші відправники не мають права; <code>~all</code> — м’якше «ймовірно, не має
+                права». А <code>+all</code> дозволяє будь-якому серверу в інтернеті, тобто фактично
+                скасовує сенс запису.
+              </li>
+            </ul>
+            <p>
+              Якщо домен узагалі не надсилає пошту, можна опублікувати SPF, який не дозволяє жодного
+              відправника: <code>v=spf1 -all</code>.
+            </p>
+          </section>
+          <section id="section-3">
+            <h2>DKIM: підпис, який неможливо підробити дорогою</h2>
+            <p>
+              DKIM додає до кожного листа криптографічний підпис. Специфікація DKIM (RFC 6376)
+              описує це як спосіб для домену взяти відповідальність за повідомлення. Сервер
+              одержувача знаходить відкритий ключ у DNS і перевіряє, що підписані частини листа не
+              змінювали після відправлення.
+            </p>
+            <p>
+              Ключ публікується за адресою <code>селектор._domainkey.ваш-домен</code>. Селектор — це
+              довільна назва, яку обирає поштовий сервіс. Завдяки селекторам один домен може мати
+              кілька ключів: окремий для пошти співробітників, окремий для сервісу розсилок, і
+              змінювати їх без збоїв. Google у настановах для відправників на особисті акаунти Gmail
+              вимагає ключ щонайменше 1024 біти й радить 2048.
+            </p>
+            <p>
+              На практиці DKIM вмикають у панелі кожного сервісу, який надсилає листи від вашого
+              імені: він показує, який запис додати в DNS. Пам’ятайте, що зовні не видно, які
+              селектори використовує домен, тому перелік сервісів-відправників варто вести
+              самостійно.
+            </p>
+          </section>
+          <section id="section-4">
+            <h2>DMARC: правило для листів, які не пройшли перевірку</h2>
+            <p>
+              DMARC пов’язує SPF і DKIM з адресою, яку бачить людина в полі «Від». Лист проходить
+              DMARC, якщо пройшла перевірка SPF або DKIM і при цьому перевірений домен узгоджений із
+              доменом у полі «Від». Запис публікують як TXT за адресою
+              <code>_dmarc.ваш-домен</code>; він починається з <code>v=DMARC1</code>.
+            </p>
+            <p>
+              Актуальна специфікація DMARC (RFC 9989, травень 2026 року) зберігає три політики в
+              тезі <code>p</code>:
+            </p>
+            <ul>
+              <li><code>p=none</code> — лише спостерігати, нічого не змінюючи в доставлянні;</li>
+              <li>
+                <code>p=quarantine</code> — вважати листи, що не пройшли перевірку, підозрілими
+                (зазвичай це папка «Спам»);
+              </li>
+              <li><code>p=reject</code> — відхиляти такі листи.</li>
+            </ul>
+            <p>
+              Тег <code>rua</code> вказує адресу для зведених звітів. У них поштові сервіси
+              повідомляють, з яких серверів приходили листи від імені вашого домену і чи пройшли
+              вони перевірку. Саме звіти показують, які законні сервіси ви забули налаштувати.
+            </p>
+          </section>
+          <section id="section-5">
+            <h2>Безпечний перехід від спостереження до блокування</h2>
+            <p>
+              Найбільша помилка — одразу поставити <code>p=reject</code>. Якщо хоча б один законний
+              сервіс, наприклад система рахунків, не налаштований, його листи почнуть зникати.
+              Безпечніший порядок:
+            </p>
+            <ol>
+              <li>
+                Складіть перелік усіх сервісів, що надсилають пошту від імені домену: поштовий
+                хостинг, форма на сайті, CRM, розсилки, бухгалтерія, служба підтримки.
+              </li>
+              <li>Налаштуйте один коректний SPF і DKIM для кожного з них.</li>
+              <li>
+                Опублікуйте DMARC з <code>p=none</code> і адресою в <code>rua</code>. Кілька тижнів
+                читайте звіти: шукайте свої сервіси, які не проходять перевірку, і виправляйте їх.
+              </li>
+              <li>
+                Коли всі законні джерела проходять перевірку, переходьте на
+                <code>p=quarantine</code>, а згодом на <code>p=reject</code>, продовжуючи стежити за
+                звітами.
+              </li>
+            </ol>
+            <p>
+              Окремо про поширені помилки: два записи SPF замість одного; запис DMARC, доданий у
+              корінь домену замість <code>_dmarc</code>; новий сервіс розсилок, підключений без
+              оновлення SPF чи DKIM; <code>p=none</code>, який роками ніхто не переглядає. Режим
+              спостереження — корисний етап, але сам він підроблені листи не блокує.
+            </p>
+          </section>
+          <section id="section-6">
+            <h2>Що перевіряє FluxRadar</h2>
+            <p>
+              У пакеті Complete модуль Security читає публічні TXT-записи зареєстрованого домену
+              сайту та <code>_dmarc</code>. Знахідка з’являється, якщо:
+            </p>
+            <ul>
+              <li>запису SPF немає;</li>
+              <li>записів SPF кілька;</li>
+              <li>SPF дозволяє всіх відправників через <code>+all</code>;</li>
+              <li>запису DMARC немає.</li>
+            </ul>
+            <p>
+              Політика <code>p=none</code> сама окремою проблемою не вважається, але якщо поруч є
+              знахідка про SPF, у доказі зазначено, що DMARC працює в режимі спостереження і
+              підроблені листи не блокуються.
+            </p>
+            <p>
+              Межі теж важливі. FluxRadar не надсилає тестових листів і не гарантує доставляння.
+              DKIM не перевіряється, бо для цього потрібно знати селектор. Ліміт у 10 DNS-запитів
+              для SPF і узгодження доменів також не оцінюються. Тож відсутність знахідок означає
+              лише, що базові записи на місці; перелік сервісів-відправників і звіти DMARC
+              переглядайте разом із відповідальним за пошту.
+            </p>
+          </section>
+          <aside class="related-reading">
+            <h2>Читайте також</h2>
+            <ul>
+              <li><a href="/blog/spf-dkim-dmarc-domain" hreflang="en">English version</a></li>
+              <li>
+                <a href="/blog/uk/zaholovky-bezpeky"
+                  >Заголовки безпеки без жаргону: HSTS, CSP та інші</a
+                >
+              </li>
+              <li>
+                <a href="/blog/uk/novi-perevirky-saitu"
+                  >Сім нових перевірок сайту: що тепер бачить FluxRadar</a
+                >
+              </li>
+            </ul>
+          </aside>
+          <section class="article-sources">
+            <h2>Джерела та перевірка</h2>
+            <ul>
+              <li>
+                <a href="https://datatracker.ietf.org/doc/html/rfc7208">IETF RFC 7208: SPF</a>
+              </li>
+              <li>
+                <a href="https://datatracker.ietf.org/doc/html/rfc6376">IETF RFC 6376: DKIM</a>
+              </li>
+              <li>
+                <a href="https://datatracker.ietf.org/doc/html/rfc9989">IETF RFC 9989: DMARC</a>
+              </li>
+              <li>
+                <a href="https://support.google.com/a/answer/81126"
+                  >Google: настанови для відправників листів</a
+                >
+              </li>
+            </ul>
+            <p>
+              Зовнішні настанови перевірено 16 листопада 2026 року. Навчальні приклади не описують
+              результати клієнтів і не обіцяють позицій у пошуку.
+            </p>
+          </section>
+        </article>
+        <p class="content-cta">
+          <a href="/uk">Перевірте свій сайт</a> ·
+          <a href="/knowledge-base">Практичні інструкції</a> ·
+          <a href="/blog">Статті для власників сайтів</a>
+        </p>
+        <footer class="site-footer">
+          <a href="/blog">&#x2190; Усі нотатки</a> <a href="/knowledge-base">База знань</a
+          ><span class="powered-by"
+            ><a
+              class="powered-by__link"
+              href="https://flux-lab.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-t-label="blog.poweredByAria"
+              aria-label="Створено FluxLab (відкривається в новій вкладці)"
+              ><span class="powered-by__mark" aria-hidden="true">◈</span
+              ><span data-t="blog.poweredBy">Створено FluxLab</span></a
+            ></span
+          >
+        </footer>
+      </main>
+    </div>
+    <script src="/blog/public-links.js"></script>
+    <script src="/blog/attribution.js"></script>
+    <script src="/blog/blog.js"></script>
+  </body>
+</html>

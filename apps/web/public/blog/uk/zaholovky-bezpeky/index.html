@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Заголовки безпеки без жаргону: HSTS, CSP та інші | FluxRadar</title>
+    <meta
+      name="description"
+      content="Від чого захищають HSTS, CSP, nosniff, Referrer-Policy та Permissions-Policy, що означає їхня відсутність і як увімкнути CSP, не зламавши сайт."
+    />
+    <link rel="canonical" href="https://fluxradar.net/blog/uk/zaholovky-bezpeky" />
+    <link rel="alternate" hreflang="uk" href="https://fluxradar.net/blog/uk/zaholovky-bezpeky" />
+    <link
+      rel="alternate"
+      hreflang="en"
+      href="https://fluxradar.net/blog/security-headers-explained"
+    />
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href="https://fluxradar.net/blog/security-headers-explained"
+    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Заголовки безпеки без жаргону: HSTS, CSP та інші" />
+    <meta
+      property="og:description"
+      content="Від чого захищають HSTS, CSP, nosniff, Referrer-Policy та Permissions-Policy, що означає їхня відсутність і як увімкнути CSP, не зламавши сайт."
+    />
+    <meta property="og:url" content="https://fluxradar.net/blog/uk/zaholovky-bezpeky" />
+    <meta property="og:locale" content="uk_UA" />
+    <meta property="og:image" content="https://fluxradar.net/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="FluxRadar · fluxradar.net" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://fluxradar.net/og-image.png" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "BlogPosting",
+            "headline": "Заголовки безпеки без жаргону: HSTS, CSP та інші",
+            "description": "Від чого захищають HSTS, CSP, nosniff, Referrer-Policy та Permissions-Policy, що означає їхня відсутність і як увімкнути CSP, не зламавши сайт.",
+            "inLanguage": "uk",
+            "datePublished": "2026-11-16",
+            "dateModified": "2026-11-16",
+            "mainEntityOfPage": "https://fluxradar.net/blog/uk/zaholovky-bezpeky",
+            "publisher": {
+              "@type": "Organization",
+              "name": "FluxLab",
+              "url": "https://fluxradar.net"
+            }
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "FluxRadar",
+                "item": "https://fluxradar.net/"
+              },
+              {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "Блог",
+                "item": "https://fluxradar.net/blog"
+              },
+              {
+                "@type": "ListItem",
+                "position": 3,
+                "name": "Заголовки безпеки без жаргону: HSTS, CSP та інші",
+                "item": "https://fluxradar.net/blog/uk/zaholovky-bezpeky"
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+    <link rel="stylesheet" href="/blog/blog.css" />
+    <link rel="stylesheet" href="/blog/content.css" />
+  </head>
+  <body data-blog-page="article" data-content-section="blog">
+    <nav class="menubar" aria-label="Меню сайту">
+      <a class="menubar__apple" href="/uk"
+        ><svg viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+        </svg>
+        FluxRadar</a
+      >
+      <button
+        class="menubar__toggle"
+        type="button"
+        data-menu-toggle
+        data-t-label="nav.openMenu"
+        aria-label="Відкрити меню"
+        aria-expanded="false"
+        aria-controls="menubar-links"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" fill="none" />
+        </svg>
+      </button>
+      <div id="menubar-links" class="menubar__links">
+        <div class="menubar__sheet-head">
+          <span class="menubar__sheet-brand"
+            ><svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+            </svg>
+            FluxRadar</span
+          ><span class="menubar__sheet-status" data-t="nav.systemStatus"
+            >СТАНЦІЯ АУДИТУ ПУБЛІЧНИХ САЙТІВ · v0.1</span
+          ><button
+            class="menubar__close"
+            type="button"
+            data-menu-close
+            data-t-label="nav.closeMenu"
+            aria-label="Закрити меню"
+          >
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.5" fill="none" />
+            </svg>
+          </button>
+        </div>
+        <div class="menubar__nav">
+          <span class="menubar__group-label" data-t="nav.navigate">Навігація</span
+          ><a class="menubar__item" href="/uk" data-t="nav.home">Головна</a
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Ваші збережені сайти та історія їхніх перевірок."
+            data-t="nav.profiles"
+            data-t-title="nav.profilesHint"
+          >
+            Мої сайти</button
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Налаштуйте та запустіть нову перевірку."
+            data-t="nav.scan"
+            data-t-title="nav.scanHint"
+          >
+            Перевірка</button
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Готові та поточні результати перевірок."
+            data-t="nav.reports"
+            data-t-title="nav.reportsHint"
+          >
+            Звіти</button
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Необовʼязкові підключення даних. Публічна перевірка працює без них."
+            data-t="nav.integrations"
+            data-t-title="nav.integrationsHint"
+          >
+            Інтеграції</button
+          ><a class="menubar__item" href="/uk/faq" data-t="nav.faq">FAQ</a
+          ><a class="menubar__item is-active" href="/blog" aria-current="true" data-t="nav.blog"
+            >Блог</a
+          ><span class="menubar__spacer"></span>
+        </div>
+        <div class="menubar__meta">
+          <span class="menubar__group-label" data-t="nav.system">Система</span>
+          <div class="menubar__language" data-language>
+            <span id="menubar-language-label" data-t="nav.language">Мова</span
+            ><button
+              type="button"
+              role="combobox"
+              class="menubar__language-button"
+              data-language-button
+              aria-haspopup="listbox"
+              aria-expanded="false"
+              aria-controls="menubar-language-listbox"
+              aria-labelledby="menubar-language-label"
+            >
+              <span data-language-current>Українська</span
+              ><svg class="menubar__language-caret" viewBox="0 0 10 6" aria-hidden="true">
+                <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" />
+              </svg>
+            </button>
+            <ul
+              id="menubar-language-listbox"
+              class="menubar__language-listbox"
+              role="listbox"
+              aria-labelledby="menubar-language-label"
+              hidden
+            >
+              <li
+                class="menubar__language-option"
+                role="option"
+                data-language-option="en"
+                aria-selected="false"
+              >
+                English
+              </li>
+              <li
+                class="menubar__language-option is-active"
+                role="option"
+                data-language-option="uk"
+                aria-selected="true"
+              >
+                Українська
+              </li>
+            </ul>
+          </div>
+          <span class="menubar__system" data-t="nav.systemStatus"
+            >СТАНЦІЯ АУДИТУ ПУБЛІЧНИХ САЙТІВ · v0.1</span
+          >
+        </div>
+      </div>
+    </nav>
+    <div class="blog-page content-page">
+      <main id="blog-main">
+        <nav class="breadcrumbs" aria-label="Навігаційний ланцюжок">
+          <a href="/uk">Головна</a> / <a href="/blog">Блог</a> /
+          <span>Заголовки безпеки без жаргону: HSTS, CSP та інші</span>
+        </nav>
+        <header>
+          <p class="kicker">БЕЗПЕКА · УКРАЇНСЬКОЮ</p>
+          <h1>Заголовки безпеки без жаргону: HSTS, CSP та інші</h1>
+          <p class="lede">
+            Що кожен поширений заголовок відповіді каже браузеру, чим ризикує сайт без нього і в
+            якому порядку вмикати захист, щоб не заблокувати форму чи оплату.
+          </p>
+          <p class="content-date">
+            Опубліковано й перевірено: <time datetime="2026-11-16">16 листопада 2026</time>
+          </p>
+        </header>
+        <article class="content-article">
+          <p>
+            У звіті аудиту рядок «Відсутні заголовки безпеки» виглядає як щось для розробника. Але
+            рішення, які за ним стоять, стосуються й власника: чи можна відкрити сайт через
+            незахищене з’єднання, чи може чужий сайт показати вашу сторінку у фреймі, яку інформацію
+            браузер передає іншим сайтам. У цьому матеріалі пояснюємо кожен заголовок простими
+            словами, показуємо, які значення радять відкриті настанови, і де поспіх може зламати
+            робочий сайт.
+          </p>
+          <nav class="article-toc" aria-label="Зміст">
+            <h2>У цьому матеріалі</h2>
+            <ul>
+              <li><a href="#section-1">Що таке заголовок відповіді</a></li>
+              <li><a href="#section-2">HSTS: лише HTTPS, навіть якщо хтось набрав http</a></li>
+              <li><a href="#section-3">Три базові заголовки для кожної HTML-сторінки</a></li>
+              <li><a href="#section-4">Content-Security-Policy без зламаних форм</a></li>
+              <li><a href="#section-5">Permissions-Policy і заголовки, які вже не потрібні</a></li>
+              <li><a href="#section-6">Що перевіряє FluxRadar і як читати знахідку</a></li>
+            </ul>
+          </nav>
+          <section id="section-1">
+            <h2>Що таке заголовок відповіді</h2>
+            <p>
+              Коли браузер відкриває сторінку, сервер надсилає не лише HTML, а й службові рядки —
+              заголовки відповіді. Відвідувач їх не бачить, але браузер виконує записані в них
+              правила. Заголовки безпеки — це інструкції на кшталт «відкривай цей сайт лише через
+              HTTPS» або «не показуй цю сторінку всередині чужого сайту».
+            </p>
+            <p>
+              Важливо розуміти межі. Заголовок не виправляє вразливість у коді і не захищає закритий
+              кабінет. Він зменшує шкоду від окремих типів атак у браузері відвідувача. Тому
+              відсутній заголовок — привід перевірити налаштування, а не доказ, що сайт уже зламано.
+              Ширше про межі пасивної перевірки ми писали в статті про безпеку публічного сайту.
+            </p>
+            <p>
+              Подивитися заголовки можна без окремих сервісів. Відкрийте інструменти розробника в
+              браузері, перейдіть на вкладку «Мережа» (Network), оновіть сторінку, виберіть перший
+              запит і перегляньте заголовки відповіді. Порівняйте головну, сторінку послуги чи
+              товару і сторінку з формою: їх можуть обслуговувати різні шаблони або навіть різні
+              сервери, тож і заголовки можуть відрізнятися.
+            </p>
+          </section>
+          <section id="section-2">
+            <h2>HSTS: лише HTTPS, навіть якщо хтось набрав http</h2>
+            <p>
+              <code>Strict-Transport-Security</code> (HSTS) повідомляє браузеру, що хост треба
+              відкривати тільки через HTTPS. Після першого захищеного візиту браузер сам перетворює
+              спроби відкрити адресу через http на https і, за описом MDN, не дає користувачеві
+              обійти помилку сертифіката.
+            </p>
+            <ul>
+              <li>
+                <code>max-age</code> — скільки секунд браузер пам’ятає правило. Значення
+                <code>0</code> скасовує політику, але лише коли браузер отримає таку відповідь через
+                HTTPS.
+              </li>
+              <li>
+                <code>includeSubDomains</code> поширює правило на всі піддомени. Перш ніж його
+                додавати, перевірте, що кожен піддомен, зокрема старий тестовий чи поштовий
+                веб-інтерфейс, працює через HTTPS.
+              </li>
+              <li>
+                <code>preload</code> — заявка до списку, який браузери вбудовують заздалегідь. MDN
+                наголошує, що це не частина специфікації і що для неї потрібні
+                <code>max-age</code> щонайменше рік та <code>includeSubDomains</code>.
+              </li>
+            </ul>
+            <p>
+              Браузер ігнорує HSTS, надісланий через звичайний HTTP. Тому стандартна схема така:
+              HTTP-адреса відповідає постійним перенаправленням на HTTPS, а вже HTTPS-відповідь
+              містить заголовок. OWASP попереджає: помилка в налаштуванні або проблема із
+              сертифікатом може закрити доступ відвідувачам на весь строк <code>max-age</code>.
+              Розумно почати з короткого строку, переконатися, що все працює, і лише потім збільшити
+              його до року.
+            </p>
+          </section>
+          <section id="section-3">
+            <h2>Три базові заголовки для кожної HTML-сторінки</h2>
+            <p>
+              Ці заголовки прості, рідко щось ламають і зазвичай додаються одним рядком у
+              конфігурації сервера чи CDN.
+            </p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Заголовок</th>
+                  <th>Що робить</th>
+                  <th>Значення з настанов OWASP</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>X-Content-Type-Options</code></td>
+                  <td>Забороняє браузеру «вгадувати» тип файлу всупереч тому, що вказав сервер.</td>
+                  <td><code>nosniff</code></td>
+                </tr>
+                <tr>
+                  <td><code>X-Frame-Options</code> або <code>frame-ancestors</code> у CSP</td>
+                  <td>
+                    Не дає чужому сайту вбудувати вашу сторінку у фрейм і накрити її оманливими
+                    кнопками.
+                  </td>
+                  <td>
+                    <code>frame-ancestors</code> там, де можливо; інакше
+                    <code>X-Frame-Options: DENY</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>Referrer-Policy</code></td>
+                  <td>
+                    Визначає, яку частину адреси сторінки браузер передає сайту, на який переходить
+                    відвідувач.
+                  </td>
+                  <td><code>strict-origin-when-cross-origin</code></td>
+                </tr>
+              </tbody>
+            </table>
+            <p>
+              Одне застереження щодо фреймів: якщо ваш віджет, калькулятор або форму свідомо
+              вбудовують на сайти партнерів, повна заборона це зламає. У такому разі в
+              <code>frame-ancestors</code> перелічують дозволені домени. Referrer-Policy варто
+              задати явно, а не покладатися на типову поведінку браузера: так ви знаєте, що адреси з
+              параметрами, наприклад пошукові запити на сайті, не передаються повністю стороннім
+              сервісам.
+            </p>
+          </section>
+          <section id="section-4">
+            <h2>Content-Security-Policy без зламаних форм</h2>
+            <p>
+              <code>Content-Security-Policy</code> (CSP) — найпотужніший і найвибагливіший
+              заголовок. Він перелічує, звідки сторінці дозволено завантажувати скрипти, стилі,
+              зображення та інші ресурси. Якщо зловмисникові вдасться вставити на сторінку чужий
+              скрипт, добре налаштована політика може не дати йому виконатися. OWASP прямо називає
+              CSP складним у налаштуванні та підтримці.
+            </p>
+            <p>
+              Головний ризик — скопіювати сувору політику з інтернету. Вона одразу заблокує
+              аналітику, чат, платіжний віджет або вбудовані скрипти шаблону, і помітите ви це не
+              відразу. Безпечніший порядок:
+            </p>
+            <ol>
+              <li>
+                Складіть перелік сторонніх сервісів: аналітика, реклама, чат, оплата, шрифти, відео,
+                карти.
+              </li>
+              <li>
+                Увімкніть політику в режимі <code>Content-Security-Policy-Report-Only</code>. За
+                описом MDN, цей заголовок фіксує порушення, але не застосовує політику, тобто нічого
+                не блокує.
+              </li>
+              <li>
+                Налаштуйте збирання звітів через директиву <code>report-to</code> (MDN радить
+                додавати й застарілу <code>report-uri</code>, бо <code>report-to</code> підтримують
+                не всі браузери) і пройдіть ключові сценарії: заявка, кошик, оплата, вхід.
+              </li>
+              <li>
+                Виправте або явно дозвольте потрібні джерела, і лише тоді переведіть політику в
+                робочий заголовок <code>Content-Security-Policy</code>.
+              </li>
+            </ol>
+            <p>
+              Після кожного нового підключеного сервісу політику треба переглядати. Це звичайна
+              частина обслуговування сайту, а не одноразове налаштування.
+            </p>
+          </section>
+          <section id="section-5">
+            <h2>Permissions-Policy і заголовки, які вже не потрібні</h2>
+            <p>
+              <code>Permissions-Policy</code> вимикає функції браузера, якими сайт не користується:
+              камеру, мікрофон, геолокацію. OWASP наводить приклад
+              <code>geolocation=(), camera=(), microphone=()</code>. Для сайту-візитки чи магазину
+              це спокійний крок: якщо функція не потрібна, сторонній скрипт на сторінці не зможе її
+              запросити.
+            </p>
+            <p>
+              Буває й навпаки: у старих інструкціях досі радять <code>X-XSS-Protection</code>. OWASP
+              рекомендує не задавати його або явно вимкнути значенням <code>0</code>, бо цей
+              механізм старих браузерів сам міг створювати вразливості. Захист від вставлених
+              скриптів сьогодні будують через CSP. Якщо підрядник пропонує «додати всі заголовки
+              безпеки зі списку», попросіть пояснити, навіщо кожен із них саме вашому сайту.
+            </p>
+          </section>
+          <section id="section-6">
+            <h2>Що перевіряє FluxRadar і як читати знахідку</h2>
+            <p>
+              Заголовки безпеки входять до модуля Security, який доступний у пакеті Complete.
+              Перевірки пасивні: FluxRadar читає відповіді, які сайт і так віддає будь-якому
+              відвідувачу.
+            </p>
+            <ul>
+              <li>
+                <strong>HSTS</strong> перевіряється у відповіді головної сторінки HTTPS-сайту.
+                Знахідка з’являється, якщо заголовка немає або в ньому немає додатного
+                <code>max-age</code>. Для сайту лише на HTTP правило не застосовується.
+              </li>
+              <li>
+                <strong>Базові заголовки</strong> перевіряються на кожній успішній HTML-сторінці:
+                <code>X-Content-Type-Options: nosniff</code>, захист від фреймів (<code
+                  >X-Frame-Options</code
+                >
+                або <code>frame-ancestors</code> у CSP) та непорожній <code>Referrer-Policy</code>.
+                Знахідка перелічує, чого саме бракує.
+              </li>
+              <li>
+                <strong>CSP</strong> і <strong>Permissions-Policy</strong> перевіряються на
+                наявність непорожнього заголовка. Чи достатньо сувора сама політика, автоматична
+                перевірка не оцінює.
+              </li>
+            </ul>
+            <p>
+              Спершу порівняйте сторінки: якщо заголовок відсутній скрізь, його найпростіше додати
+              на рівні сервера чи CDN; якщо лише на частині, шукайте окремий шаблон або піддомен з
+              іншою конфігурацією. Після зміни запустіть повторну перевірку і окремо вручну пройдіть
+              форми та оплату. Знахідка показує відсутній сигнал, але не доводить, що сайт
+              атакували, і не замінює тестування застосунку з погодженим доступом.
+            </p>
+          </section>
+          <aside class="related-reading">
+            <h2>Читайте також</h2>
+            <ul>
+              <li><a href="/blog/security-headers-explained" hreflang="en">English version</a></li>
+              <li>
+                <a href="/blog/uk/spf-dkim-dmarc-domenu">SPF, DKIM і DMARC для домену сайту</a>
+              </li>
+              <li>
+                <a href="/blog/uk/bezpeka-publichnoho-saitu"
+                  >Безпека публічного сайту: межі автоматичного аудиту</a
+                >
+              </li>
+            </ul>
+          </aside>
+          <section class="article-sources">
+            <h2>Джерела та перевірка</h2>
+            <ul>
+              <li>
+                <a
+                  href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Strict-Transport-Security"
+                  >MDN: Strict-Transport-Security</a
+                >
+              </li>
+              <li>
+                <a
+                  href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy-Report-Only"
+                  >MDN: Content-Security-Policy-Report-Only</a
+                >
+              </li>
+              <li>
+                <a
+                  href="https://cheatsheetseries.owasp.org/cheatsheets/HTTP_Headers_Cheat_Sheet.html"
+                  >OWASP: HTTP Headers Cheat Sheet</a
+                >
+              </li>
+            </ul>
+            <p>
+              Зовнішні настанови перевірено 16 листопада 2026 року. Навчальні приклади не описують
+              результати клієнтів і не обіцяють позицій у пошуку.
+            </p>
+          </section>
+        </article>
+        <p class="content-cta">
+          <a href="/uk">Перевірте свій сайт</a> ·
+          <a href="/knowledge-base">Практичні інструкції</a> ·
+          <a href="/blog">Статті для власників сайтів</a>
+        </p>
+        <footer class="site-footer">
+          <a href="/blog">&#x2190; Усі нотатки</a> <a href="/knowledge-base">База знань</a
+          ><span class="powered-by"
+            ><a
+              class="powered-by__link"
+              href="https://flux-lab.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-t-label="blog.poweredByAria"
+              aria-label="Створено FluxLab (відкривається в новій вкладці)"
+              ><span class="powered-by__mark" aria-hidden="true">◈</span
+              ><span data-t="blog.poweredBy">Створено FluxLab</span></a
+            ></span
+          >
+        </footer>
+      </main>
+    </div>
+    <script src="/blog/public-links.js"></script>
+    <script src="/blog/attribution.js"></script>
+    <script src="/blog/blog.js"></script>
+  </body>
+</html>
