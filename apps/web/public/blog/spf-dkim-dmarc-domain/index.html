@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SPF, DKIM and DMARC for your website's domain | FluxRadar</title>
+    <meta
+      name="description"
+      content="Why a website owner should care about mail authentication, what SPF, DKIM and DMARC records do, how to move safely from p=none, and common mistakes."
+    />
+    <link rel="canonical" href="https://fluxradar.net/blog/spf-dkim-dmarc-domain" />
+    <link
+      rel="alternate"
+      hreflang="uk"
+      href="https://fluxradar.net/blog/uk/spf-dkim-dmarc-domenu"
+    />
+    <link rel="alternate" hreflang="en" href="https://fluxradar.net/blog/spf-dkim-dmarc-domain" />
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href="https://fluxradar.net/blog/spf-dkim-dmarc-domain"
+    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="SPF, DKIM and DMARC for your website's domain" />
+    <meta
+      property="og:description"
+      content="Why a website owner should care about mail authentication, what SPF, DKIM and DMARC records do, how to move safely from p=none, and common mistakes."
+    />
+    <meta property="og:url" content="https://fluxradar.net/blog/spf-dkim-dmarc-domain" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://fluxradar.net/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="FluxRadar · fluxradar.net" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://fluxradar.net/og-image.png" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "BlogPosting",
+            "headline": "SPF, DKIM and DMARC for your website's domain",
+            "description": "Why a website owner should care about mail authentication, what SPF, DKIM and DMARC records do, how to move safely from p=none, and common mistakes.",
+            "inLanguage": "en",
+            "datePublished": "2026-11-16",
+            "dateModified": "2026-11-16",
+            "mainEntityOfPage": "https://fluxradar.net/blog/spf-dkim-dmarc-domain",
+            "publisher": {
+              "@type": "Organization",
+              "name": "FluxLab",
+              "url": "https://fluxradar.net"
+            }
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "FluxRadar",
+                "item": "https://fluxradar.net/"
+              },
+              {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "Blog",
+                "item": "https://fluxradar.net/blog"
+              },
+              {
+                "@type": "ListItem",
+                "position": 3,
+                "name": "SPF, DKIM and DMARC for your website's domain",
+                "item": "https://fluxradar.net/blog/spf-dkim-dmarc-domain"
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+    <link rel="stylesheet" href="/blog/blog.css" />
+    <link rel="stylesheet" href="/blog/content.css" />
+  </head>
+  <body data-blog-page="article" data-content-section="blog">
+    <nav class="menubar" aria-label="Site menu">
+      <a class="menubar__apple" href="/"
+        ><svg viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+        </svg>
+        FluxRadar</a
+      >
+      <button
+        class="menubar__toggle"
+        type="button"
+        data-menu-toggle
+        data-t-label="nav.openMenu"
+        aria-label="Open menu"
+        aria-expanded="false"
+        aria-controls="menubar-links"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" fill="none" />
+        </svg>
+      </button>
+      <div id="menubar-links" class="menubar__links">
+        <div class="menubar__sheet-head">
+          <span class="menubar__sheet-brand"
+            ><svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+            </svg>
+            FluxRadar</span
+          ><span class="menubar__sheet-status" data-t="nav.systemStatus"
+            >PUBLIC WEB AUDIT STATION · v0.1</span
+          ><button
+            class="menubar__close"
+            type="button"
+            data-menu-close
+            data-t-label="nav.closeMenu"
+            aria-label="Close menu"
+          >
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.5" fill="none" />
+            </svg>
+          </button>
+        </div>
+        <div class="menubar__nav">
+          <span class="menubar__group-label" data-t="nav.navigate">Navigate</span
+          ><a class="menubar__item" href="/" data-t="nav.home">Home</a
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Your saved sites and their check history."
+            data-t="nav.profiles"
+            data-t-title="nav.profilesHint"
+          >
+            My sites</button
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Set up and start a new audit."
+            data-t="nav.scan"
+            data-t-title="nav.scanHint"
+          >
+            Scan</button
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Completed and in-progress audit results."
+            data-t="nav.reports"
+            data-t-title="nav.reportsHint"
+          >
+            Reports</button
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Optional data connections. The public-site scan works without them."
+            data-t="nav.integrations"
+            data-t-title="nav.integrationsHint"
+          >
+            Integrations</button
+          ><a class="menubar__item" href="/faq" data-t="nav.faq">FAQ</a
+          ><a class="menubar__item is-active" href="/blog" aria-current="true" data-t="nav.blog"
+            >Blog</a
+          ><span class="menubar__spacer"></span>
+        </div>
+        <div class="menubar__meta">
+          <span class="menubar__group-label" data-t="nav.system">System</span>
+          <div class="menubar__language" data-language>
+            <span id="menubar-language-label" data-t="nav.language">Language</span
+            ><button
+              type="button"
+              role="combobox"
+              class="menubar__language-button"
+              data-language-button
+              aria-haspopup="listbox"
+              aria-expanded="false"
+              aria-controls="menubar-language-listbox"
+              aria-labelledby="menubar-language-label"
+            >
+              <span data-language-current>English</span
+              ><svg class="menubar__language-caret" viewBox="0 0 10 6" aria-hidden="true">
+                <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" />
+              </svg>
+            </button>
+            <ul
+              id="menubar-language-listbox"
+              class="menubar__language-listbox"
+              role="listbox"
+              aria-labelledby="menubar-language-label"
+              hidden
+            >
+              <li
+                class="menubar__language-option is-active"
+                role="option"
+                data-language-option="en"
+                aria-selected="true"
+              >
+                English
+              </li>
+              <li
+                class="menubar__language-option"
+                role="option"
+                data-language-option="uk"
+                aria-selected="false"
+              >
+                Українська
+              </li>
+            </ul>
+          </div>
+          <span class="menubar__system" data-t="nav.systemStatus"
+            >PUBLIC WEB AUDIT STATION · v0.1</span
+          >
+        </div>
+      </div>
+    </nav>
+    <div class="blog-page content-page">
+      <main id="blog-main">
+        <nav class="breadcrumbs" aria-label="Breadcrumb">
+          <a href="/">Home</a> / <a href="/blog">Blog</a> /
+          <span>SPF, DKIM and DMARC for your website's domain</span>
+        </nav>
+        <header>
+          <p class="kicker">DOMAIN SECURITY · IN ENGLISH</p>
+          <h1>SPF, DKIM and DMARC for your website's domain</h1>
+          <p class="lede">
+            Three DNS records that help mailbox providers tell your mail from forgeries. What each
+            one does, the order to set them up in, and where people usually go wrong.
+          </p>
+          <p class="content-date">
+            Published and checked: <time datetime="2026-11-16">November 16, 2026</time>
+          </p>
+        </header>
+        <article class="content-article">
+          <p>
+            Your website's domain is also a sender address. Form notifications, invoices, staff
+            email and newsletters all go out in its name. Without mail authentication, anyone can
+            put your address in the From field, and the recipient's mail service has a harder time
+            telling that message from a real one. SPF, DKIM and DMARC are public DNS records that
+            say who may send mail for the domain and what to do with messages that fail the check.
+            Here is what each record does and how to set them up without losing your own mail.
+          </p>
+          <nav class="article-toc" aria-label="Contents">
+            <h2>In this article</h2>
+            <ul>
+              <li><a href="#section-1">Why this is a website owner's concern</a></li>
+              <li><a href="#section-2">SPF: who is allowed to send</a></li>
+              <li><a href="#section-3">DKIM: a signature that cannot be altered in transit</a></li>
+              <li><a href="#section-4">DMARC: a rule for mail that fails the check</a></li>
+              <li><a href="#section-5">Moving safely from monitoring to blocking</a></li>
+              <li><a href="#section-6">What FluxRadar checks</a></li>
+            </ul>
+          </nav>
+          <section id="section-1">
+            <h2>Why this is a website owner's concern</h2>
+            <p>
+              Even if you never send a newsletter, your domain almost certainly sends email: enquiry
+              form notifications, order confirmations, password resets, messages from a CRM. These
+              often go out through different services, and each one needs to be an authorised
+              sender.
+            </p>
+            <p>
+              Large mailbox providers already require authentication. Google's sender guidelines say
+              that everyone sending to Gmail accounts must set up SPF or DKIM. Anyone sending more
+              than 5,000 messages a day to Gmail addresses must set up SPF, DKIM and DMARC, and the
+              domain in the From header must align with the SPF or DKIM domain. Even if your volume
+              is far lower, these records make it harder for fraudsters to pose as your business.
+            </p>
+            <p>
+              Before changing anything, find out who manages the domain's DNS and your mail: the
+              registrar, the host or an IT contractor. Agree each record change and write it down,
+              with when, who and what changed, so you can quickly restore the previous state if
+              needed.
+            </p>
+          </section>
+          <section id="section-2">
+            <h2>SPF: who is allowed to send</h2>
+            <p>
+              SPF is a TXT record at the root of your domain. It starts with <code>v=spf1</code> and
+              lists the servers and services allowed to send mail in your name. Your mail host and
+              your newsletter service are usually added with an <code>include:</code> mechanism that
+              the provider gives you.
+            </p>
+            <p>Points from the SPF specification (RFC 7208) worth knowing:</p>
+            <ul>
+              <li>
+                <strong>There must be exactly one record.</strong> If there are several, the check
+                ends in a permanent error (<code>permerror</code>). This often happens after a
+                change of provider, when the new record was added and the old one was never removed.
+              </li>
+              <li>
+                <strong>No more than 10 DNS lookups.</strong> The <code>include</code>,
+                <code>a</code>, <code>mx</code>, <code>ptr</code> and <code>exists</code> mechanisms
+                and the <code>redirect</code> modifier count toward the limit. Going over it is also
+                a <code>permerror</code>. Every extra <code>include:</code> brings you closer.
+              </li>
+              <li>
+                <strong>The ending matters.</strong> <code>-all</code> states clearly that other
+                senders are not authorised; <code>~all</code> is a softer "probably not authorised".
+                <code>+all</code> authorises every server on the internet, which defeats the point
+                of the record.
+              </li>
+            </ul>
+            <p>
+              If the domain sends no mail at all, you can publish an SPF record that authorises
+              nobody: <code>v=spf1 -all</code>.
+            </p>
+          </section>
+          <section id="section-3">
+            <h2>DKIM: a signature that cannot be altered in transit</h2>
+            <p>
+              DKIM adds a cryptographic signature to each message. The DKIM specification (RFC 6376)
+              describes it as a way for a domain to claim some responsibility for a message. The
+              receiving server finds the public key in DNS and checks that the signed parts of the
+              message were not changed after sending.
+            </p>
+            <p>
+              The key is published at <code>selector._domainkey.yourdomain</code>. The selector is a
+              name the mail service picks. Selectors let one domain hold several keys at once, for
+              example one for staff mail and one for the newsletter service, and rotate them without
+              breaking anything. For mail sent to personal Gmail accounts, Google requires a key of
+              at least 1024 bits and recommends 2048.
+            </p>
+            <p>
+              In practice, you switch DKIM on in the dashboard of each service that sends mail for
+              you, and it shows the DNS record to add. Selectors are not visible from outside, so
+              keep your own list of sending services.
+            </p>
+          </section>
+          <section id="section-4">
+            <h2>DMARC: a rule for mail that fails the check</h2>
+            <p>
+              DMARC ties SPF and DKIM to the address a person sees in the From field. A message
+              passes DMARC if SPF or DKIM passes and the authenticated domain aligns with the From
+              domain. The record is a TXT record at <code>_dmarc.yourdomain</code> and starts with
+              <code>v=DMARC1</code>.
+            </p>
+            <p>
+              The current DMARC specification (RFC 9989, May 2026) keeps three policies in the
+              <code>p</code> tag:
+            </p>
+            <ul>
+              <li><code>p=none</code>: monitor only, with no change to delivery;</li>
+              <li>
+                <code>p=quarantine</code>: treat failing mail as suspicious (usually the spam
+                folder);
+              </li>
+              <li><code>p=reject</code>: reject failing mail.</li>
+            </ul>
+            <p>
+              The <code>rua</code> tag gives an address for aggregate reports. In them, mailbox
+              providers tell you which servers sent mail using your domain and whether it passed.
+              These reports are how you find the legitimate services you forgot to set up.
+            </p>
+          </section>
+          <section id="section-5">
+            <h2>Moving safely from monitoring to blocking</h2>
+            <p>
+              The biggest mistake is going straight to <code>p=reject</code>. If even one legitimate
+              service, such as your invoicing system, is not set up, its mail starts to disappear. A
+              safer order:
+            </p>
+            <ol>
+              <li>
+                List every service that sends mail in your domain's name: mail host, website form,
+                CRM, newsletters, accounting, help desk.
+              </li>
+              <li>Set up one correct SPF record, and DKIM for each service.</li>
+              <li>
+                Publish DMARC with <code>p=none</code> and a <code>rua</code> address. Read the
+                reports for a few weeks, find your own services that fail, and fix them.
+              </li>
+              <li>
+                Once every legitimate source passes, move to <code>p=quarantine</code> and later to
+                <code>p=reject</code>, and keep reading the reports.
+              </li>
+            </ol>
+            <p>
+              Common mistakes: two SPF records instead of one; a DMARC record placed at the domain
+              root instead of <code>_dmarc</code>; a new newsletter service connected without
+              updating SPF or DKIM; a <code>p=none</code> policy that nobody has looked at for
+              years. Monitoring mode is a useful stage, but on its own it does not block forged
+              mail.
+            </p>
+          </section>
+          <section id="section-6">
+            <h2>What FluxRadar checks</h2>
+            <p>
+              In the Complete plan, the Security module reads the public TXT records of your site's
+              registered domain and of <code>_dmarc</code>. It reports a finding when:
+            </p>
+            <ul>
+              <li>there is no SPF record;</li>
+              <li>there is more than one SPF record;</li>
+              <li>SPF authorises every sender with <code>+all</code>;</li>
+              <li>there is no DMARC record.</li>
+            </ul>
+            <p>
+              A <code>p=none</code> policy is not treated as a problem on its own, but when there is
+              also an SPF finding, the evidence notes that DMARC is in monitoring mode and forged
+              mail is not blocked.
+            </p>
+            <p>
+              The limits matter too. FluxRadar sends no test mail and does not guarantee delivery.
+              DKIM is not checked, because that requires knowing the selector. The 10-lookup SPF
+              limit and domain alignment are not evaluated either. No findings means the basic
+              records are in place; review your list of sending services and your DMARC reports with
+              whoever manages your mail.
+            </p>
+          </section>
+          <aside class="related-reading">
+            <h2>Related reading</h2>
+            <ul>
+              <li><a href="/blog/uk/spf-dkim-dmarc-domenu" hreflang="uk">Українська версія</a></li>
+              <li>
+                <a href="/blog/security-headers-explained"
+                  >Security headers without the jargon: HSTS, CSP and friends</a
+                >
+              </li>
+              <li>
+                <a href="/blog/public-website-audit-checklist"
+                  >The public website audit checklist</a
+                >
+              </li>
+            </ul>
+          </aside>
+          <section class="article-sources">
+            <h2>Sources and verification</h2>
+            <ul>
+              <li>
+                <a href="https://datatracker.ietf.org/doc/html/rfc7208">IETF RFC 7208: SPF</a>
+              </li>
+              <li>
+                <a href="https://datatracker.ietf.org/doc/html/rfc6376">IETF RFC 6376: DKIM</a>
+              </li>
+              <li>
+                <a href="https://datatracker.ietf.org/doc/html/rfc9989">IETF RFC 9989: DMARC</a>
+              </li>
+              <li>
+                <a href="https://support.google.com/a/answer/81126"
+                  >Google: Email sender guidelines</a
+                >
+              </li>
+            </ul>
+            <p>
+              External guidance checked on November 16, 2026. The examples are illustrative: they do
+              not describe client results and do not promise search positions.
+            </p>
+          </section>
+        </article>
+        <p class="content-cta">
+          <a href="/">Check your site</a> ·
+          <a href="/knowledge-base">Practical guides (in Ukrainian)</a> ·
+          <a href="/blog">Articles for site owners</a>
+        </p>
+        <footer class="site-footer">
+          <a href="/blog">&#x2190; All notes</a>
+          <a href="/knowledge-base">Knowledge base (in Ukrainian)</a
+          ><span class="powered-by"
+            ><a
+              class="powered-by__link"
+              href="https://flux-lab.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-t-label="blog.poweredByAria"
+              aria-label="Created by FluxLab (opens in a new tab)"
+              ><span class="powered-by__mark" aria-hidden="true">◈</span
+              ><span data-t="blog.poweredBy">Created by FluxLab</span></a
+            ></span
+          >
+        </footer>
+      </main>
+    </div>
+    <script src="/blog/public-links.js"></script>
+    <script src="/blog/attribution.js"></script>
+    <script src="/blog/blog.js"></script>
+  </body>
+</html>

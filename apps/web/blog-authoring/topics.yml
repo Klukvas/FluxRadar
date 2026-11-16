@@ -36,7 +36,10 @@ topics:
     related: [/blog/uk/chomu-storinka-ne-indeksuietsia]
 
   - id: security-headers
-    status: todo
+    status: done
+    published: 2026-11-16
+    uk_slug: zaholovky-bezpeky
+    en_slug: security-headers-explained
     title_uk: Заголовки безпеки без жаргону — HSTS, CSP та інші
     title_en: Security headers without the jargon — HSTS, CSP and friends
     angle: >-
@@ -45,7 +48,10 @@ topics:
     related: [/blog/uk/bezpeka-publichnoho-saitu]
 
   - id: email-domain-auth
-    status: todo
+    status: done
+    published: 2026-11-16
+    uk_slug: spf-dkim-dmarc-domenu
+    en_slug: spf-dkim-dmarc-domain
     title_uk: SPF, DKIM і DMARC для домену сайту
     title_en: SPF, DKIM and DMARC for your website's domain
     angle: >-

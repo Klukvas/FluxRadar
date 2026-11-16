@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Security headers explained: HSTS, CSP and more | FluxRadar</title>
+    <meta
+      name="description"
+      content="What HSTS, CSP, nosniff, Referrer-Policy and Permissions-Policy protect against, what a missing one means, and how to roll out CSP without breakage."
+    />
+    <link rel="canonical" href="https://fluxradar.net/blog/security-headers-explained" />
+    <link rel="alternate" hreflang="uk" href="https://fluxradar.net/blog/uk/zaholovky-bezpeky" />
+    <link
+      rel="alternate"
+      hreflang="en"
+      href="https://fluxradar.net/blog/security-headers-explained"
+    />
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href="https://fluxradar.net/blog/security-headers-explained"
+    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="article" />
+    <meta
+      property="og:title"
+      content="Security headers without the jargon: HSTS, CSP and friends"
+    />
+    <meta
+      property="og:description"
+      content="What HSTS, CSP, nosniff, Referrer-Policy and Permissions-Policy protect against, what a missing one means, and how to roll out CSP without breakage."
+    />
+    <meta property="og:url" content="https://fluxradar.net/blog/security-headers-explained" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://fluxradar.net/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="FluxRadar · fluxradar.net" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://fluxradar.net/og-image.png" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "BlogPosting",
+            "headline": "Security headers without the jargon: HSTS, CSP and friends",
+            "description": "What HSTS, CSP, nosniff, Referrer-Policy and Permissions-Policy protect against, what a missing one means, and how to roll out CSP without breakage.",
+            "inLanguage": "en",
+            "datePublished": "2026-11-16",
+            "dateModified": "2026-11-16",
+            "mainEntityOfPage": "https://fluxradar.net/blog/security-headers-explained",
+            "publisher": {
+              "@type": "Organization",
+              "name": "FluxLab",
+              "url": "https://fluxradar.net"
+            }
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "FluxRadar",
+                "item": "https://fluxradar.net/"
+              },
+              {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "Blog",
+                "item": "https://fluxradar.net/blog"
+              },
+              {
+                "@type": "ListItem",
+                "position": 3,
+                "name": "Security headers without the jargon: HSTS, CSP and friends",
+                "item": "https://fluxradar.net/blog/security-headers-explained"
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+    <link rel="stylesheet" href="/blog/blog.css" />
+    <link rel="stylesheet" href="/blog/content.css" />
+  </head>
+  <body data-blog-page="article" data-content-section="blog">
+    <nav class="menubar" aria-label="Site menu">
+      <a class="menubar__apple" href="/"
+        ><svg viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+        </svg>
+        FluxRadar</a
+      >
+      <button
+        class="menubar__toggle"
+        type="button"
+        data-menu-toggle
+        data-t-label="nav.openMenu"
+        aria-label="Open menu"
+        aria-expanded="false"
+        aria-controls="menubar-links"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" fill="none" />
+        </svg>
+      </button>
+      <div id="menubar-links" class="menubar__links">
+        <div class="menubar__sheet-head">
+          <span class="menubar__sheet-brand"
+            ><svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+            </svg>
+            FluxRadar</span
+          ><span class="menubar__sheet-status" data-t="nav.systemStatus"
+            >PUBLIC WEB AUDIT STATION · v0.1</span
+          ><button
+            class="menubar__close"
+            type="button"
+            data-menu-close
+            data-t-label="nav.closeMenu"
+            aria-label="Close menu"
+          >
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.5" fill="none" />
+            </svg>
+          </button>
+        </div>
+        <div class="menubar__nav">
+          <span class="menubar__group-label" data-t="nav.navigate">Navigate</span
+          ><a class="menubar__item" href="/" data-t="nav.home">Home</a
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Your saved sites and their check history."
+            data-t="nav.profiles"
+            data-t-title="nav.profilesHint"
+          >
+            My sites</button
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Set up and start a new audit."
+            data-t="nav.scan"
+            data-t-title="nav.scanHint"
+          >
+            Scan</button
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Completed and in-progress audit results."
+            data-t="nav.reports"
+            data-t-title="nav.reportsHint"
+          >
+            Reports</button
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Optional data connections. The public-site scan works without them."
+            data-t="nav.integrations"
+            data-t-title="nav.integrationsHint"
+          >
+            Integrations</button
+          ><a class="menubar__item" href="/faq" data-t="nav.faq">FAQ</a
+          ><a class="menubar__item is-active" href="/blog" aria-current="true" data-t="nav.blog"
+            >Blog</a
+          ><span class="menubar__spacer"></span>
+        </div>
+        <div class="menubar__meta">
+          <span class="menubar__group-label" data-t="nav.system">System</span>
+          <div class="menubar__language" data-language>
+            <span id="menubar-language-label" data-t="nav.language">Language</span
+            ><button
+              type="button"
+              role="combobox"
+              class="menubar__language-button"
+              data-language-button
+              aria-haspopup="listbox"
+              aria-expanded="false"
+              aria-controls="menubar-language-listbox"
+              aria-labelledby="menubar-language-label"
+            >
+              <span data-language-current>English</span
+              ><svg class="menubar__language-caret" viewBox="0 0 10 6" aria-hidden="true">
+                <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" />
+              </svg>
+            </button>
+            <ul
+              id="menubar-language-listbox"
+              class="menubar__language-listbox"
+              role="listbox"
+              aria-labelledby="menubar-language-label"
+              hidden
+            >
+              <li
+                class="menubar__language-option is-active"
+                role="option"
+                data-language-option="en"
+                aria-selected="true"
+              >
+                English
+              </li>
+              <li
+                class="menubar__language-option"
+                role="option"
+                data-language-option="uk"
+                aria-selected="false"
+              >
+                Українська
+              </li>
+            </ul>
+          </div>
+          <span class="menubar__system" data-t="nav.systemStatus"
+            >PUBLIC WEB AUDIT STATION · v0.1</span
+          >
+        </div>
+      </div>
+    </nav>
+    <div class="blog-page content-page">
+      <main id="blog-main">
+        <nav class="breadcrumbs" aria-label="Breadcrumb">
+          <a href="/">Home</a> / <a href="/blog">Blog</a> /
+          <span>Security headers without the jargon: HSTS, CSP and friends</span>
+        </nav>
+        <header>
+          <p class="kicker">SECURITY · IN ENGLISH</p>
+          <h1>Security headers without the jargon: HSTS, CSP and friends</h1>
+          <p class="lede">
+            What each common response header tells the browser, what your site risks without it, and
+            the order to switch protection on so you do not block a form or a checkout.
+          </p>
+          <p class="content-date">
+            Published and checked: <time datetime="2026-11-16">November 16, 2026</time>
+          </p>
+        </header>
+        <article class="content-article">
+          <p>
+            "Security headers are missing" looks like a line for the developer. The decisions behind
+            it belong to the site owner too: can someone reach the site over an unencrypted
+            connection, can another site show your page inside a frame, and how much does the
+            browser tell other sites about where a visitor came from. This article explains each
+            header in plain words, gives the values that public guidance recommends, and points out
+            where rushing can break a working site.
+          </p>
+          <nav class="article-toc" aria-label="Contents">
+            <h2>In this article</h2>
+            <ul>
+              <li><a href="#section-1">What a response header is</a></li>
+              <li><a href="#section-2">HSTS: HTTPS only, even when someone types http</a></li>
+              <li><a href="#section-3">Three baseline headers for every HTML page</a></li>
+              <li><a href="#section-4">Content-Security-Policy without broken forms</a></li>
+              <li><a href="#section-5">Permissions-Policy, and headers you no longer need</a></li>
+              <li><a href="#section-6">What FluxRadar checks and how to read a finding</a></li>
+            </ul>
+          </nav>
+          <section id="section-1">
+            <h2>What a response header is</h2>
+            <p>
+              When a browser opens a page, the server sends more than HTML. It also sends response
+              headers: short lines of instructions that the visitor never sees but the browser
+              follows. Security headers are instructions such as "only ever load this site over
+              HTTPS" or "do not show this page inside someone else's site".
+            </p>
+            <p>
+              Keep their limits in mind. A header does not fix a bug in your code and does not
+              protect a logged-in area. It reduces the damage certain browser-based attacks can do.
+              A missing header is a reason to review your configuration, not proof that the site has
+              been compromised. Our article on public website audits covers what an outside scan can
+              and cannot tell you.
+            </p>
+            <p>
+              You can look at the headers without any extra service. Open your browser's developer
+              tools, go to the Network tab, reload the page, select the first request and read its
+              response headers. Compare the homepage, a service or product page and a page with a
+              form: different templates or even different servers may serve them, so their headers
+              can differ.
+            </p>
+          </section>
+          <section id="section-2">
+            <h2>HSTS: HTTPS only, even when someone types http</h2>
+            <p>
+              <code>Strict-Transport-Security</code> (HSTS) tells the browser to reach the host over
+              HTTPS only. After the first secure visit, the browser upgrades any http address to
+              https by itself and, as MDN describes, stops the visitor from clicking past a
+              certificate error.
+            </p>
+            <ul>
+              <li>
+                <code>max-age</code> is how many seconds the browser remembers the rule. A value of
+                <code>0</code> removes the policy, but only once the browser receives that response
+                over HTTPS.
+              </li>
+              <li>
+                <code>includeSubDomains</code> applies the rule to every subdomain. Before adding
+                it, confirm that each subdomain, including an old staging host or a webmail address,
+                works over HTTPS.
+              </li>
+              <li>
+                <code>preload</code> asks to be added to a list that browsers ship with. MDN notes
+                that this list is not part of the specification and that it requires a
+                <code>max-age</code> of at least one year plus <code>includeSubDomains</code>.
+              </li>
+            </ul>
+            <p>
+              Browsers ignore HSTS sent over plain HTTP. The usual setup is therefore a permanent
+              redirect from HTTP to HTTPS, with the header on the HTTPS response. OWASP warns that a
+              misconfiguration or a certificate problem can lock visitors out for the whole
+              <code>max-age</code>. Start with a short value, confirm everything works, and only
+              then raise it to a year.
+            </p>
+          </section>
+          <section id="section-3">
+            <h2>Three baseline headers for every HTML page</h2>
+            <p>
+              These headers are simple, rarely break anything and usually take one line in the
+              server or CDN configuration.
+            </p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Header</th>
+                  <th>What it does</th>
+                  <th>Value from OWASP guidance</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>X-Content-Type-Options</code></td>
+                  <td>
+                    Stops the browser from guessing a file type that contradicts what the server
+                    declared.
+                  </td>
+                  <td><code>nosniff</code></td>
+                </tr>
+                <tr>
+                  <td><code>X-Frame-Options</code> or CSP <code>frame-ancestors</code></td>
+                  <td>
+                    Stops another site from embedding your page in a frame and covering it with
+                    misleading buttons.
+                  </td>
+                  <td>
+                    <code>frame-ancestors</code> where possible; otherwise
+                    <code>X-Frame-Options: DENY</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>Referrer-Policy</code></td>
+                  <td>
+                    Controls how much of the page address the browser passes to the site a visitor
+                    goes to next.
+                  </td>
+                  <td><code>strict-origin-when-cross-origin</code></td>
+                </tr>
+              </tbody>
+            </table>
+            <p>
+              One caveat on framing: if partners deliberately embed your widget, calculator or form
+              on their sites, a blanket ban will break it. In that case, list the allowed domains in
+              <code>frame-ancestors</code>. Set Referrer-Policy explicitly rather than relying on
+              the browser default, so you know that addresses with parameters, such as on-site
+              search queries, are not passed in full to third-party services.
+            </p>
+          </section>
+          <section id="section-4">
+            <h2>Content-Security-Policy without broken forms</h2>
+            <p>
+              <code>Content-Security-Policy</code> (CSP) is the most powerful header and the most
+              demanding one. It lists where a page may load scripts, styles, images and other
+              resources from. If an attacker manages to inject a script into a page, a well-built
+              policy can stop it from running. OWASP calls CSP complex to configure and maintain.
+            </p>
+            <p>
+              The main risk is copying a strict policy from the internet. It will immediately block
+              analytics, a chat widget, a payment form or inline scripts in your theme, and you may
+              not notice straight away. A safer order:
+            </p>
+            <ol>
+              <li>
+                List your third-party services: analytics, ads, chat, payments, fonts, video, maps.
+              </li>
+              <li>
+                Ship the policy as <code>Content-Security-Policy-Report-Only</code>. MDN describes
+                this header as monitoring violations without enforcing the policy, so it blocks
+                nothing.
+              </li>
+              <li>
+                Collect reports with the <code>report-to</code> directive (MDN suggests also keeping
+                the deprecated <code>report-uri</code>, because <code>report-to</code> does not yet
+                work in every browser), then walk through the key journeys: enquiry, basket,
+                checkout, login.
+              </li>
+              <li>
+                Fix or explicitly allow the sources you need, and only then switch to the enforcing
+                <code>Content-Security-Policy</code> header.
+              </li>
+            </ol>
+            <p>
+              Review the policy every time you add a new service. It is part of normal site
+              maintenance, not a one-off task.
+            </p>
+          </section>
+          <section id="section-5">
+            <h2>Permissions-Policy, and headers you no longer need</h2>
+            <p>
+              <code>Permissions-Policy</code> switches off browser features your site does not use,
+              such as the camera, the microphone and geolocation. OWASP gives the example
+              <code>geolocation=(), camera=(), microphone=()</code>. For a brochure site or a shop
+              this is a low-risk step: if you do not need a feature, a third-party script on the
+              page cannot ask for it either.
+            </p>
+            <p>
+              The opposite also happens: older guides still recommend <code>X-XSS-Protection</code>.
+              OWASP advises not setting it, or switching it off with <code>0</code>, because that
+              old browser mechanism could itself create vulnerabilities. Protection against injected
+              scripts now comes from CSP. If a contractor offers to "add every security header on
+              the list", ask them to explain what each one does for your site.
+            </p>
+          </section>
+          <section id="section-6">
+            <h2>What FluxRadar checks and how to read a finding</h2>
+            <p>
+              Security headers are part of the Security module, which is included in the Complete
+              plan. The checks are passive: FluxRadar reads the responses your site already sends to
+              any visitor.
+            </p>
+            <ul>
+              <li>
+                <strong>HSTS</strong> is checked on the homepage response of an HTTPS site. A
+                finding appears when the header is missing or has no positive <code>max-age</code>.
+                The rule does not apply to a site that runs on HTTP only.
+              </li>
+              <li>
+                <strong>Baseline headers</strong> are checked on every successful HTML page:
+                <code>X-Content-Type-Options: nosniff</code>, framing protection (<code
+                  >X-Frame-Options</code
+                >
+                or CSP <code>frame-ancestors</code>) and a non-empty <code>Referrer-Policy</code>.
+                The finding lists exactly what is missing.
+              </li>
+              <li>
+                <strong>CSP</strong> and <strong>Permissions-Policy</strong> are checked for a
+                non-empty header. The automated check does not judge how strict the policy is.
+              </li>
+            </ul>
+            <p>
+              Start by comparing pages. If a header is missing everywhere, it is easiest to add at
+              the server or CDN level. If only some pages lack it, look for a separate template or
+              subdomain with its own configuration. After the change, run the scan again and test
+              forms and checkout by hand. A finding shows a missing signal. It does not prove an
+              attack happened, and it does not replace an application test with agreed access.
+            </p>
+          </section>
+          <aside class="related-reading">
+            <h2>Related reading</h2>
+            <ul>
+              <li><a href="/blog/uk/zaholovky-bezpeky" hreflang="uk">Українська версія</a></li>
+              <li>
+                <a href="/blog/spf-dkim-dmarc-domain"
+                  >SPF, DKIM and DMARC for your website's domain</a
+                >
+              </li>
+              <li>
+                <a href="/blog/public-website-audit-checklist"
+                  >The public website audit checklist</a
+                >
+              </li>
+            </ul>
+          </aside>
+          <section class="article-sources">
+            <h2>Sources and verification</h2>
+            <ul>
+              <li>
+                <a
+                  href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Strict-Transport-Security"
+                  >MDN: Strict-Transport-Security</a
+                >
+              </li>
+              <li>
+                <a
+                  href="https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy-Report-Only"
+                  >MDN: Content-Security-Policy-Report-Only</a
+                >
+              </li>
+              <li>
+                <a
+                  href="https://cheatsheetseries.owasp.org/cheatsheets/HTTP_Headers_Cheat_Sheet.html"
+                  >OWASP: HTTP Headers Cheat Sheet</a
+                >
+              </li>
+            </ul>
+            <p>
+              External guidance checked on November 16, 2026. The examples are illustrative: they do
+              not describe client results and do not promise search positions.
+            </p>
+          </section>
+        </article>
+        <p class="content-cta">
+          <a href="/">Check your site</a> ·
+          <a href="/knowledge-base">Practical guides (in Ukrainian)</a> ·
+          <a href="/blog">Articles for site owners</a>
+        </p>
+        <footer class="site-footer">
+          <a href="/blog">&#x2190; All notes</a>
+          <a href="/knowledge-base">Knowledge base (in Ukrainian)</a
+          ><span class="powered-by"
+            ><a
+              class="powered-by__link"
+              href="https://flux-lab.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-t-label="blog.poweredByAria"
+              aria-label="Created by FluxLab (opens in a new tab)"
+              ><span class="powered-by__mark" aria-hidden="true">◈</span
+              ><span data-t="blog.poweredBy">Created by FluxLab</span></a
+            ></span
+          >
+        </footer>
+      </main>
+    </div>
+    <script src="/blog/public-links.js"></script>
+    <script src="/blog/attribution.js"></script>
+    <script src="/blog/blog.js"></script>
+  </body>
+</html>
