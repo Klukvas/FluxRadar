@@ -1,4 +1,3 @@
-import { PublicLanguageLinks } from './PublicLanguageLinks';
 import { publicPagePath, type PublicPageId } from './public-page-routing';
 import {
   useEffect,
@@ -316,9 +315,6 @@ export function MenuBar(props: MenuBarProps) {
           />
         </div>
       </div>
-      {publicPage !== null ? (
-        <PublicLanguageLinks page={publicPage} language={props.language} />
-      ) : null}
     </nav>
   );
 }

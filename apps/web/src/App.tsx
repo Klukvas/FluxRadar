@@ -32,6 +32,7 @@ import { Styleguide } from './Styleguide';
 import { SupportWidget } from './SupportWidget';
 import { AppFrame, VerifyBanner, WorkspaceFooter, WorkspaceHeader } from './WorkspaceChrome';
 import './styles/base.css';
+import './styles/public-language.css';
 import './styles/account.css';
 import './styles/narrow-screens.css';
 import { siteChromeCopy } from './site-chrome-copy';
