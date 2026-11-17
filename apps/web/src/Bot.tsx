@@ -91,7 +91,15 @@ export function BotScreen(props: {
             <a href={publicPagePath('terms', props.language)}>{t.footerTerms}</a> ·{' '}
             <a href={publicPagePath('cookies', props.language)}>
               {copy[props.language].legal.cookies.title}
-            </a>
+            </a>{' '}
+            ·{' '}
+            <a
+              href={publicPagePath('faq', props.language)}
+              title={copy[props.language].nav.descriptions.faq}
+            >
+              {copy[props.language].nav.faq}
+            </a>{' '}
+            · <a href="/blog">{copy[props.language].home.footer.fieldNotes}</a>
           </span>
           <CreatedByFluxLab language={props.language} />
         </footer>

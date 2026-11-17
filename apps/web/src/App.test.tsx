@@ -252,8 +252,11 @@ describe('authentication UI', () => {
 
     expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Create account' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Blog' })).toHaveAttribute('href', '/blog');
-    expect(screen.getByRole('link', { name: 'Blog' })).toHaveClass('menubar__blog-link');
+    expect(
+      within(document.querySelector('footer') as HTMLElement).getByRole('link', {
+        name: 'Field notes',
+      }),
+    ).toHaveAttribute('href', '/blog');
     openAuth();
 
     const dialog = screen.getByRole('dialog');
@@ -1695,8 +1698,8 @@ describe('self-explanatory workflow copy', () => {
       'title',
       'Optional data connections. The public-site scan works without them.',
     );
-    // The header link carries the tooltip; the footer link is a plain shortcut.
-    expect(screen.getAllByRole('link', { name: 'FAQ' })[0]).toHaveAttribute(
+    // The footer link carries the tooltip the header used to.
+    expect(screen.getByRole('link', { name: 'FAQ' })).toHaveAttribute(
       'title',
       'Plain answers about every check and the limits of a report.',
     );
@@ -1729,19 +1732,22 @@ describe('self-explanatory workflow copy', () => {
     expect(document.querySelector('a[href="/plans"]')).toBeNull();
   });
 
-  it('offers the FAQ from the navigation and the footer in both locales', async () => {
+  it('offers the FAQ from the footer, not the header, in both locales', async () => {
     await renderUnauthenticated((path) =>
       path === '/auth/me' ? failure(401, 'session required') : envelope([]),
     );
 
-    // One link in the header/mobile sheet (the same markup serves both) and one
-    // in the page footer, so the FAQ is reachable from either end of the page.
-    const links = screen.getAllByRole('link', { name: 'FAQ' });
-    expect(links.length).toBeGreaterThanOrEqual(2);
-    for (const link of links) expect(link).toHaveAttribute('href', '/faq');
+    const nav = screen.getByRole('navigation', { name: 'Application menu' });
+    expect(within(nav).queryByRole('link', { name: 'FAQ' })).not.toBeInTheDocument();
+    expect(within(nav).queryByRole('link', { name: 'Blog' })).not.toBeInTheDocument();
+    expect(
+      within(document.querySelector('footer') as HTMLElement).getByRole('link', { name: 'FAQ' }),
+    ).toHaveAttribute('href', '/faq');
 
     switchLanguageToUkrainian();
-    expect(screen.getAllByRole('link', { name: 'FAQ' })[0]).toHaveAttribute('href', '/uk/faq');
+    expect(
+      within(document.querySelector('footer') as HTMLElement).getByRole('link', { name: 'FAQ' }),
+    ).toHaveAttribute('href', '/uk/faq');
   });
 
   it('describes the navigation tabs in Ukrainian after switching language', async () => {

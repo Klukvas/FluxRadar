@@ -3953,8 +3953,7 @@ code,
     right: auto;
     top: calc(100% + 2px);
   }
-  .menubar__links.is-open .menubar__item,
-  .menubar__links.is-open .menubar__blog-link {
+  .menubar__links.is-open .menubar__item {
     min-height: 44px;
     justify-content: flex-start;
     padding: 0 var(--sheet-inset-right) 0 calc(var(--sheet-inset-left) - var(--sheet-rail));
@@ -3962,8 +3961,7 @@ code,
     font-size: 16px;
     border-left: var(--sheet-rail) solid transparent;
   }
-  .menubar__links.is-open .menubar__item:hover:not(:disabled),
-  .menubar__links.is-open .menubar__blog-link:hover {
+  .menubar__links.is-open .menubar__item:hover:not(:disabled) {
     background: var(--plat-200);
     color: inherit;
     border-left-color: var(--plat-300);

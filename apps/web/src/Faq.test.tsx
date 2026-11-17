@@ -80,17 +80,15 @@ describe('/faq route', () => {
   });
 });
 
-// Regression: /faq and /blog were the only pages that abbreviated the header to
-// Home / FAQ / Blog. Every other page — the home page, /checks, the legal
-// documents and the workspace — lists the full row, so a reader moving between
-// them watched the navigation shrink and lost the way back to their workspace.
-// The row is now the same everywhere; what differs is only how it is wired.
+// Regression: /faq and /blog were the only pages that abbreviated the header.
+// Every page now lists the same workspace row. FAQ and the blog live in the
+// footer, so a reader moving between pages does not watch the header change.
 // The menu is named in the page's language, so a Ukrainian page is found by its
 // Ukrainian name.
 const SITE_MENU = /^(Site menu|Меню сайту)$/;
 
 describe('/faq header is the platform header', () => {
-  const ENGLISH_ROW = ['Home', 'My sites', 'Scan', 'Reports', 'Integrations', 'FAQ', 'Blog'];
+  const ENGLISH_ROW = ['Home', 'My sites', 'Scan', 'Reports', 'Integrations'];
 
   function headerNav(): HTMLElement {
     return screen.getByRole('navigation', { name: SITE_MENU });
@@ -133,8 +131,14 @@ describe('/faq header is the platform header', () => {
 
     const nav = headerNav();
     expect(within(nav).getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/');
-    expect(within(nav).getByRole('link', { name: 'FAQ' })).toHaveAttribute('href', '/faq');
-    expect(within(nav).getByRole('link', { name: 'Blog' })).toHaveAttribute('href', '/blog');
+    expect(within(nav).queryByRole('link', { name: 'FAQ' })).not.toBeInTheDocument();
+    expect(within(nav).queryByRole('link', { name: 'Blog' })).not.toBeInTheDocument();
+    const footer = document.querySelector('footer') as HTMLElement;
+    expect(within(footer).getByRole('link', { name: 'FAQ' })).toHaveAttribute('href', '/faq');
+    expect(within(footer).getByRole('link', { name: 'Field notes' })).toHaveAttribute(
+      'href',
+      '/blog',
+    );
   });
 
   // A visitor without a session sees the workspace tabs in the state every other
@@ -153,10 +157,14 @@ describe('/faq header is the platform header', () => {
     renderFaq();
     await screen.findByRole('heading', { name: 'Every check, explained in plain language' });
 
-    const nav = headerNav();
-    expect(within(nav).getByRole('link', { name: 'FAQ' })).toHaveAttribute('aria-current', 'page');
-    expect(within(nav).getByRole('link', { name: 'Home' })).not.toHaveAttribute('aria-current');
-    expect(within(nav).getByRole('link', { name: 'FAQ' })).toHaveClass('is-active');
+    const footer = document.querySelector('footer') as HTMLElement;
+    expect(within(footer).getByRole('link', { name: 'FAQ' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(within(headerNav()).getByRole('link', { name: 'Home' })).not.toHaveAttribute(
+      'aria-current',
+    );
   });
 
   it('opens and closes the full-screen menu a narrow viewport gets', async () => {
@@ -187,17 +195,14 @@ describe('/faq header is the platform header', () => {
     switchLanguageToUkrainian();
 
     const nav = headerNav();
-    expect(destinations(nav)).toEqual([
-      'Головна',
-      'Мої сайти',
-      'Перевірка',
-      'Звіти',
-      'Інтеграції',
-      'FAQ',
-      'Блог',
-    ]);
+    expect(destinations(nav)).toEqual(['Головна', 'Мої сайти', 'Перевірка', 'Звіти', 'Інтеграції']);
     expect(within(nav).getByRole('link', { name: 'Головна' })).toHaveAttribute('href', '/uk');
-    expect(within(nav).getByRole('link', { name: 'Блог' })).toHaveAttribute('href', '/blog');
+    const footer = document.querySelector('footer') as HTMLElement;
+    expect(within(footer).getByRole('link', { name: 'FAQ' })).toHaveAttribute('href', '/uk/faq');
+    expect(within(footer).getByRole('link', { name: 'Нотатки з практики' })).toHaveAttribute(
+      'href',
+      '/blog',
+    );
   });
 });
 

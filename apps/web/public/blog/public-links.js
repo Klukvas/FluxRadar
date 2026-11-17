@@ -5,6 +5,7 @@
 // only, so a Russian reader reads a Ukrainian article list — but Home and FAQ
 // must still take them back to the Russian pages they came from, and the
 // prefixes have to agree with apps/web/src/public-page-routing.ts.
+// FAQ lives in the footer; the header no longer carries it.
 (function () {
   var PREFIX = { en: '', uk: '/uk', ru: '/ru' };
   window.fluxradarPublicLinks = function (language) {
@@ -18,7 +19,7 @@
       .forEach(function (link) {
         link.setAttribute('href', home);
       });
-    document.querySelectorAll('.menubar a[data-t="nav.faq"]').forEach(function (link) {
+    document.querySelectorAll('a[data-t="nav.faq"]').forEach(function (link) {
       link.setAttribute('href', faq);
     });
   };

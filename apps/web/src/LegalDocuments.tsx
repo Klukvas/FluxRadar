@@ -120,6 +120,15 @@ export function LegalDocumentScreen(props: LegalDocumentScreenProps): JSX.Elemen
           <span>
             {t.questions} <SupportLink />
           </span>
+          <span>
+            <a
+              href={publicPagePath('faq', props.language)}
+              title={copy[props.language].nav.descriptions.faq}
+            >
+              {copy[props.language].nav.faq}
+            </a>{' '}
+            · <a href="/blog">{copy[props.language].home.footer.fieldNotes}</a>
+          </span>
           <CreatedByFluxLab language={props.language} />
         </footer>
       </main>
