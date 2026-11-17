@@ -108,7 +108,7 @@ export function issuesRouter(deps: IssuesRouterDeps): Router {
     // exactly as findOwnReportScan would.
     const scan = await deps.prisma.scan.findFirst({
       where: { id: scanId, accountId },
-      include: { job: { select: { status: true } }, ...PAID_ACCESS_INCLUDE },
+      include: { job: { select: { status: true, type: true } }, ...PAID_ACCESS_INCLUDE },
     });
     if (scan === null) {
       const deleted = await deps.prisma.deletedScan.findUnique({ where: { scanId } });

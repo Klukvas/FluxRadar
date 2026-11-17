@@ -529,6 +529,28 @@ export function geoModuleRow(
   };
 }
 
+/** The crawler-readiness facts a skipped Free row carries, as they are stored. */
+export type FreePreviewReadinessFacts = Readonly<
+  Record<'automation' | 'providerTokenRequired' | 'robots' | 'pages' | 'limitations', unknown>
+>;
+
+/**
+ * The readiness facts a stored GEO row already carries. The late Free preview
+ * (late-free-preview.ts) rebuilds a skipped row from them when it must not, or
+ * cannot, read the homepage again. They were written by this file.
+ */
+export function storedReadinessFacts(
+  metadata: Readonly<Record<string, unknown>>,
+): FreePreviewReadinessFacts {
+  return {
+    automation: metadata.automation ?? null,
+    providerTokenRequired: metadata.providerTokenRequired ?? null,
+    robots: metadata.robots ?? null,
+    pages: metadata.pages ?? null,
+    limitations: metadata.limitations ?? null,
+  };
+}
+
 /**
  * The GEO row of a Free preview that asked nothing (D-236): Not applicable,
  * zero checks, the reason named. No request was built, so the row carries the
@@ -537,6 +559,14 @@ export function geoModuleRow(
 export function freePreviewSkippedRow(
   reason: FreeGeoSkipReason,
   aiCrawlerReadiness: ReturnType<typeof assessAiCrawlerReadiness>,
+): ModuleRowData {
+  return freePreviewSkippedRowWith(reason, aiCrawlerReadiness);
+}
+
+/** The same row from readiness facts already in hand, fresh or stored. */
+export function freePreviewSkippedRowWith(
+  reason: FreeGeoSkipReason,
+  aiCrawlerReadiness: FreePreviewReadinessFacts,
 ): ModuleRowData {
   const coverage = computeCoverage({
     applicableChecks: 0,

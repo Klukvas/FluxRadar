@@ -18,6 +18,21 @@ export const AI_PROCESSING_PROVIDERS = ['anthropic', 'openai'] as const;
 export const FREE_AI_PROCESSING_PROVIDERS = ['anthropic'] as const;
 
 /**
+ * The Free preview's consent record, exactly as the API accepts it: sent by
+ * the launch form when its box is ticked, and by the finished report's "add the
+ * AI answer" button, which shows the same disclosure beside it.
+ */
+export function freeAiConsentRecord(): {
+  readonly providers: readonly (typeof FREE_AI_PROCESSING_PROVIDERS)[number][];
+  readonly noticeVersion: string;
+} {
+  return {
+    providers: [...FREE_AI_PROCESSING_PROVIDERS],
+    noticeVersion: AI_PROCESSING_NOTICE_VERSION,
+  };
+}
+
+/**
  * Providers a customer can add to their own scan, and which receive nothing
  * unless they do. The notice names the recipient before the choice is offered,
  * and the same exclusions apply: no account or payment data, no Google or Bing

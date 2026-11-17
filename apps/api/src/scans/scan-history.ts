@@ -17,7 +17,10 @@ const PAID_PLANS_WITHOUT_HISTORY = PLANS.filter(
 );
 
 export type ScanHistoryScan = Scan &
-  PaidAccessScan & { modules: ScanModule[]; job: { readonly status: string } | null };
+  PaidAccessScan & {
+    modules: ScanModule[];
+    job: { readonly status: string; readonly type?: string } | null;
+  };
 
 export interface ScanHistoryPage {
   readonly scans: readonly ScanHistoryScan[];
@@ -48,7 +51,11 @@ export async function listScanHistory(
       page.offset === 0
         ? ((await prisma.scan.findMany({
             where,
-            include: { modules: true, job: { select: { status: true } }, ...PAID_ACCESS_INCLUDE },
+            include: {
+              modules: true,
+              job: { select: { status: true, type: true } },
+              ...PAID_ACCESS_INCLUDE,
+            },
             orderBy: [...ORDER],
             take: 1,
           })) as ScanHistoryScan[])
@@ -61,7 +68,11 @@ export async function listScanHistory(
   const [scans, total] = await Promise.all([
     prisma.scan.findMany({
       where,
-      include: { modules: true, job: { select: { status: true } }, ...PAID_ACCESS_INCLUDE },
+      include: {
+        modules: true,
+        job: { select: { status: true, type: true } },
+        ...PAID_ACCESS_INCLUDE,
+      },
       orderBy: [...ORDER],
       skip: page.offset,
       take: page.limit,

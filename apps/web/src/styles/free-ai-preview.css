@@ -222,6 +222,30 @@
   margin-top: var(--sp-3);
 }
 
+/* "Add the AI answer" (FreeAiAddAnswer.tsx): a lead, the disclosure the click
+   consents to, then the button. The disclosure is plain text, never folded,
+   because pressing the button is the consent it describes. */
+.free-ai-add {
+  display: grid;
+  gap: var(--sp-2);
+  min-width: 0;
+  margin-top: var(--sp-3);
+}
+
+.free-ai-add__last-attempt,
+.free-ai-add__lead,
+.free-ai-add__disclosure,
+.free-ai-add__failed {
+  margin: 0;
+  max-width: 72ch;
+  overflow-wrap: anywhere;
+}
+
+.free-ai-add__disclosure {
+  font-size: 12px;
+  color: var(--plat-600);
+}
+
 /* Nothing here moves; the rule is explicit so a later transition cannot creep
    in unguarded. */
 @media (prefers-reduced-motion: reduce) {

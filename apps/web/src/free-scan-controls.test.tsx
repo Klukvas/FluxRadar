@@ -130,14 +130,52 @@ describe('free plan controls', () => {
     ).toBeInTheDocument();
   });
 
-  // D-236: the one-question AI preview is an opt-in, off until ticked.
-  it('offers the AI preview as an unticked opt-in naming Anthropic', async () => {
+  // D-236: the one-question AI preview starts ticked, and the owner can untick
+  // it. An owner who missed an unticked box got a report with no AI answer.
+  it('offers the AI preview ticked by default, naming Anthropic', async () => {
     renderNewScan(account);
     await screen.findByText('New scan', { selector: '.window__titlebar > span' });
 
     const box = screen.getByLabelText('Ask Anthropic (Claude) one question about my business');
-    expect(box).not.toBeChecked();
+    expect(box).toBeChecked();
     expect(box).toHaveAccessibleDescription(/No other AI provider receives anything/);
+    expect(screen.getByText('On by default')).toBeInTheDocument();
+    expect(screen.getByText(/Untick it and nothing is sent to any AI service/)).toBeVisible();
+  });
+
+  it('sends the Free consent record with a default launch', async () => {
+    const fetchMock = renderNewScan(account);
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Run free check' }));
+
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some(([input]) => pathOf(input).endsWith('/free-check'))).toBe(
+        true,
+      ),
+    );
+    const call = fetchMock.mock.calls.find(([input]) => pathOf(input).endsWith('/free-check'));
+    expect(bodyOf(call?.[1] as RequestInit)).toMatchObject({
+      aiConsent: { providers: ['anthropic'], noticeVersion: AI_PROCESSING_NOTICE_VERSION },
+    });
+  });
+
+  it('sends no consent record once the owner unticks the box', async () => {
+    const fetchMock = renderNewScan(account);
+    await screen.findByText('New scan', { selector: '.window__titlebar > span' });
+
+    const box = screen.getByLabelText('Ask Anthropic (Claude) one question about my business');
+    fireEvent.click(box);
+    expect(box).not.toBeChecked();
+    fireEvent.click(screen.getByRole('button', { name: 'Run free check' }));
+
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some(([input]) => pathOf(input).endsWith('/free-check'))).toBe(
+        true,
+      ),
+    );
+    const call = fetchMock.mock.calls.find(([input]) => pathOf(input).endsWith('/free-check'));
+    expect(bodyOf(call?.[1] as RequestInit)).not.toHaveProperty('aiConsent');
   });
 
   it('explains it in Ukrainian too', async () => {
@@ -180,7 +218,8 @@ describe('free plan controls', () => {
         robotsOverrideConfirmed: false,
         userAgent: 'desktop',
       },
-      // The interface language is captured even when no AI request is consented.
+      // The AI preview box starts ticked, so a default launch carries its record.
+      aiConsent: { providers: ['anthropic'], noticeVersion: AI_PROCESSING_NOTICE_VERSION },
     });
   });
 
@@ -188,9 +227,9 @@ describe('free plan controls', () => {
   it('sends the Ukrainian UI language as the AI language when the site names none', async () => {
     const fetchMock = renderNewScan(account, 'uk');
     await screen.findByText('Нова перевірка', { selector: '.window__titlebar > span' });
-    fireEvent.click(
+    expect(
       screen.getByLabelText('Поставити Anthropic (Claude) одне питання про мій бізнес'),
-    );
+    ).toBeChecked();
 
     fireEvent.click(screen.getByRole('button', { name: 'Запустити безкоштовну перевірку' }));
 
@@ -428,7 +467,8 @@ describe('paid plan controls', () => {
         robotsOverrideConfirmed: false,
         userAgent: 'desktop',
       },
-      // The interface language is captured even when no AI request is consented.
+      // The AI preview box starts ticked, so a default launch carries its record.
+      aiConsent: { providers: ['anthropic'], noticeVersion: AI_PROCESSING_NOTICE_VERSION },
     });
   });
 });

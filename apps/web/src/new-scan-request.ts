@@ -5,7 +5,7 @@ import { trackScanStarted } from './funnel-analytics';
 import {
   AI_PROCESSING_NOTICE_VERSION,
   AI_PROCESSING_PROVIDERS,
-  FREE_AI_PROCESSING_PROVIDERS,
+  freeAiConsentRecord,
 } from './ai-processing-notice';
 import type { AiProcessingOptInProvider } from './ai-processing-notice';
 import type { Plan } from './plan-modules';
@@ -34,8 +34,8 @@ export interface ScanRequest {
    */
   readonly optInAiProviders: readonly AiProcessingOptInProvider[];
   /**
-   * Free only: the owner ticked the one-question AI preview. Unticked sends no
-   * record, and the preview then asks nothing (D-236).
+   * Free only: the one-question AI preview box is ticked (its default). An
+   * unticked box sends no record, and the preview then asks nothing (D-236).
    */
   readonly freeAiConsent?: boolean;
   /** GEO question and answer language, captured at submit for every plan. */
@@ -60,14 +60,7 @@ export async function requestScan(request: ScanRequest): Promise<Scan | null> {
         scope,
         expectedProfileConfigVersion,
         aiLanguage: request.aiLanguage,
-        ...(request.freeAiConsent === true
-          ? {
-              aiConsent: {
-                providers: [...FREE_AI_PROCESSING_PROVIDERS],
-                noticeVersion: AI_PROCESSING_NOTICE_VERSION,
-              },
-            }
-          : {}),
+        ...(request.freeAiConsent === true ? { aiConsent: freeAiConsentRecord() } : {}),
       }),
     });
     trackScanStarted(scan);

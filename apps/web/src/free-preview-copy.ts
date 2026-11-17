@@ -22,6 +22,37 @@ export interface FreePreviewCopy {
     readonly body: string;
     readonly checkbox: string;
   };
+  /**
+   * A finished Free report whose AI answer was left out at launch: the same
+   * disclosure as the launch form (`consent.body`), shown open beside a button
+   * whose click is the consent.
+   */
+  readonly addAnswer: {
+    readonly lead: string;
+    readonly button: string;
+    /** The button while the request is on its way. */
+    readonly sending: string;
+    /** The block while the one question and its check run. */
+    readonly running: string;
+    /** The request did not arrive or was rate-limited: pressing again can work. */
+    readonly retryShortly: string;
+    /** The request was refused for good: no button is offered any more. */
+    readonly refused: string;
+    /** The run outlasted the report's patience: it stops asking and says so. */
+    readonly slow: string;
+    /** The last attempt never started: the homepage could not be read then. */
+    readonly lastAttemptSiteUnread: string;
+    /** The last attempt never started: a fault on FluxRadar's side. */
+    readonly lastAttemptPlatform: string;
+    /** The last attempt never started: robots.txt keeps the homepage closed. */
+    readonly lastAttemptRobots: string;
+    /** Several attempts never started: no further press is accepted. */
+    readonly attemptsExhausted: string;
+    /** Added to the last-attempt note when the next press is the last one accepted. */
+    readonly oneAttemptLeft: string;
+    /** The same, when robots.txt keeps the homepage closed: fix that first. */
+    readonly oneAttemptLeftRobots: string;
+  };
   readonly preview: {
     readonly heading: string;
     /** What was done, without the question or the model: the brand, when one was saved. */
@@ -69,10 +100,32 @@ export const freePreviewCopy: Readonly<Record<Language, FreePreviewCopy>> = {
     consent: {
       eyebrow: 'AI PREVIEW · OPTIONAL',
       title: 'Include one AI answer about your business',
-      mode: 'Off by default',
-      lead: 'Tick the box to see what one AI assistant (Claude by Anthropic) says about your business. Leave it unticked and nothing is sent to any AI service.',
-      body: 'If you tick it, FluxRadar asks Anthropic (Claude) one question that names your business or domain, closed-book, without browsing or tools. Anthropic then checks that answer, in a separate request, against a bounded snapshot of this check: the profile fields you saved and text from your homepage. No other AI provider receives anything. AI can be wrong or omit a mention. Your account, payment details and Google or Bing access are never sent.',
+      mode: 'On by default',
+      lead: 'The box is ticked, so this check also shows what one AI assistant (Claude by Anthropic) says about your business. Untick it and nothing is sent to any AI service.',
+      body: 'FluxRadar asks Anthropic (Claude) one question that names your business or domain, closed-book, without browsing or tools. Anthropic then checks that answer, in a separate request, against a bounded snapshot of this check: the profile fields you saved and text from your homepage. No other AI provider receives anything. AI can be wrong or omit a mention. Your account, payment details and Google or Bing access are never sent.',
       checkbox: 'Ask Anthropic (Claude) one question about my business',
+    },
+    addAnswer: {
+      lead: 'You can still add the one AI answer to this report. Nothing is sent until you press the button. FluxRadar then reads your homepage again to check the answer.',
+      button: 'Add the AI answer',
+      sending: 'Adding the AI answer…',
+      running:
+        'FluxRadar is asking the AI now. The answer appears here in about a minute, and your homepage check and score stay as they are.',
+      retryShortly: 'The AI answer could not be requested just now. Try again in a minute.',
+      refused:
+        'This check can no longer add its AI answer. Reload the report to see its current state.',
+      slow: 'The AI answer is taking longer than usual. Reload the report in a few minutes to see it.',
+      lastAttemptSiteUnread:
+        'The last attempt did not start: FluxRadar could not read your homepage at that moment, so nothing was sent to any AI service. You can press the button again.',
+      lastAttemptPlatform:
+        'The last attempt did not start because of a problem on FluxRadar’s side, so nothing was sent to any AI service. You can press the button again.',
+      lastAttemptRobots:
+        'The last attempt did not start: your site’s robots.txt does not allow FluxRadar to read the homepage, so nothing was sent to any AI service. The button will work once robots.txt allows it.',
+      attemptsExhausted:
+        'The AI answer could not be added: several attempts could not start, because your homepage could not be read or FluxRadar had a problem on its side. Nothing was sent to any AI service, and the answer is not tried again for this check.',
+      oneAttemptLeft: 'One attempt is left for this check.',
+      oneAttemptLeftRobots:
+        'One attempt is left for this check, so fix robots.txt before you press the button.',
     },
     preview: {
       heading: 'What AI says about your business',
@@ -115,7 +168,7 @@ export const freePreviewCopy: Readonly<Record<Language, FreePreviewCopy>> = {
       notRunAlreadyRequested:
         'No AI question was asked on this run: an earlier run of this check already reached the AI step, and the AI answer is never requested twice for one free check.',
       notRunOther:
-        'The AI answer could not be produced this time. Your homepage check and score are not affected.',
+        'The AI answer could not be produced for this check. Your homepage check and score are not affected.',
       pending: 'The AI step is not finished yet. No answer is available in this report yet.',
     },
   },
@@ -124,10 +177,32 @@ export const freePreviewCopy: Readonly<Record<Language, FreePreviewCopy>> = {
     consent: {
       eyebrow: 'AI-ПРЕВʼЮ · НЕОБОВʼЯЗКОВО',
       title: 'Додати одну відповідь ШІ про ваш бізнес',
-      mode: 'Вимкнено за замовчуванням',
-      lead: 'Позначте, щоб побачити, що один ШІ-помічник (Claude від Anthropic) каже про ваш бізнес. Якщо не позначати, жоден ШІ-сервіс нічого не отримає.',
-      body: 'Якщо ви позначите, FluxRadar поставить Anthropic (Claude) одне питання, що називає ваш бізнес або домен, у режимі closed-book — без перегляду вебу та інструментів. Потім Anthropic окремим запитом перевірить цю відповідь за обмеженим знімком цієї перевірки: полями профілю, які ви зберегли, і текстом вашої головної сторінки. Жоден інший ШІ-провайдер нічого не отримує. ШІ може помилятися або не згадати вас. Дані акаунта, оплати та доступи Google чи Bing ніколи не надсилаються.',
+      mode: 'Увімкнено за замовчуванням',
+      lead: 'Галочку вже поставлено, тож ця перевірка також покаже, що один ШІ-помічник (Claude від Anthropic) каже про ваш бізнес. Зніміть її, і жоден ШІ-сервіс нічого не отримає.',
+      body: 'FluxRadar ставить Anthropic (Claude) одне питання, що називає ваш бізнес або домен, у режимі closed-book, без перегляду вебу та інструментів. Потім Anthropic окремим запитом перевірить цю відповідь за обмеженим знімком цієї перевірки: полями профілю, які ви зберегли, і текстом вашої головної сторінки. Жоден інший ШІ-провайдер нічого не отримує. ШІ може помилятися або не згадати вас. Дані акаунта, оплати та доступи Google чи Bing ніколи не надсилаються.',
       checkbox: 'Поставити Anthropic (Claude) одне питання про мій бізнес',
+    },
+    addAnswer: {
+      lead: 'Ви ще можете додати до цього звіту одну відповідь ШІ. Нічого не надсилається, доки ви не натиснете кнопку. Тоді FluxRadar ще раз прочитає вашу головну сторінку, щоб перевірити відповідь.',
+      button: 'Додати відповідь ШІ',
+      sending: 'Додаємо відповідь ШІ…',
+      running:
+        'FluxRadar зараз ставить питання ШІ. Відповідь зʼявиться тут приблизно за хвилину, а перевірка головної сторінки й оцінка не зміняться.',
+      retryShortly: 'Зараз не вдалося запросити відповідь ШІ. Спробуйте ще раз за хвилину.',
+      refused:
+        'Ця перевірка вже не може додати відповідь ШІ. Оновіть звіт, щоб побачити її поточний стан.',
+      slow: 'Відповідь ШІ готується довше, ніж зазвичай. Оновіть звіт за кілька хвилин, щоб її побачити.',
+      lastAttemptSiteUnread:
+        'Минула спроба не почалася: FluxRadar не зміг тоді прочитати вашу головну сторінку, тож жоден ШІ-сервіс нічого не отримав. Можна натиснути кнопку ще раз.',
+      lastAttemptPlatform:
+        'Минула спроба не почалася через збій на боці FluxRadar, тож жоден ШІ-сервіс нічого не отримав. Можна натиснути кнопку ще раз.',
+      lastAttemptRobots:
+        'Минула спроба не почалася: robots.txt вашого сайту не дозволяє FluxRadar читати головну сторінку, тож жоден ШІ-сервіс нічого не отримав. Кнопка спрацює, щойно robots.txt це дозволить.',
+      attemptsExhausted:
+        'Відповідь ШІ додати не вдалося: кілька спроб не почалися, бо вашу головну сторінку не вдалося прочитати або на боці FluxRadar стався збій. Жоден ШІ-сервіс нічого не отримав, і для цієї перевірки відповідь більше не запитують.',
+      oneAttemptLeft: 'Для цієї перевірки лишилася одна спроба.',
+      oneAttemptLeftRobots:
+        'Для цієї перевірки лишилася одна спроба, тож спершу виправте robots.txt, а потім натискайте кнопку.',
     },
     preview: {
       heading: 'Що ШІ каже про ваш бізнес',
@@ -170,7 +245,7 @@ export const freePreviewCopy: Readonly<Record<Language, FreePreviewCopy>> = {
       notRunAlreadyRequested:
         'Цього разу питання ШІ не ставилося: попередній запуск цієї перевірки вже дійшов до кроку ШІ, а для однієї безкоштовної перевірки відповідь ШІ двічі не запитують.',
       notRunOther:
-        'Цього разу відповідь ШІ отримати не вдалося. Перевірка головної сторінки й оцінка від цього не змінилися.',
+        'Для цієї перевірки відповідь ШІ отримати не вдалося. Перевірка головної сторінки й оцінка від цього не змінилися.',
       pending: 'Крок ШІ ще не завершено. Відповіді в цьому звіті поки немає.',
     },
   },
@@ -180,10 +255,32 @@ export const freePreviewCopy: Readonly<Record<Language, FreePreviewCopy>> = {
     consent: {
       eyebrow: 'ИИ-ПРЕВЬЮ · НЕОБЯЗАТЕЛЬНО',
       title: 'Добавить один ответ ИИ о вашем бизнесе',
-      mode: 'Выключено по умолчанию',
-      lead: 'Отметьте, чтобы увидеть, что один ИИ-помощник (Claude от Anthropic) говорит о вашем бизнесе. Если не отмечать, ни один ИИ-сервис ничего не получит.',
-      body: 'Если вы отметите, FluxRadar задаст Anthropic (Claude) один вопрос, который называет ваш бизнес или домен, в режиме closed-book, без просмотра веба и инструментов. Затем Anthropic отдельным запросом сверит этот ответ с ограниченным снимком этой проверки: полями профиля, которые вы сохранили, и текстом вашей главной страницы. Ни один другой ИИ-провайдер ничего не получает. ИИ может ошибаться или не упомянуть вас. Данные аккаунта, оплаты и доступы Google или Bing никогда не отправляются.',
+      mode: 'Включено по умолчанию',
+      lead: 'Галочка уже стоит, поэтому эта проверка также покажет, что один ИИ-помощник (Claude от Anthropic) говорит о вашем бизнесе. Снимите её, и ни один ИИ-сервис ничего не получит.',
+      body: 'FluxRadar задаёт Anthropic (Claude) один вопрос, который называет ваш бизнес или домен, в режиме closed-book, без просмотра веба и инструментов. Затем Anthropic отдельным запросом сверит этот ответ с ограниченным снимком этой проверки: полями профиля, которые вы сохранили, и текстом вашей главной страницы. Ни один другой ИИ-провайдер ничего не получает. ИИ может ошибаться или не упомянуть вас. Данные аккаунта, оплаты и доступы Google или Bing никогда не отправляются.',
       checkbox: 'Задать Anthropic (Claude) один вопрос о моём бизнесе',
+    },
+    addAnswer: {
+      lead: 'Вы ещё можете добавить в этот отчёт один ответ ИИ. Ничего не отправляется, пока вы не нажмёте кнопку. Тогда FluxRadar ещё раз прочитает вашу главную страницу, чтобы проверить ответ.',
+      button: 'Добавить ответ ИИ',
+      sending: 'Добавляем ответ ИИ…',
+      running:
+        'FluxRadar сейчас задаёт вопрос ИИ. Ответ появится здесь примерно через минуту, а проверка главной страницы и оценка не изменятся.',
+      retryShortly: 'Сейчас не удалось запросить ответ ИИ. Попробуйте ещё раз через минуту.',
+      refused:
+        'Эта проверка уже не может добавить ответ ИИ. Обновите отчёт, чтобы увидеть её текущее состояние.',
+      slow: 'Ответ ИИ готовится дольше обычного. Обновите отчёт через несколько минут, чтобы его увидеть.',
+      lastAttemptSiteUnread:
+        'Прошлая попытка не началась: FluxRadar не смог тогда прочитать вашу главную страницу, поэтому ни один ИИ-сервис ничего не получил. Можно нажать кнопку ещё раз.',
+      lastAttemptPlatform:
+        'Прошлая попытка не началась из-за сбоя на стороне FluxRadar, поэтому ни один ИИ-сервис ничего не получил. Можно нажать кнопку ещё раз.',
+      lastAttemptRobots:
+        'Прошлая попытка не началась: robots.txt вашего сайта не разрешает FluxRadar читать главную страницу, поэтому ни один ИИ-сервис ничего не получил. Кнопка сработает, как только robots.txt это разрешит.',
+      attemptsExhausted:
+        'Ответ ИИ добавить не удалось: несколько попыток не смогли начаться, потому что вашу главную страницу не удалось прочитать или на стороне FluxRadar произошёл сбой. Ни один ИИ-сервис ничего не получил, и для этой проверки ответ больше не запрашивают.',
+      oneAttemptLeft: 'Для этой проверки осталась одна попытка.',
+      oneAttemptLeftRobots:
+        'Для этой проверки осталась одна попытка, поэтому сначала исправьте robots.txt, а потом нажимайте кнопку.',
     },
     preview: {
       heading: 'Что ИИ говорит о вашем бизнесе',
@@ -225,7 +322,7 @@ export const freePreviewCopy: Readonly<Record<Language, FreePreviewCopy>> = {
       notRunAlreadyRequested:
         'В этот раз вопрос ИИ не задавался: предыдущий запуск этой проверки уже дошёл до шага ИИ, а для одной проверки Free ответ ИИ дважды не запрашивают.',
       notRunOther:
-        'В этот раз ответ ИИ получить не удалось. Проверка главной страницы и оценка от этого не изменились.',
+        'Для этой проверки ответ ИИ получить не удалось. Проверка главной страницы и оценка от этого не изменились.',
       pending: 'Шаг ИИ ещё не завершён. Ответа в этом отчёте пока нет.',
     },
   },

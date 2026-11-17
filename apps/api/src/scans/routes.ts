@@ -17,6 +17,7 @@ import { z } from 'zod';
 
 import { accountIdFrom, requireAuth } from '../auth/middleware.ts';
 import { cancelScan } from '../billing/cancel-scan.ts';
+import { JOB_STATUSES } from '../billing/constants.ts';
 import { isFreeCheckAllowedOrigin } from '../billing/free-check-allowlist.ts';
 import { isUniqueViolation } from '../billing/prisma-errors.ts';
 import {
@@ -34,6 +35,7 @@ import { requiredParam } from '../http/params.ts';
 import { parseInput } from '../http/validate.ts';
 import { modulePlanFor } from '../orchestrator/module-plan.ts';
 import { findOwnProfile } from '../profiles/routes.ts';
+import { storedExecutionConfig } from '../profiles/execution-config.ts';
 import { RequestRateLimiter, scanActionRules } from '../auth/rate-limit.ts';
 import {
   freeAiConsentSchema,
@@ -41,6 +43,16 @@ import {
   type FreeAiConsentInput,
 } from './free-ai-consent.ts';
 import { freeScanScope } from './free-scan-scope.ts';
+import {
+  LATE_FREE_PREVIEW_JOB_TYPE,
+  metadataRecord,
+  releasedAttemptsOf,
+} from '../orchestrator/late-free-preview-job.ts';
+import {
+  claimLateFreePreview,
+  lateFreePreviewBodySchema,
+  lateFreePreviewRefusal,
+} from './late-free-preview.ts';
 import { assertReportSnapshotReady } from './report-readiness.ts';
 import { overallScoreView } from './free-score-view.ts';
 import { sortModules } from './module-order.ts';
@@ -72,7 +84,7 @@ export const freeCheckBodySchema = z
   .object({
     scope: scanScopeSchema.optional(),
     expectedProfileConfigVersion: z.number().int().min(1).optional(),
-    /** The owner's opt-in to the one-question GEO preview (D-236). */
+    /** The one-question GEO preview's consent: sent while its box is ticked (D-236). */
     aiConsent: freeAiConsentSchema.optional(),
     /** Compatibility with older clients; new clients send aiLanguage. */
     language: reportLanguageSchema.optional(),
@@ -204,7 +216,11 @@ export function scansRouter(deps: ScansRouterDeps): Router {
   router.get('/scans/active', auth, async (req, res) => {
     const scan = (await deps.prisma.scan.findFirst({
       where: { accountId: accountIdFrom(res), status: { in: [...ACTIVE_SCAN_STATUSES] } },
-      include: { modules: true, job: { select: { status: true } }, ...PAID_ACCESS_INCLUDE },
+      include: {
+        modules: true,
+        job: { select: { status: true, type: true } },
+        ...PAID_ACCESS_INCLUDE,
+      },
       orderBy: [...SCAN_HISTORY_ORDER],
     })) as OwnScan | null;
     sendOk(res, scan === null ? null : toScanDto(scan, readableModules(scan)));
@@ -345,13 +361,55 @@ export function scansRouter(deps: ScansRouterDeps): Router {
     ) {
       throw conflict('RETRY_NOT_ALLOWED', 'only a Partial or Unavailable module can be retried');
     }
-    await transitionScan(deps.prisma, scan.id, 'Partial', 'Running', { now: deps.now() });
-    await deps.prisma.job.updateMany({
-      where: { scanId: scan.id },
-      data: { status: 'Pending', type: `module-retry:${retryModule}`, claimedAt: null },
+    // The scan's one Job row is also how a finished Free check queues its late AI
+    // answer (late-free-preview.ts). While that job is open the retry must not
+    // overwrite it, and the guard sits in the job update itself, in the
+    // transaction that moves the scan, so the two cannot interleave. Any other
+    // job is rewritten exactly as before.
+    await deps.prisma.$transaction(async (tx) => {
+      await transitionScan(tx, scan.id, 'Partial', 'Running', { now: deps.now() });
+      const { count } = await tx.job.updateMany({
+        where: {
+          scanId: scan.id,
+          OR: [{ type: { not: LATE_FREE_PREVIEW_JOB_TYPE } }, { status: JOB_STATUSES.done }],
+        },
+        data: { status: 'Pending', type: `module-retry:${retryModule}`, claimedAt: null },
+      });
+      if (count === 0 && (await tx.job.count({ where: { scanId: scan.id } })) > 0) {
+        throw conflict('RETRY_NOT_ALLOWED', 'the AI answer is still being added to this check');
+      }
     });
     deps.enqueueScan(scan.id);
     sendOk(res, { scanId: scan.id, status: 'Running', module: retryModule }, { status: 202 });
+  });
+
+  // "Add the AI answer" on a finished Free report whose AI box was left
+  // unticked (D-236). The click carries the same Free consent record the launch
+  // form would have sent; recording it is the claim on the one late run.
+  router.post('/scans/:scanId/free-ai-preview', auth, async (req, res) => {
+    const body = parseInput(lateFreePreviewBodySchema, req.body);
+    const scanId = requiredParam(req.params.scanId, 'scanId');
+    const accountId = accountIdFrom(res);
+    requestRateLimiter.assertAllowedAll(
+      scanActionRules('scan-free-ai-preview', accountId, req.ip ?? 'unknown'),
+    );
+    const scan = await findOwnScan(deps.prisma, accountId, scanId);
+    // The origin the worker checks: the profile domain frozen at launch.
+    const origin = storedExecutionConfig(scan.executionConfigJson)?.profile.domain ?? scan.domain;
+    const geoRow = scan.modules.find((module) => module.module === 'AI SEO / GEO') ?? null;
+    const refused = lateFreePreviewRefusal({
+      plan: scan.plan,
+      scanStatus: scan.status,
+      jobStatus: scan.job?.status ?? null,
+      geoRow,
+      consentRecorded: (await deps.prisma.aiConsent.count({ where: { scanId } })) > 0,
+      allowlistedOrigin: isFreeCheckAllowedOrigin(origin, freeCheckAllowedOrigins),
+      releasedAttempts: releasedAttemptsOf(metadataRecord(geoRow?.metadataJson)),
+    });
+    if (refused !== null) throw refused;
+    await claimLateFreePreview(deps.prisma, { accountId, scanId, consent: body.aiConsent });
+    deps.enqueueScan(scanId);
+    sendOk(res, { scanId, status: scan.status, module: 'AI SEO / GEO' }, { status: 202 });
   });
 
   // DELIBERATELY NOT GUARDED by paid access. Cancelling returns no report data,
@@ -390,8 +448,9 @@ export interface CreateFreeScanParams {
   readonly requestedScope?: ScanScopeInput | undefined;
   readonly expectedProfileConfigVersion?: number | undefined;
   /**
-   * The owner's opt-in to the GEO preview. Absent means the preview asks
-   * nothing and reports ConsentMissing; the homepage check and score still run.
+   * The GEO preview's consent, present while its launch box is ticked. Absent
+   * means the preview asks nothing and reports ConsentMissing; the homepage
+   * check and score still run, and the report can add the answer later.
    */
   readonly aiConsent?: FreeAiConsentInput | undefined;
   /** Legacy EN/UK client field; aiLanguage takes priority. */
@@ -492,7 +551,7 @@ export async function createFreeScan(
 export type OwnScan = Scan &
   PaidAccessScan & {
     readonly modules: readonly ScanModule[];
-    readonly job: { readonly status: string } | null;
+    readonly job: { readonly status: string; readonly type?: string } | null;
   };
 
 /**
@@ -509,7 +568,11 @@ export async function findOwnScan(
 ): Promise<OwnScan> {
   const scan = await prisma.scan.findFirst({
     where: { id: scanId, accountId },
-    include: { modules: true, job: { select: { status: true } }, ...PAID_ACCESS_INCLUDE },
+    include: {
+      modules: true,
+      job: { select: { status: true, type: true } },
+      ...PAID_ACCESS_INCLUDE,
+    },
   });
   if (scan === null) {
     throw notFound('scan not found');

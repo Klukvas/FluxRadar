@@ -35,6 +35,13 @@ import {
   requeueAndClaimJob,
 } from './claim.ts';
 import { runScanAttempt } from './run-attempt.ts';
+import { LATE_FREE_PREVIEW_JOB_TYPE } from './late-free-preview-job.ts';
+import { runLateFreePreview } from './late-free-preview.ts';
+import {
+  finishLateJob,
+  recordLatePreviewFailure,
+  type LateOutcome,
+} from './late-free-preview-state.ts';
 
 // The current runtime has one in-process queue drain and HTTP enqueue path.
 // Keeping active scan IDs shared between both paths closes the retry window in
@@ -43,8 +50,13 @@ const activeScanIds = new Set<string>();
 
 export interface ScanProcessResult {
   readonly scanId: string;
-  readonly status: ScanRuntimeStatus;
-  readonly outcome: 'Completed' | 'Partial' | 'Failed' | 'Cancelled' | 'Queued';
+  /** Null only with outcome `Deleted`: the scan no longer exists. */
+  readonly status: ScanRuntimeStatus | null;
+  /**
+   * `Deleted`: the scan was removed while its late Free AI answer was queued or
+   * running (retention, or deletion of its profile); nothing was left to run.
+   */
+  readonly outcome: 'Completed' | 'Partial' | 'Failed' | 'Cancelled' | 'Queued' | 'Deleted';
   readonly refundId: string | null;
 }
 
@@ -142,6 +154,9 @@ async function processClaimedJob(
   );
   leaseTimer.unref();
   try {
+    if (jobType === LATE_FREE_PREVIEW_JOB_TYPE) {
+      return await processLateFreePreview(deps, activeJobId, scanId);
+    }
     for (;;) {
       const scan = await prisma.scan.findUnique({ where: { id: scanId } });
       if (scan === null) {
@@ -366,6 +381,51 @@ async function processClaimedJob(
     clearInterval(leaseTimer);
     activeScanIds.delete(scanId);
   }
+}
+
+/**
+ * The late Free AI preview a finished Free report asked for (D-236).
+ *
+ * It runs beside the scan, not through it: the scan stays terminal, so none of
+ * the outcome, refund, coverage or retry machinery above is touched, and no
+ * second "finished" result is produced. The attempt ends one of three ways
+ * (late-free-preview-state.ts `LateOutcome`):
+ *  - `released`: it failed before anything was sent, handed the claim back and
+ *    closed its own job;
+ *  - `held`: another attempt holds the provider step, so the GEO row and the
+ *    job are left to it, untouched;
+ *  - `settled`: its ending is on the GEO row (the winner records its own
+ *    failure), and the job is closed here.
+ */
+async function processLateFreePreview(
+  deps: WorkerDeps,
+  jobId: string,
+  scanId: string,
+): Promise<ScanProcessResult> {
+  const { prisma, logger } = deps;
+  let outcome: LateOutcome;
+  try {
+    outcome = await runLateFreePreview(deps, scanId, jobId);
+  } catch (error) {
+    logger.error(
+      'late free AI preview failed',
+      {
+        scanId,
+        error: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
+      },
+      error,
+    );
+    outcome = await recordLatePreviewFailure(prisma, {
+      scanId,
+      jobId,
+      now: deps.now?.() ?? new Date(),
+    });
+  }
+  // A released claim closed its own job; a held one is another attempt's.
+  if (outcome === 'settled') await finishLateJob(prisma, jobId);
+  const scan = await prisma.scan.findUnique({ where: { id: scanId }, select: { status: true } });
+  if (scan === null) return { scanId, status: null, outcome: 'Deleted', refundId: null };
+  return resultFromExisting(scanId, scan.status as ScanRuntimeStatus);
 }
 
 /** Атомарный переход; false — гонку выиграл кто-то другой (отмена). */

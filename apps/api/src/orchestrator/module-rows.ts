@@ -16,7 +16,9 @@ const GEO_MODULE = 'AI SEO / GEO';
  * Status-independent on purpose: a row is cleared and reset to Pending at the
  * start of every attempt, so a Running status alone does not survive two failed
  * attempts in a row. Any GEO row carrying this marker blocks the preview for
- * the rest of the scan (free-geo.ts `geoStageReached`).
+ * the rest of the scan (free-geo.ts `geoStageReached`). The late preview of a
+ * finished report writes the same marker when its provider step starts
+ * (late-free-preview-job.ts).
  */
 export const FREE_PREVIEW_REQUESTED_METADATA: Readonly<Record<string, Record<string, unknown>>> = {
   [GEO_MODULE]: { freePreview: true, previewRequested: true },

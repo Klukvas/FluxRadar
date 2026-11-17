@@ -5,6 +5,16 @@ import { RussianPrivacy } from './PrivacyPolicy.ru';
 import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } from './SharedLegal';
 
 /**
+ * 17 November 2026: the Free check's AI box is ticked by default. What is sent
+ * and to whom is unchanged (Anthropic, one closed-book question and one check
+ * of its answer, under core-ai-processing-notice-v6); what changed is that the
+ * owner now unticks the box to send nothing, instead of ticking it to send.
+ * A Free report whose box was unticked can also add that one answer later
+ * from the finished report, by a button shown beside the same disclosure; the
+ * click is recorded under that notice exactly like the tick, and the homepage
+ * is read again at that moment to check the answer
+ * (apps/api/src/scans/late-free-preview.ts).
+ *
  * 7 November 2026: the Free homepage check can ask one AI question. It sends
  * nothing to an AI provider unless the owner ticks its box on the scan form;
  * with the tick it asks Anthropic one closed-book question naming the business
@@ -79,9 +89,9 @@ import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } fro
  * Plan as an AI purpose, and consent-based Google Analytics 4.
  */
 const PRIVACY_EFFECTIVE: EffectiveDate = {
-  uk: '7 листопада 2026 року',
-  en: '7 November 2026',
-  ru: '7 ноября 2026 года',
+  uk: '17 листопада 2026 року',
+  en: '17 November 2026',
+  ru: '17 ноября 2026 года',
 };
 
 export function PrivacyPolicy({ language }: { readonly language: Language }): JSX.Element {
@@ -276,12 +286,15 @@ function UkrainianPrivacy(): JSX.Element {
           до AI‑запиту.
         </p>
         <p>
-          Безкоштовна перевірка головної сторінки нічого не надсилає AI‑провайдеру, якщо ви не
-          позначите її галочку у формі перевірки. Якщо позначите, вона ставить{' '}
-          <strong>Anthropic</strong> одне питання, що називає ваш бізнес або домен, «із закритою
-          книгою» — без вебпошуку та інших інструментів, — а потім Anthropic окремим запитом звіряє
-          цю відповідь з обмеженим знімком цієї перевірки: полями профілю, які ви зберегли, і
-          текстом вашої головної сторінки. Галочку записують разом із перевіркою за повідомленням
+          Безкоштовна перевірка головної сторінки ставить <strong>Anthropic</strong> одне питання,
+          що називає ваш бізнес або домен, «із закритою книгою», без вебпошуку та інших
+          інструментів, а потім Anthropic окремим запитом звіряє цю відповідь з обмеженим знімком
+          цієї перевірки: полями профілю, які ви зберегли, і текстом вашої головної сторінки.
+          Галочку для цього у формі перевірки поставлено за замовчуванням. Якщо ви її знімете,
+          безкоштовна перевірка нічого не надсилає AI‑провайдеру. Таку відповідь можна додати й
+          пізніше з готового звіту окремою кнопкою, поруч із якою показано це саме повідомлення;
+          тоді FluxRadar ще раз читає вашу головну сторінку, щоб перевірити відповідь. Галочку або
+          натискання кнопки записують разом із перевіркою за повідомленням
           core-ai-processing-notice-v6. Жоден інший AI‑провайдер нічого не отримує від безкоштовної
           перевірки, а питання ставлять щонайбільше один раз на перевірку.
         </p>
@@ -682,13 +695,16 @@ function EnglishPrivacy(): JSX.Element {
           not AI inputs.
         </p>
         <p>
-          The Free homepage check sends nothing to an AI provider unless you tick its box on the
-          scan form. If you do, it asks <strong>Anthropic</strong> one closed-book question that
+          The Free homepage check asks <strong>Anthropic</strong> one closed-book question that
           names your business or domain, with no web search and no other tools, and Anthropic then
           checks that answer in a separate request against a bounded snapshot of this check: the
-          profile fields you saved and text from your homepage. The tick is recorded with the check
-          under the core-ai-processing-notice-v6 disclosure. No other AI provider receives anything
-          from a Free check, and the question is asked at most once per check.
+          profile fields you saved and text from your homepage. The box for it on the scan form is
+          ticked by default. If you untick it, the Free check sends nothing to an AI provider. You
+          can also add that answer later from the finished report, with a button shown beside this
+          same disclosure; FluxRadar then reads your homepage again to check the answer. The tick or
+          the button press is recorded with the check under the core-ai-processing-notice-v6
+          disclosure. No other AI provider receives anything from a Free check, and the question is
+          asked at most once per check.
         </p>
         <p>
           The AI Action Plan (Basic and Complete) sends Anthropic the report’s rule metadata only:

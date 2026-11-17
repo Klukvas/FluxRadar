@@ -182,10 +182,13 @@ describe('the Free confirmation summary', () => {
     ['uk', 'Відповідь Claude', 'не запитується', 'одна, українською'],
     ['ru', 'Ответ Claude', 'не запрашивается', 'один, на русском'],
   ] as const)(
-    'shows the real opt-in and chosen language in %s',
+    'shows the real consent and chosen language in %s',
     async (language, label, off, expected) => {
       open('/scan', language);
       await screen.findByLabelText(freePreviewCopy[language].consent.checkbox);
+      // The box starts ticked: the summary confirms the answer before any click.
+      expect(summary().getByText(label).parentElement).toHaveTextContent(expected);
+      fireEvent.click(screen.getByLabelText(freePreviewCopy[language].consent.checkbox));
       expect(summary().getByText(label).parentElement).toHaveTextContent(off);
       fireEvent.click(screen.getByLabelText(freePreviewCopy[language].consent.checkbox));
       expect(summary().getByText(label).parentElement).toHaveTextContent(expected);
@@ -218,7 +221,7 @@ describe('the Free confirmation summary', () => {
   );
   it('confirms Russian for a Russian interface', async () => {
     open('/scan', 'ru', 'Russian');
-    fireEvent.click(await screen.findByLabelText(freePreviewCopy.ru.consent.checkbox));
+    expect(await screen.findByLabelText(freePreviewCopy.ru.consent.checkbox)).toBeChecked();
     expect(summary().getByText('Ответ Claude').parentElement).toHaveTextContent('один, на русском');
   });
 });

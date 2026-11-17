@@ -4,8 +4,9 @@ import { AI_PROCESSING_NOTICE_VERSION } from './ai-processing-notice';
 import { requestScan, type ScanRequest } from './new-scan-request';
 import type { ScanScopePayload } from './scan-scope';
 
-// The Free AI preview's consent (D-236) travels only when the owner ticked it,
-// and only ever names Anthropic: the API refuses any other Free record.
+// The Free AI preview's consent (D-236) travels only while its box is ticked
+// (the form's default), and only ever names Anthropic: the API refuses any
+// other Free record.
 
 function freeRequest(freeAiConsent: boolean | undefined): ScanRequest {
   return {
@@ -42,7 +43,7 @@ afterEach(() => {
 });
 
 describe('a Free launch', () => {
-  it('records Anthropic-only consent when the owner opted in', async () => {
+  it('records Anthropic-only consent while the box is ticked', async () => {
     const { body } = captureBody();
     await requestScan(freeRequest(true));
     expect(body().aiConsent).toEqual({
@@ -51,7 +52,7 @@ describe('a Free launch', () => {
     });
   });
 
-  it('sends no consent record when the box was left unticked', async () => {
+  it('sends no consent record when the owner unticked the box', async () => {
     for (const choice of [false, undefined]) {
       const { body } = captureBody();
       await requestScan(freeRequest(choice));

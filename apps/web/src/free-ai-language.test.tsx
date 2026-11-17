@@ -114,7 +114,8 @@ describe('Free follows the interface at submission', () => {
     '%s ignores a conflicting Ukrainian site and offers no override',
     async (language, consentLabel, launchLabel) => {
       const fetchMock = renderNewScan(language, 'Ukrainian');
-      fireEvent.click(await screen.findByLabelText(consentLabel));
+      // Ticked by default: the hint below it is already shown.
+      expect(await screen.findByLabelText(consentLabel)).toBeChecked();
       expect(document.querySelector('[name="scan-ai-language"]')).toBeNull();
       expect(screen.getByText(freeAiInterfaceHint[language])).toBeInTheDocument();
       fireEvent.click(screen.getByRole('button', { name: launchLabel }));
@@ -124,7 +125,7 @@ describe('Free follows the interface at submission', () => {
 
   it('captures the interface language even with consent off, without sending consent', async () => {
     const fetchMock = renderNewScan('en', 'Ukrainian');
-    await screen.findByLabelText(CONSENT_EN);
+    fireEvent.click(await screen.findByLabelText(CONSENT_EN));
     fireEvent.click(screen.getByRole('button', { name: 'Run free check' }));
     const body = await freeCheckBody(fetchMock);
     expect(body.aiLanguage).toBe('en');

@@ -166,7 +166,7 @@ export interface NewScanForm {
    */
   readonly offeredOptInAiProviders: readonly AiProcessingOptInProvider[];
   readonly optInAiProviders: readonly AiProcessingOptInProvider[];
-  /** Free only: whether the owner opted in to the one-question AI preview. */
+  /** Free only: whether the one-question AI preview box is ticked (its default). */
   readonly freeAiConsent: boolean;
   readonly setFreeAiConsent: (selected: boolean) => void;
   /** Free follows the current interface; paid GEO has a separate draft override. */
@@ -306,9 +306,11 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   const [optInAiProviders, setOptInAiProviders] = useState<readonly AiProcessingOptInProvider[]>(
     [],
   );
-  // Off until the owner ticks it: a Free check sends nothing to an AI service
-  // on its own (D-236).
-  const [freeAiConsent, setFreeAiConsent] = useState(false);
+  // Ticked by default: an owner who missed an unticked box got a Free report
+  // with no AI answer. The box and its disclosure are on screen before launch,
+  // and unticking it still sends no record, so nothing reaches an AI service
+  // (D-236).
+  const [freeAiConsent, setFreeAiConsent] = useState(true);
   const paidAiLanguage = useFreeAiLanguage(
     props.profiles.find((profile) => profile.id === target) ?? null,
     props.language,
