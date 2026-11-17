@@ -900,6 +900,7 @@ const BILINGUAL = {
         'In short: this report includes two AI services — Anthropic and OpenAI. Both answer questions about how your site is found; only Anthropic also reads the public pages of your site and the details you saved about it. Your password, your card details and your Google or Bing access are never sent to either.',
       aiConsentBody:
         'By starting this paid audit, you instruct FluxRadar to use Anthropic (Claude) and OpenAI (ChatGPT) for its included AI checks. Anthropic first receives neutralized industry, offering, region, audience and language settings to generate discovery questions without your brand or domain; both providers answer those discovery questions with their own web search enabled. Separate direct questions name the brand or domain, go to both providers and are asked closed-book, without browsing or tools. Each answer is then checked by Anthropic, in its own request, against a bounded snapshot of this audit’s evidence: the profile fields you saved and text from the public pages that were crawled. In that same request Anthropic also judges the tone in which the answer describes your business. On Complete, UX review can include the same saved context and bounded public-page evidence and goes to Anthropic only. AI can be wrong, omit a mention or be temporarily unavailable. Do not enter confidential, sensitive or unlawfully obtained personal data. Account, payment and Google/Bing access tokens are never sent.',
+      aiConsentNote: 'Anthropic and OpenAI are included. What is sent:',
       aiConsentOptInTitle: 'Optional: ask Gemini and Perplexity too',
       aiConsentOptInMode: 'Off by default',
       aiConsentOptInBody:
@@ -923,6 +924,7 @@ const BILINGUAL = {
       actionPlanInfoMode: 'On request',
       actionPlanInfoBody:
         'Basic and Complete reports can also write an AI Action Plan: an ordered list of fixes with a short overview you can forward to a client. Nothing is sent for it when you pay or while the scan runs. Only when you press its button in the report does FluxRadar send Anthropic (Claude) the site’s domain, each section’s status, score and coverage, and, for each rule with open findings, its id and title, its section, the highest open severity, the number of open findings, up to three page addresses without query strings or fragments, and the rule’s recommendations as the report shows them. Evidence excerpts, screenshots, traces and anything from the Analytics section are never sent. Pressing the button is your consent.',
+      actionPlanNote: 'Nothing is sent until you ask for the plan in the report. What is sent:',
       aiConsentPrivacy: 'Privacy policy',
       aiConsentTerms: 'Terms of service',
       performanceInfoTitle: 'External performance measurement',
@@ -2974,6 +2976,7 @@ const BILINGUAL = {
         'Коротко: у цей звіт входять два AI-сервіси — Anthropic і OpenAI. Обидва відповідають на запитання про те, як знаходять ваш сайт; і лише Anthropic додатково читає публічні сторінки вашого сайту й ті дані про нього, які ви зберегли. Ваш пароль, дані картки та доступ до Google чи Bing не надсилають жодному з них.',
       aiConsentBody:
         'Запускаючи цей платний аудит, ви доручаєте FluxRadar використати Anthropic (Claude) і OpenAI (ChatGPT) для включених AI-перевірок. Anthropic спочатку отримує нейтралізовані налаштування галузі, пропозицій, регіону, аудиторії та мов, щоб створити discovery-запитання без вашого бренду чи домену; на ці discovery-запитання обидва провайдери відповідають із увімкненим власним вебпошуком. Окремі прямі запитання містять бренд або домен, ідуть до обох провайдерів і ставляться «із закритою книгою» — без пошуку в мережі та без інструментів. Потім кожну відповідь Anthropic окремим запитом звіряє з обмеженим набором доказів цього аудиту: полями профілю, які ви зберегли, і текстом публічних сторінок, які було обійдено. У тому самому запиті Anthropic також оцінює, яким тоном відповідь описує ваш бізнес. У Complete UX-аналіз може включати той самий збережений контекст та обмежені докази з публічних сторінок і йде лише до Anthropic. AI може помилитися, пропустити згадку або бути тимчасово недоступним. Не вводьте конфіденційні, чутливі чи незаконно отримані персональні дані. Дані акаунта, оплати та Google/Bing tokens ніколи не передаються.',
+      aiConsentNote: 'Увімкнено Anthropic і OpenAI. Що надсилається:',
       aiConsentOptInTitle: 'Необовʼязково: запитати також Gemini і Perplexity',
       aiConsentOptInMode: 'Вимкнено за замовчуванням',
       aiConsentOptInBody:
@@ -2990,6 +2993,7 @@ const BILINGUAL = {
       actionPlanInfoMode: 'За запитом',
       actionPlanInfoBody:
         'У звітах Basic і Complete можна також скласти AI-план дій: упорядкований список правок із коротким оглядом, який можна переслати клієнту. Під час оплати й поки триває перевірка для нього нічого не надсилається. Лише коли ви натиснете кнопку цього плану у звіті, FluxRadar надішле до Anthropic (Claude) домен сайту, статус, оцінку й покриття кожного розділу, а для кожного правила з відкритими знахідками: ідентифікатор і назву, розділ, найвищу відкриту серйозність, кількість відкритих знахідок, до трьох адрес сторінок без параметрів запиту й фрагментів і рекомендації правила так, як їх показує звіт. Уривки доказів, знімки екрана, трасування й будь-що з розділу «Аналітика» ніколи не надсилаються. Натискання кнопки означає вашу згоду.',
+      actionPlanNote: 'Поки ви не попросите план у звіті, нічого не надсилається. Що надсилається:',
       aiConsentPrivacy: 'Політика приватності',
       aiConsentTerms: 'Умови користування',
       performanceInfoTitle: 'Зовнішнє вимірювання швидкодії',

@@ -257,6 +257,16 @@ export function DesktopScreen(props: DesktopScreenProps) {
     targetAudience,
     competitorsInput,
   ].some((value) => value.trim() !== '');
+  // The six fields "Fill from site" can still write. Once each of them has an
+  // answer, the button has nothing left to do and stays out of the way.
+  const contextComplete = [
+    industry,
+    businessDescription,
+    offerings,
+    region,
+    targetLanguages,
+    targetAudience,
+  ].every((value) => value.trim() !== '');
   const parsedCompetitors = parseCompetitorsInput(competitorsInput);
   const competitorsProblem = competitorsError(parsedCompetitors, name, domain);
   const competitorsFieldError =
@@ -397,7 +407,7 @@ export function DesktopScreen(props: DesktopScreenProps) {
         targetAudience: optionalText(targetAudience),
         competitors: parsedCompetitors.length === 0 ? undefined : parsedCompetitors,
       };
-      await apiRequest<SiteProfile>(
+      const saved = await apiRequest<SiteProfile>(
         editingProfile === null ? '/profiles' : `/profiles/${editingProfile.id}`,
         {
           method: editingProfile === null ? 'POST' : 'PATCH',
@@ -417,9 +427,13 @@ export function DesktopScreen(props: DesktopScreenProps) {
       );
       resetForm();
       await props.onRefresh();
-      // The confirmation is said where the owner is looking, and the list the
-      // new row landed in is brought into view instead of an emptied form.
       props.onNotice(wasEditing ? d.profileUpdated(savedName) : d.profileSaved(savedName));
+      // A site just added has one next step: a scan of that site. The list
+      // stays put on an edit, which was a correction rather than a new start.
+      if (!wasEditing && typeof saved?.id === 'string' && saved.id !== '') {
+        props.onNewScan(saved);
+        return;
+      }
       window.requestAnimationFrame(() => listRef.current?.scrollIntoView({ block: 'start' }));
     } catch (caught) {
       props.onError(caught instanceof Error ? caught.message : 'Profile creation failed');
@@ -522,18 +536,26 @@ export function DesktopScreen(props: DesktopScreenProps) {
                       doing has to be readable — and announced — where the
                       address was just typed.
 
-                      `role="status"` carries the polite live region; the
-                      pulsing dot beside the sentence is the same marker a
-                      running scan section uses, and it is decoration — the
-                      sentence is what a screen reader is given. */}
-                  <div className="profile-autofill-status" role="status">
-                    {autofillMessage === null ? null : (
-                      <p className="muted profile-suggestions">
-                        {autofill.pending ? (
-                          <span className="profile-autofill-status__pulse" aria-hidden="true" />
-                        ) : null}
-                        {autofillMessage}
-                      </p>
+                      `role="status"` carries the polite live region. While the
+                      read is owed the row is a bar with a spinner: a muted
+                      sentence was too easy to miss on a form that had just
+                      locked its fields. The sentence is what a screen reader
+                      is given; the spinner is decoration. */}
+                  <div
+                    className={
+                      autofill.pending && autofillMessage !== null
+                        ? 'profile-autofill-status profile-autofill-status--pending'
+                        : 'profile-autofill-status'
+                    }
+                    role="status"
+                  >
+                    {autofillMessage === null ? null : autofill.pending ? (
+                      <>
+                        <span className="profile-autofill-status__spinner" aria-hidden="true" />
+                        <p className="profile-suggestions">{autofillMessage}</p>
+                      </>
+                    ) : (
+                      <p className="muted profile-suggestions">{autofillMessage}</p>
                     )}
                   </div>
                   <Field
@@ -568,25 +590,29 @@ export function DesktopScreen(props: DesktopScreenProps) {
                     </summary>
                     <div className="stack">
                       <div className="stack profile-context-actions">
-                        <p className="muted profile-suggestions">
-                          {t.workspace.suggestProfileHelp}
-                        </p>
-                        <div className="button-row">
-                          {/* Held while a request is in flight, not for the
-                              whole time a read is owed: pressing this during
-                              the debounce is "read it now", and it is the one
-                              action that makes the wait shorter rather than
-                              racing it. */}
-                          <Button
-                            type="button"
-                            onClick={() => void fillFromSite()}
-                            disabled={autofill.running || editingProfile !== null}
-                          >
-                            {autofill.running
-                              ? t.workspace.suggestingProfile
-                              : t.workspace.suggestProfile}
-                          </Button>
-                        </div>
+                        {contextComplete ? null : (
+                          <>
+                            <p className="muted profile-suggestions">
+                              {t.workspace.suggestProfileHelp}
+                            </p>
+                            <div className="button-row">
+                              {/* Held while a request is in flight, not for the
+                                  whole time a read is owed: pressing this during
+                                  the debounce is "read it now", and it is the one
+                                  action that makes the wait shorter rather than
+                                  racing it. */}
+                              <Button
+                                type="button"
+                                onClick={() => void fillFromSite()}
+                                disabled={autofill.running || editingProfile !== null}
+                              >
+                                {autofill.running
+                                  ? t.workspace.suggestingProfile
+                                  : t.workspace.suggestProfile}
+                              </Button>
+                            </div>
+                          </>
+                        )}
                         {autofill.suggested ? (
                           <p className="muted profile-suggestions">
                             {t.workspace.suggestedProfile}

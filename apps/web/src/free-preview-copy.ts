@@ -15,10 +15,10 @@ export interface FreePreviewCopy {
    */
   readonly scopePreview: string;
   readonly consent: {
-    readonly eyebrow: string;
-    readonly title: string;
     readonly mode: string;
-    readonly lead: string;
+    /** One sentence beside the box. The rest of the disclosure is in the terms. */
+    readonly note: string;
+    /** The full disclosure, shown beside "Add the AI answer" on a finished report. */
     readonly body: string;
     readonly checkbox: string;
   };
@@ -98,10 +98,8 @@ export const freePreviewCopy: Readonly<Record<Language, FreePreviewCopy>> = {
   en: {
     scopePreview: 'Preview in this report — the full section is in the paid check',
     consent: {
-      eyebrow: 'AI PREVIEW · OPTIONAL',
-      title: 'Include one AI answer about your business',
       mode: 'On by default',
-      lead: 'The box is ticked, so this check also shows what one AI assistant (Claude by Anthropic) says about your business. Untick it and nothing is sent to any AI service.',
+      note: 'Untick it and nothing is sent. Details:',
       body: 'FluxRadar asks Anthropic (Claude) one question that names your business or domain, closed-book, without browsing or tools. Anthropic then checks that answer, in a separate request, against a bounded snapshot of this check: the profile fields you saved and text from your homepage. No other AI provider receives anything. AI can be wrong or omit a mention. Your account, payment details and Google or Bing access are never sent.',
       checkbox: 'Ask Anthropic (Claude) one question about my business',
     },
@@ -175,10 +173,8 @@ export const freePreviewCopy: Readonly<Record<Language, FreePreviewCopy>> = {
   uk: {
     scopePreview: 'Превʼю в цьому звіті — повний розділ у платній перевірці',
     consent: {
-      eyebrow: 'AI-ПРЕВʼЮ · НЕОБОВʼЯЗКОВО',
-      title: 'Додати одну відповідь ШІ про ваш бізнес',
       mode: 'Увімкнено за замовчуванням',
-      lead: 'Галочку вже поставлено, тож ця перевірка також покаже, що один ШІ-помічник (Claude від Anthropic) каже про ваш бізнес. Зніміть її, і жоден ШІ-сервіс нічого не отримає.',
+      note: 'Зніміть галочку — і нічого не надішлеться. Подробиці:',
       body: 'FluxRadar ставить Anthropic (Claude) одне питання, що називає ваш бізнес або домен, у режимі closed-book, без перегляду вебу та інструментів. Потім Anthropic окремим запитом перевірить цю відповідь за обмеженим знімком цієї перевірки: полями профілю, які ви зберегли, і текстом вашої головної сторінки. Жоден інший ШІ-провайдер нічого не отримує. ШІ може помилятися або не згадати вас. Дані акаунта, оплати та доступи Google чи Bing ніколи не надсилаються.',
       checkbox: 'Поставити Anthropic (Claude) одне питання про мій бізнес',
     },
@@ -253,10 +249,8 @@ export const freePreviewCopy: Readonly<Record<Language, FreePreviewCopy>> = {
   ru: {
     scopePreview: 'Превью в этом отчёте, полный раздел в платной проверке',
     consent: {
-      eyebrow: 'ИИ-ПРЕВЬЮ · НЕОБЯЗАТЕЛЬНО',
-      title: 'Добавить один ответ ИИ о вашем бизнесе',
       mode: 'Включено по умолчанию',
-      lead: 'Галочка уже стоит, поэтому эта проверка также покажет, что один ИИ-помощник (Claude от Anthropic) говорит о вашем бизнесе. Снимите её, и ни один ИИ-сервис ничего не получит.',
+      note: 'Снимите галочку, и ничего не отправится. Подробности:',
       body: 'FluxRadar задаёт Anthropic (Claude) один вопрос, который называет ваш бизнес или домен, в режиме closed-book, без просмотра веба и инструментов. Затем Anthropic отдельным запросом сверит этот ответ с ограниченным снимком этой проверки: полями профиля, которые вы сохранили, и текстом вашей главной страницы. Ни один другой ИИ-провайдер ничего не получает. ИИ может ошибаться или не упомянуть вас. Данные аккаунта, оплаты и доступы Google или Bing никогда не отправляются.',
       checkbox: 'Задать Anthropic (Claude) один вопрос о моём бизнесе',
     },

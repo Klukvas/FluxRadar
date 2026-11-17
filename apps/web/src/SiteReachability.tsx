@@ -180,10 +180,14 @@ export function SiteReachabilityPanel(props: SiteReachabilityPanelProps) {
   }, [autoReady, check, claimAutoCheck, egressLocationId, profileId, uncheckedKey]);
 
   const answered = state.kind === 'result' || state.kind === 'failed';
+  // A yes is the end of this step: the site can be scanned, so there is nothing
+  // to ask again. A refusal, a stale answer and a failed request still offer
+  // the button, because those are the cases a second try can change.
+  const canScan = state.kind === 'result' && state.result.canPurchase;
   return (
     <div className="reach-step">
       <Body language={props.language} state={state} />
-      {state.kind === 'checking' ? null : (
+      {state.kind === 'checking' || canScan ? null : (
         <div className="button-row">
           <Button onClick={() => void check()}>{answered ? t.again : t.check}</Button>
         </div>

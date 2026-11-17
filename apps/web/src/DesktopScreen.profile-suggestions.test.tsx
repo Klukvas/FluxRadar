@@ -499,7 +499,11 @@ describe('automatic autofill from the pasted address', () => {
     typeAddress('clinic.example');
     await autofillSettles();
 
-    expect(screen.getByText(CHECKING)).toBeInTheDocument();
+    const checking = screen.getByText(CHECKING);
+    expect(checking.closest('[role="status"]')).toHaveClass('profile-autofill-status--pending');
+    expect(
+      checking.closest('[role="status"]')?.querySelector('.profile-autofill-status__spinner'),
+    ).not.toBeNull();
     pending.resolve(success({ name: 'Public clinic' }));
     await waitFor(() => expect(screen.getByText(FILLED)).toBeInTheDocument());
   });
@@ -667,6 +671,42 @@ describe('automatic autofill from the pasted address', () => {
     expect(
       screen.getByPlaceholderText('Dental clinic, recruiting platform, online store'),
     ).toBeEnabled();
+  });
+
+  it('hides Fill from site once every context field already has an answer', () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.resolve(success([]))),
+    );
+    renderForm();
+    expect(screen.getByRole('button', { name: 'Fill from site' })).toBeInTheDocument();
+
+    const written: readonly [string, string][] = [
+      ['Dental clinic, recruiting platform, online store', 'Dental clinic'],
+      ['A private dental clinic helping families in Kyiv…', 'A clinic in Kyiv'],
+      ['Dental implants, cleanings, emergency appointments', 'Implants'],
+      ['Kyiv and Kyiv region, Ukraine', 'Kyiv'],
+      ['Adults and families looking for a dentist in Kyiv', 'Families'],
+    ];
+    written.forEach(([placeholder, value]) =>
+      fireEvent.change(screen.getByPlaceholderText(placeholder), { target: { value } }),
+    );
+    fireEvent.click(screen.getByText('Choose languages'));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'English' }));
+
+    expect(
+      screen.queryByRole('button', { name: 'Fill from site', hidden: true }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        'We use public homepage details only. Review and add to them before saving.',
+      ),
+    ).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText('Kyiv and Kyiv region, Ukraine'), {
+      target: { value: '' },
+    });
+    expect(screen.getByRole('button', { name: 'Fill from site' })).toBeInTheDocument();
   });
 
   it('starts no read when the owner has already answered everything', async () => {
@@ -1151,8 +1191,8 @@ describe('automatic autofill from the pasted address', () => {
   });
 
   // The button used to show its progress only in its own label, which said
-  // nothing about the form being held — the pulse and the sentence under the
-  // address are what mark the form as working, whoever started the read.
+  // nothing about the form being held — the bar under the address is what
+  // marks the form as working, whoever started the read.
   it('says it is checking the site for a read the owner pressed for too', async () => {
     const pending = deferred<Response>();
     stubSuggestions(() => pending.promise);
@@ -1164,10 +1204,11 @@ describe('automatic autofill from the pasted address', () => {
     typeAddress('clinic.example');
     await autofillSettles();
     await waitFor(() => expect(screen.getByText(CHECKING)).toBeInTheDocument());
+    expect(document.querySelector('.profile-autofill-status__spinner')).not.toBeNull();
 
     pending.resolve(success({ industry: 'Dentist' }));
     await waitFor(() => expect(screen.getByText(FILLED)).toBeInTheDocument());
-    expect(document.querySelector('.profile-autofill-status__pulse')).toBeNull();
+    expect(document.querySelector('.profile-autofill-status__spinner')).toBeNull();
   });
 
   describe('a form that is busy, and a form that comes back', () => {

@@ -305,6 +305,7 @@ describe('the order summary', () => {
     const pay = screen.getByRole('button', { name: `Pay ${PLAN_PRICE.Basic} and start` });
     await screen.findByText(copy.en.reachability.states.accessDenied.label);
     expect(pay).toBeDisabled();
+    expect(screen.getByRole('button', { name: copy.en.reachability.again })).toBeVisible();
   });
 });
 
@@ -339,8 +340,10 @@ describe('the pre-purchase disclosures', () => {
     await paidCardsOffered();
     choosePlanCard('Complete');
 
-    const ai = screen.getByRole('group', { name: copy.en.newScan.aiConsentTitle });
-    expect(within(ai).getByText(/By starting this paid audit/)).toBeVisible();
+    const ai = document.querySelector('.scan-notice');
+    expect(ai).toHaveTextContent(copy.en.newScan.aiConsentNote);
+    expect(ai?.querySelector('a')).toHaveAttribute('href', '/terms#terms-paid-ai');
+    expect(screen.queryByText(/By starting this paid audit/)).not.toBeInTheDocument();
     const performance = screen.getByRole('group', { name: copy.en.newScan.performanceInfoTitle });
     expect(within(performance).getByText(/You do not connect a Google account/)).toBeVisible();
   });
@@ -358,20 +361,17 @@ describe('the pre-purchase disclosures', () => {
     choosePlanCard(plan);
 
     const t = copy[language].newScan;
-    const disclosure = screen.getByRole('group', { name: t.actionPlanInfoTitle });
-    const body = within(disclosure).getByText(t.actionPlanInfoBody);
-    expect(body).toBeVisible();
-    expect(body.textContent).toMatch(language === 'en' ? /Basic and Complete/ : /Basic і Complete/);
-    expect(body.textContent).toMatch(/Anthropic/);
-    expect(body.textContent).toMatch(
-      language === 'en'
-        ? /Only when you press its button/
-        : /Лише коли ви натиснете кнопку цього плану/,
+    const notice = screen.getByText(t.actionPlanNote).closest('.scan-notice');
+    expect(notice).toHaveTextContent(t.actionPlanNote);
+    expect(notice?.querySelector('a')).toHaveAttribute(
+      'href',
+      `${language === 'uk' ? '/uk' : ''}/terms#terms-action-plan`,
     );
+    expect(screen.queryByText(t.actionPlanInfoBody)).not.toBeInTheDocument();
     // The consented button line (action-plan-notice-v1) does not list everything
-    // sent, so the callout must not claim that it repeats the list.
-    expect(body.textContent).not.toMatch(/line under the button|Рядок під кнопкою/i);
-    expect(within(disclosure).getByText(t.actionPlanInfoEyebrow)).toBeInTheDocument();
+    // sent, so the stored notice must not claim that it repeats the list.
+    expect(t.actionPlanInfoBody).not.toMatch(/line under the button|Рядок під кнопкою/i);
+    expect(notice).toHaveTextContent(t.actionPlanInfoEyebrow);
     if (language === 'uk') {
       for (const eyebrow of ['ON REQUEST', 'OPTIONAL', 'PERFORMANCE']) {
         expect(screen.queryByText(new RegExp(eyebrow))).toBeNull();
@@ -407,7 +407,9 @@ describe('the reachability step', () => {
         screen.getByRole('button', { name: `Pay ${PLAN_PRICE.Basic} and start` }),
       ).toBeEnabled(),
     );
-    expect(screen.getByRole('button', { name: copy.en.reachability.again })).toBeVisible();
+    expect(
+      screen.queryByRole('button', { name: copy.en.reachability.again }),
+    ).not.toBeInTheDocument();
   });
 
   it('does not probe on Free', async () => {

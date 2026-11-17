@@ -209,6 +209,9 @@ describe('the Free confirmation summary', () => {
       );
       fireEvent.click(screen.getByLabelText(freePreviewCopy[language].consent.checkbox));
       expect(summary().getByText(label).parentElement).toHaveTextContent(off);
+      expect(within(technical).getByText(label).parentElement).toHaveTextContent(off);
+      fireEvent.click(screen.getByLabelText(freePreviewCopy[language].consent.checkbox));
+      expect(summary().getByText(label).parentElement).toHaveTextContent(expected);
       for (const plan of ['Basic', 'Complete']) {
         choosePlanCard(plan);
         await waitFor(() => expect(summary().queryByText(label)).toBeNull());

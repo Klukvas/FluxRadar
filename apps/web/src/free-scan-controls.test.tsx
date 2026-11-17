@@ -130,17 +130,20 @@ describe('free plan controls', () => {
     ).toBeInTheDocument();
   });
 
-  // D-236: the one-question AI preview starts ticked, and the owner can untick
-  // it. An owner who missed an unticked box got a report with no AI answer.
-  it('offers the AI preview ticked by default, naming Anthropic', async () => {
+  // D-236: the one-question AI preview starts ticked. Unticking sends nothing.
+  it('offers the AI preview ticked by default and names Anthropic', async () => {
     renderNewScan(account);
     await screen.findByText('New scan', { selector: '.window__titlebar > span' });
 
     const box = screen.getByLabelText('Ask Anthropic (Claude) one question about my business');
     expect(box).toBeChecked();
-    expect(box).toHaveAccessibleDescription(/No other AI provider receives anything/);
     expect(screen.getByText('On by default')).toBeInTheDocument();
-    expect(screen.getByText(/Untick it and nothing is sent to any AI service/)).toBeVisible();
+    expect(box).toHaveAccessibleDescription(/Untick it and nothing is sent/);
+    expect(document.getElementById('free-ai-consent-note')?.querySelector('a')).toHaveAttribute(
+      'href',
+      '/terms#terms-free-ai',
+    );
+    expect(screen.queryByText(/While the box stays ticked/)).not.toBeInTheDocument();
   });
 
   it('sends the Free consent record with a default launch', async () => {
@@ -189,6 +192,10 @@ describe('free plan controls', () => {
       screen.getByText(/повна перевірка AI-видимості належать до платних тарифів/),
     ).toBeInTheDocument();
     expect(screen.queryByLabelText(/Включати піддомени/)).not.toBeInTheDocument();
+    expect(
+      screen.getByLabelText('Поставити Anthropic (Claude) одне питання про мій бізнес'),
+    ).toBeChecked();
+    expect(screen.getByText('Увімкнено за замовчуванням')).toBeInTheDocument();
   });
 
   // The request says the same thing the screen says. The server decides this
@@ -208,6 +215,10 @@ describe('free plan controls', () => {
     const call = fetchMock.mock.calls.find(([input]) => pathOf(input).endsWith('/free-check'));
     expect(bodyOf(call?.[1] as RequestInit)).toEqual({
       aiLanguage: 'en',
+      aiConsent: {
+        providers: ['anthropic'],
+        noticeVersion: AI_PROCESSING_NOTICE_VERSION,
+      },
       scope: {
         includeSubdomains: false,
         maxPages: 1,
@@ -218,8 +229,6 @@ describe('free plan controls', () => {
         robotsOverrideConfirmed: false,
         userAgent: 'desktop',
       },
-      // The AI preview box starts ticked, so a default launch carries its record.
-      aiConsent: { providers: ['anthropic'], noticeVersion: AI_PROCESSING_NOTICE_VERSION },
     });
   });
 
@@ -288,8 +297,12 @@ describe('paid plan controls', () => {
       expect(screen.getByLabelText(pattern)).toBeInTheDocument();
     }
     expect(
-      screen.getByRole('group', { name: 'AI processing included in this audit' }),
+      screen.getByText('Anthropic and OpenAI are included. What is sent:'),
     ).toBeInTheDocument();
+    expect(document.querySelector('.scan-notice a')).toHaveAttribute(
+      'href',
+      '/terms#terms-paid-ai',
+    );
     expect(screen.queryByText('What the free check does')).not.toBeInTheDocument();
   });
 
@@ -297,53 +310,25 @@ describe('paid plan controls', () => {
     renderNewScan(internalAccount);
     await screen.findByText('New scan', { selector: '.window__titlebar > span' });
 
-    const callout = screen.getByRole('group', {
-      name: 'AI processing included in this audit',
-    });
-    expect(within(callout).getByText(/instruct FluxRadar to use Anthropic/)).toBeInTheDocument();
-    expect(
-      within(callout).getByText(/AI can be wrong, omit a mention or be temporarily unavailable/),
-    ).toBeInTheDocument();
-    expect(within(callout).getByRole('link', { name: 'Privacy policy' })).toHaveAttribute(
-      'href',
-      '/privacy',
-    );
-    expect(within(callout).getByRole('link', { name: 'Terms of service' })).toHaveAttribute(
-      'href',
-      '/terms',
-    );
-    expect(within(callout).queryByRole('checkbox')).not.toBeInTheDocument();
+    const notice = document.querySelector('.scan-notice') as HTMLElement;
+    expect(notice).toHaveTextContent('Anthropic and OpenAI are included. What is sent:');
+    expect(notice.querySelector('a')).toHaveAttribute('href', '/terms#terms-paid-ai');
+    expect(notice.querySelector('a')).toHaveTextContent('Terms of service');
+    expect(screen.queryByText(/instruct FluxRadar to use Anthropic/)).not.toBeInTheDocument();
+    expect(within(notice).queryByRole('checkbox')).not.toBeInTheDocument();
   });
 
-  // The disclosure is one long legally-worded paragraph; a salon owner read
-  // nothing out of it. The plain sentence is added above it — the paragraph is
-  // what the buyer agrees to by paying, so it stays visible in full.
-  it('says the AI disclosure in one plain sentence first, without folding it', async () => {
+  // The long paragraph is what the buyer agrees to, and it lives in the terms.
+  // The form keeps one sentence and the link, always visible, never folded.
+  it('says what is included in one sentence and links the terms', async () => {
     renderNewScan(internalAccount);
     await screen.findByText('New scan', { selector: '.window__titlebar > span' });
 
-    const callout = screen.getByRole('group', {
-      name: 'AI processing included in this audit',
-    });
-    // Read without a click: it is a paragraph of the callout, not part of the
-    // disclosure, so no fold reaches it.
-    const lead = screen.getByText(/this report includes two AI services/);
-    expect(lead).toBeVisible();
-    // The disclosure under it names Anthropic and OpenAI, so the summary over
-    // it may not count to one: "an AI helper" had the buyer agree to half the
-    // recipients.
-    expect(lead).toHaveTextContent(/Anthropic and OpenAI/);
-    expect(lead).toHaveTextContent(/only Anthropic also reads the public pages/);
-    expect(lead).toHaveTextContent(/never sent to either/);
-    const full = within(callout).getByText(/instruct FluxRadar to use Anthropic/);
-    expect(full).toBeVisible();
-    // The plain sentence comes first and the disclosure follows it.
-    expect(lead.compareDocumentPosition(callout) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    // And it is outside the summary: a summary's whole content names the toggle,
-    // so in there the control announced sixty words of disclosure as its name.
-    expect(lead.closest('summary')).toBeNull();
-    expect(lead.closest('details')).toBeNull();
-    expect(callout.tagName).toBe('DETAILS');
+    const notice = document.querySelector('.scan-notice') as HTMLElement;
+    expect(notice).toHaveTextContent(/Anthropic and OpenAI are included/);
+    expect(notice.querySelector('a')).toHaveAttribute('href', '/terms#terms-paid-ai');
+    expect(screen.queryByText(/instruct FluxRadar to use Anthropic/)).not.toBeInTheDocument();
+    expect(notice.closest('details')).toBeNull();
   });
 
   it('discloses the external performance provider before a Complete scan can start', async () => {
@@ -380,11 +365,10 @@ describe('paid plan controls', () => {
     renderNewScan(internalAccount, 'uk');
     await screen.findByText('Нова перевірка', { selector: '.window__titlebar > span' });
 
-    const callout = screen.getByRole('group', { name: 'AI-обробка включена в цей аудит' });
-    expect(within(callout).getByRole('link', { name: 'Політика приватності' })).toHaveAttribute(
-      'href',
-      '/uk/privacy',
-    );
+    const notice = document.querySelector('.scan-notice') as HTMLElement;
+    expect(notice).toHaveTextContent('Увімкнено Anthropic і OpenAI. Що надсилається:');
+    expect(notice.querySelector('a')).toHaveAttribute('href', '/uk/terms#terms-paid-ai');
+    expect(notice.querySelector('a')).toHaveTextContent('Умови користування');
   });
 
   it('localizes the robots.txt explanation', async () => {
@@ -457,6 +441,10 @@ describe('paid plan controls', () => {
     const call = fetchMock.mock.calls.find(([input]) => pathOf(input).endsWith('/free-check'));
     expect(bodyOf(call?.[1] as RequestInit)).toEqual({
       aiLanguage: 'en',
+      aiConsent: {
+        providers: ['anthropic'],
+        noticeVersion: AI_PROCESSING_NOTICE_VERSION,
+      },
       scope: {
         includeSubdomains: false,
         maxPages: 1,
@@ -467,8 +455,6 @@ describe('paid plan controls', () => {
         robotsOverrideConfirmed: false,
         userAgent: 'desktop',
       },
-      // The AI preview box starts ticked, so a default launch carries its record.
-      aiConsent: { providers: ['anthropic'], noticeVersion: AI_PROCESSING_NOTICE_VERSION },
     });
   });
 });
@@ -558,36 +544,23 @@ describe('advanced crawl rules', () => {
   });
 });
 
-// Which callouts start open is a decision about disclosure, not about height:
-// the two that say what leaves the site and who processes it are read before
-// money changes hands, and the operational one is not. Both directions are
-// pinned, because folding either of the first two would otherwise be a silent
-// change that no test noticed (see ScanCallout.tsx).
+// The paid AI notice is a sentence and a terms link, always on screen. The
+// performance callout stays open. The robots explanation stays folded.
 describe('what a callout discloses before the purchase', () => {
-  it('opens the AI-processing disclosure and folds the robots.txt explanation', async () => {
+  it('shows the AI notice and folds the robots.txt explanation', async () => {
     renderNewScan(internalAccount);
     await screen.findByText('New scan', { selector: '.window__titlebar > span' });
 
-    expect(screen.getByText(/instruct FluxRadar to use Anthropic/)).toBeVisible();
+    expect(screen.getByText(/Anthropic and OpenAI are included/)).toBeVisible();
+    expect(screen.queryByText(/instruct FluxRadar to use Anthropic/)).not.toBeInTheDocument();
     expect(screen.getByText(/do not connect a Google account/)).toBeVisible();
     expect(screen.getByText(/reads the site’s public robots\.txt/)).not.toBeVisible();
   });
 
-  // `defaultOpen` is applied when the screen mounts and never again, so the
-  // reader owns the fold from then on. What that may not cost is the next
-  // purchase: someone who folded the disclosure away must meet it open when
-  // they come back to buy, rather than carrying their fold into a new scan.
-  it('opens the AI-processing disclosure again on the next visit', async () => {
+  it('shows the AI notice again on the next visit', async () => {
     renderNewScan(internalAccount);
     await screen.findByText('New scan', { selector: '.window__titlebar > span' });
-    const disclosure = screen
-      .getByText(/instruct FluxRadar to use Anthropic/)
-      .closest('details') as HTMLDetailsElement;
-    // What a click on the summary does, without relying on the environment to
-    // implement the summary's own default behaviour.
-    disclosure.open = false;
-    fireEvent(disclosure, new Event('toggle'));
-    expect(screen.getByText(/instruct FluxRadar to use Anthropic/)).not.toBeVisible();
+    expect(screen.getByText(/Anthropic and OpenAI are included/)).toBeVisible();
 
     fireEvent.click(screen.getByRole('button', { name: 'Close window' }));
     fireEvent.click(
@@ -595,14 +568,16 @@ describe('what a callout discloses before the purchase', () => {
     );
 
     await screen.findByText('New scan', { selector: '.window__titlebar > span' });
-    expect(screen.getByText(/instruct FluxRadar to use Anthropic/)).toBeVisible();
+    expect(screen.getByText(/Anthropic and OpenAI are included/)).toBeVisible();
+    expect(screen.queryByText(/instruct FluxRadar to use Anthropic/)).not.toBeInTheDocument();
   });
 
-  it('opens the AI-processing disclosure in Ukrainian too', async () => {
+  it('shows the AI notice in Ukrainian too', async () => {
     renderNewScan(internalAccount, 'uk');
     await screen.findByText('Нова перевірка', { selector: '.window__titlebar > span' });
 
-    expect(screen.getByText(/доручаєте FluxRadar/)).toBeVisible();
+    expect(screen.getByText(/Увімкнено Anthropic і OpenAI/)).toBeVisible();
+    expect(screen.queryByText(/доручаєте FluxRadar/)).not.toBeInTheDocument();
   });
 });
 

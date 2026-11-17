@@ -1,6 +1,6 @@
 import { useEffect, type JSX } from 'react';
 
-import type { Language } from '../i18n';
+import { copy, type Language } from '../i18n';
 import { EffectiveNotice, OperatorDetails, SupportLink, type EffectiveDate } from './SharedLegal';
 
 // Bumped when the merchant of record changed from FastSpring to Creem.
@@ -25,6 +25,21 @@ export function TermsOfService({ language }: { readonly language: Language }): J
   if (language === 'uk') return <UkrainianTerms />;
   if (language === 'ru') return <RussianTerms />;
   return <EnglishTerms />;
+}
+
+/** The paid-audit notices the new-scan form links to instead of repeating. */
+function PaidProcessingTerms({ language }: { readonly language: Language }): JSX.Element {
+  const t = copy[language].newScan;
+  return (
+    <>
+      <p id="terms-paid-ai">
+        <strong>{t.aiConsentTitle}.</strong> {t.aiConsentSummary} {t.aiConsentBody}
+      </p>
+      <p id="terms-action-plan">
+        <strong>{t.actionPlanInfoTitle}.</strong> {t.actionPlanInfoBody}
+      </p>
+    </>
+  );
 }
 
 function RussianTerms(): JSX.Element {
@@ -143,6 +158,17 @@ function RussianTerms(): JSX.Element {
           отсутствовать. Search Console и Analytics могут быть задержанными, отфильтрованными или
           неполными.
         </p>
+        <p id="terms-free-ai">
+          <strong>Проверка главной по тарифу Free.</strong> Галочка одного вопроса ИИ стоит сразу.
+          Пока она стоит, FluxRadar задаёт Anthropic (Claude) один вопрос, который называет ваш
+          бизнес или домен, в режиме closed-book, без просмотра веба и инструментов. Затем Anthropic
+          отдельным запросом сверяет этот ответ с ограниченным снимком этой проверки: полями
+          профиля, которые вы сохранили, и текстом вашей главной страницы. Снимите галочку, и ни
+          один ИИ-сервис ничего не получит. Ни один другой ИИ-провайдер ничего не получает. ИИ может
+          ошибаться или не упомянуть вас. Данные аккаунта, оплаты и доступы Google или Bing никогда
+          не отправляются.
+        </p>
+        <PaidProcessingTerms language="ru" />
         <p>
           FluxRadar не гарантирует оценку, ranking, упоминание в AI, traffic, conversion,
           security‑результат, юридическое соответствие или accessibility conformance. Проверяйте
@@ -319,6 +345,17 @@ function UkrainianTerms(): JSX.Element {
           бути відсутня. Search Console та Analytics можуть бути затриманими, відфільтрованими чи
           неповними.
         </p>
+        <p id="terms-free-ai">
+          <strong>Безкоштовна перевірка головної.</strong> Галочка одного питання ШІ стоїть одразу.
+          Поки вона стоїть, FluxRadar ставить Anthropic (Claude) одне питання, що називає ваш бізнес
+          або домен, у режимі closed-book — без перегляду вебу та інструментів. Потім Anthropic
+          окремим запитом перевіряє цю відповідь за обмеженим знімком цієї перевірки: полями
+          профілю, які ви зберегли, і текстом вашої головної сторінки. Зніміть галочку — і жоден
+          ШІ-сервіс нічого не отримає. Жоден інший ШІ-провайдер нічого не отримує. ШІ може
+          помилятися або не згадати вас. Дані акаунта, оплати та доступи Google чи Bing ніколи не
+          надсилаються.
+        </p>
+        <PaidProcessingTerms language="uk" />
         <p>
           FluxRadar не гарантує оцінку, ranking, згадку в AI, traffic, conversion,
           security‑результат, юридичну відповідність або accessibility conformance. Перевіряйте
@@ -488,6 +525,16 @@ function EnglishTerms(): JSX.Element {
           historical real-user sample that may be unavailable. Search Console and Analytics can be
           delayed, filtered or incomplete.
         </p>
+        <p id="terms-free-ai">
+          <strong>The free homepage check.</strong> The box for one AI question starts ticked. While
+          it stays ticked, FluxRadar asks Anthropic (Claude) one question that names your business
+          or domain, closed-book, without browsing or tools. Anthropic then checks that answer, in a
+          separate request, against a bounded snapshot of this check: the profile fields you saved
+          and text from your homepage. Untick the box and nothing is sent to any AI service. No
+          other AI provider receives anything. AI can be wrong or omit a mention. Your account,
+          payment details and Google or Bing access are never sent.
+        </p>
+        <PaidProcessingTerms language="en" />
         <p>
           FluxRadar does not guarantee a score, ranking, AI mention, traffic, conversion, security
           outcome, legal compliance or accessibility conformance. Independently review material

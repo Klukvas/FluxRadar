@@ -13,6 +13,7 @@ describe('OfflineBanner', () => {
   it('is hidden while the connection is up', () => {
     render(<OfflineBanner language="en" />);
     expect(screen.queryByRole('status')).toBeNull();
+    expect(document.documentElement.hasAttribute('data-offline')).toBe(false);
   });
 
   it('appears on the browser offline event and hides on online, in both languages', () => {
@@ -20,6 +21,7 @@ describe('OfflineBanner', () => {
     act(() => {
       window.dispatchEvent(new Event('offline'));
     });
+    expect(document.documentElement.hasAttribute('data-offline')).toBe(true);
     expect(screen.getByRole('status')).toHaveTextContent(offlineBannerCopy.en.body);
     rerender(<OfflineBanner language="uk" />);
     expect(screen.getByRole('status')).toHaveTextContent(offlineBannerCopy.uk.body);
@@ -27,6 +29,7 @@ describe('OfflineBanner', () => {
       window.dispatchEvent(new Event('online'));
     });
     expect(screen.queryByRole('status')).toBeNull();
+    expect(document.documentElement.hasAttribute('data-offline')).toBe(false);
     unmount();
   });
 

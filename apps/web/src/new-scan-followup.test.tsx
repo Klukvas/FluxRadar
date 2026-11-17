@@ -478,7 +478,8 @@ describe('the first site, from an account that has none', () => {
     fireEvent.click(screen.getByRole('button', { name: newScanCopy.en.createProfile }));
     expect(window.location.pathname).toBe('/profiles');
 
-    // Make it, and go back to the form the way the Profiles screen does.
+    // Saving the new site opens the scan form on it. The plan picked on the
+    // card is still the one the form opens on.
     fireEvent.change(screen.getByRole('textbox', { name: /^Site address/ }), {
       target: { value: SALON.domain },
     });
@@ -490,12 +491,11 @@ describe('the first site, from an account that has none', () => {
     await waitFor(() => expect(displayName).toBeEnabled(), { timeout: 5000 });
     fireEvent.change(displayName, { target: { value: SALON.name } });
     fireEvent.click(screen.getByRole('button', { name: 'Save site' }));
-    await waitFor(() => expect(screen.getByText(SALON.domain)).toBeTruthy());
-    fireEvent.click(screen.getAllByRole('button', { name: 'Check this site' })[0] as HTMLElement);
 
     await screen.findByText(copy.en.newScan.windowTitle, { selector: '.window__titlebar > span' });
-    // The plan the owner picked on the card, not the Free the form opens on.
     await waitFor(() => expect(checkedPlan()).toBe('Basic'));
+    await waitFor(() => expect(profilePicker()).toHaveValue(SALON.id));
+    expect(new URLSearchParams(window.location.search).get('profile')).toBe(SALON.id);
   });
 });
 

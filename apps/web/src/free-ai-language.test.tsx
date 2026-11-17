@@ -119,7 +119,10 @@ describe('Free follows the interface at submission', () => {
       expect(document.querySelector('[name="scan-ai-language"]')).toBeNull();
       expect(screen.getByText(freeAiInterfaceHint[language])).toBeInTheDocument();
       fireEvent.click(screen.getByRole('button', { name: launchLabel }));
-      expect(await freeCheckBody(fetchMock)).toMatchObject({ aiLanguage: language });
+      expect(await freeCheckBody(fetchMock)).toMatchObject({
+        aiLanguage: language,
+        aiConsent: { providers: ['anthropic'] },
+      });
     },
   );
 

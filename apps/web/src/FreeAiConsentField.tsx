@@ -1,18 +1,16 @@
 // The Free check's consent to its one-question AI preview (D-236).
 //
-// A checkbox rather than the paid plans' included disclosure: the owner can
-// still turn the AI step off. It starts ticked (new-scan-form.ts), and an
-// unticked box sends no record at all (new-scan-request.ts), so a Free check
-// whose owner unticks it reaches no AI service. The body says exactly what the
-// API's Free record authorises — Anthropic, one question, one evaluation.
+// The box starts ticked. Unticking it sends no record at all
+// (new-scan-request.ts). The long account of what that question sends lives
+// in the terms, at #terms-free-ai; this block only keeps the choice, the
+// default, and the link. The highlight stays, because the choice is easy to miss.
 
 import { Checkbox } from './components';
 import { freePreviewCopy } from './free-preview-copy';
 import { copy, type Language } from './i18n';
 import { publicPagePath } from './public-page-routing';
-import { ScanCallout } from './ScanCallout';
 
-const BODY_ID = 'free-ai-consent-description';
+const NOTE_ID = 'free-ai-consent-note';
 
 export function FreeAiConsentField(props: {
   language: Language;
@@ -22,27 +20,20 @@ export function FreeAiConsentField(props: {
   const c = freePreviewCopy[props.language].consent;
   const t = copy[props.language].newScan;
   return (
-    <>
-      <ScanCallout
-        eyebrow={c.eyebrow}
-        title={c.title}
-        titleId="free-ai-consent-title"
-        mode={c.mode}
-        lead={c.lead}
-        bodyId={BODY_ID}
-        defaultOpen
-      >
-        {c.body} <a href={publicPagePath('privacy', props.language)}>{t.aiConsentPrivacy}</a>
-        {' · '}
-        <a href={publicPagePath('terms', props.language)}>{t.aiConsentTerms}</a>
-      </ScanCallout>
+    <div className="free-ai-consent">
+      <span className="status-chip status-chip--neutral">{c.mode}</span>
       <Checkbox
+        className="free-ai-consent__choice"
         name="scan-free-ai-consent"
         label={c.checkbox}
         checked={props.checked}
-        describedBy={BODY_ID}
+        describedBy={NOTE_ID}
         onChange={props.onChange}
       />
-    </>
+      <p id={NOTE_ID} className="free-ai-consent__note">
+        {c.note}{' '}
+        <a href={`${publicPagePath('terms', props.language)}#terms-free-ai`}>{t.aiConsentTerms}</a>
+      </p>
+    </div>
   );
 }

@@ -3,6 +3,64 @@
    plus the confirmation a skipped robots.txt earns. The two-column layout
    itself lives in base.css (.launch-form), where control-layout.test pins it. */
 
+/* The Free check's one AI question starts ticked. It has to read as the choice
+   that matters on this step, not as one more folded note beside the plan. */
+.free-ai-consent {
+  display: grid;
+  justify-items: start;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 2px solid var(--selection);
+  background: #e7efff;
+  box-shadow: 3px 3px 0 var(--selection);
+}
+.free-ai-consent .status-chip--neutral {
+  color: #fff;
+  background: var(--selection);
+  border-color: var(--selection);
+}
+.free-ai-consent__choice {
+  margin-top: 0;
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--selection);
+  background: #fff;
+  font-weight: 700;
+}
+.free-ai-consent__note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+/* A paid notice whose full text lives in the terms. The eyebrow and the chip
+   stay, so the form still says the thing is included; the paragraph does not. */
+.scan-notice {
+  padding: var(--sp-3);
+  border: 1px solid var(--selection);
+  background: #eef4ff;
+  box-shadow:
+    inset 2px 0 0 var(--selection),
+    inset 1px 1px 0 #fff;
+}
+.scan-notice__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+.scan-notice__eyebrow {
+  color: var(--selection);
+  font: 11px var(--mono-font);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.scan-notice__note {
+  margin: var(--sp-2) 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
 /* A setting that reads pages the site asked crawlers to skip. Marked by a
    coloured edge and text, not colour alone, so it reads in any contrast mode. */
 .launch-warning {

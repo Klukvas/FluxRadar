@@ -307,9 +307,8 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     [],
   );
   // Ticked by default: an owner who missed an unticked box got a Free report
-  // with no AI answer. The box and its disclosure are on screen before launch,
-  // and unticking it still sends no record, so nothing reaches an AI service
-  // (D-236).
+  // with no AI answer. Unticking it still sends no record, so nothing reaches
+  // an AI service (D-236). The long disclosure lives in the terms.
   const [freeAiConsent, setFreeAiConsent] = useState(true);
   const paidAiLanguage = useFreeAiLanguage(
     props.profiles.find((profile) => profile.id === target) ?? null,

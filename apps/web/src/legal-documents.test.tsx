@@ -2,7 +2,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { LegalDocumentScreen } from './LegalDocuments';
-import type { Language } from './i18n';
+import { copy, type Language } from './i18n';
 import { PLAUSIBLE_GOALS } from './plausible';
 
 /**
@@ -228,6 +228,39 @@ describe('public legal documents', () => {
       /free[^.]{0,80}never sends|ніколи не надсилає дані|никогда не отправляет данные/i,
     );
   });
+
+  // The new-scan box no longer repeats this paragraph. The terms keep it, one
+  // click from the checkbox, in the same language as the form.
+  it.each<[Language, RegExp]>([
+    [
+      'en',
+      /The box for one AI question starts ticked.*Anthropic \(Claude\).*Untick the box and nothing is sent to any AI service/is,
+    ],
+    [
+      'uk',
+      /Галочка одного питання ШІ стоїть одразу.*Anthropic \(Claude\).*Зніміть галочку — і жоден ШІ-сервіс нічого не отримає/is,
+    ],
+    [
+      'ru',
+      /Галочка одного вопроса ИИ стоит сразу.*Anthropic \(Claude\).*Снимите галочку, и ни один ИИ-сервис ничего не получит/is,
+    ],
+  ])('keeps the Free check AI explanation in the terms (%s)', (language, disclosure) => {
+    render(<LegalDocumentScreen kind="terms" language={language} onLanguageChange={() => {}} />);
+    expect(screen.getByRole('article').querySelector('#terms-free-ai')).toHaveTextContent(
+      disclosure,
+    );
+  });
+
+  it.each(['en', 'uk', 'ru'] as const)(
+    'keeps the paid AI notices in the terms (%s)',
+    (language) => {
+      render(<LegalDocumentScreen kind="terms" language={language} onLanguageChange={() => {}} />);
+      const article = screen.getByRole('article');
+      const t = copy[language].newScan;
+      expect(article.querySelector('#terms-paid-ai')).toHaveTextContent(t.aiConsentBody);
+      expect(article.querySelector('#terms-action-plan')).toHaveTextContent(t.actionPlanInfoBody);
+    },
+  );
 
   it('names Anthropic as the sole judge of every provider’s answer, in both languages', () => {
     render(<LegalDocumentScreen kind="privacy" language="en" onLanguageChange={() => {}} />);

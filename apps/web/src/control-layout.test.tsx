@@ -715,11 +715,13 @@ describe('safe-area insets', () => {
   });
 
   // A long server error is capped to the clearance above the banner and
-  // scrolls, so it cannot grow over the connection warning.
+  // scrolls, so it cannot grow over the connection warning. The cap applies
+  // only while that banner is on screen.
   it('caps the floating alert to the clearance above the offline banner', () => {
     const account = stylesheet('account.css');
-    expect(account).toMatch(/\.alert--floating \{[^}]*max-height: calc\(/);
-    expect(account).toMatch(/\.alert--floating \{[^}]*overflow-y: auto;/);
+    expect(account).toMatch(/html\[data-offline\] \.alert--floating \{[^}]*max-height: calc\(/);
+    expect(account).toMatch(/html\[data-offline\] \.alert--floating \{[^}]*overflow-y: auto;/);
+    expect(account).not.toMatch(/\n\.alert--floating \{[^}]*max-height/);
   });
 
   // blog.css cannot import tokens.css (the blog is plain HTML served from

@@ -92,11 +92,12 @@
   margin: 0;
 }
 
-/* A long server error must not grow past the offline banner parked below the
-   notice slot: the box is capped to the clearance between the two and scrolls
-   beyond it, so the error and the connection warning never fight for the same
-   pixels. */
-.alert--floating {
+/* A long server error must not grow past the offline banner when that banner
+   is actually on screen. The cap used to apply to every floating alert, so an
+   ordinary sentence — the free-check refusal, for one — scrolled inside an
+   80px box while the connection was fine. `data-offline` is set by
+   OfflineBanner only while the warning is showing. */
+html[data-offline] .alert--floating {
   max-height: calc(
     max(128px, calc(var(--safe-top) + 88px)) - max(40px, var(--safe-top)) - var(--sp-2)
   );

@@ -47,6 +47,13 @@ export function OfflineBanner({ language }: { readonly language: Language }) {
       unsubscribe();
     };
   }, []);
+  // The floating alert's height cap is CSS, and it has to know whether this
+  // banner is on screen. The two are not always siblings, so the flag lives
+  // on the document rather than in a selector between them.
+  useEffect(() => {
+    document.documentElement.toggleAttribute('data-offline', offline);
+    return () => document.documentElement.removeAttribute('data-offline');
+  }, [offline]);
   if (!offline) return null;
   return (
     <div className="offline-banner" role="status">

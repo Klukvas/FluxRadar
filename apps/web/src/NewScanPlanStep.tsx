@@ -129,29 +129,15 @@ export function PlanStep(props: {
       ) : null}
       {paidScopeControls ? (
         <>
-          {/* Open, unlike the JavaScript and robots.txt explanations folded
-                under "For advanced users": this one and the performance
-                disclosure below say what leaves the site and who processes it,
-                and the buyer agrees to both by paying. Folding them would trade
-                a guarantee for height. */}
-          {/* Every paid plan runs AI SEO / GEO, so one disclosure covers both;
-              the body says what the UX review adds on Complete. */}
-          <ScanCallout
+          {/* Every paid plan runs AI SEO / GEO. The versioned notice itself
+              lives in the terms; the form keeps who is included and the link. */}
+          <TermsNotice
             eyebrow={t.newScan.aiConsentEyebrow}
-            title={t.newScan.aiConsentTitle}
-            titleId="ai-consent-title"
             mode={t.newScan.aiConsentOptional}
-            // The plain sentence first, the full disclosure under it and still
-            // open: the paragraph is what the buyer agrees to by paying, so the
-            // summary is added above it and nothing is folded away.
-            lead={t.newScan.aiConsentSummary}
-            defaultOpen
-          >
-            {t.newScan.aiConsentBody}{' '}
-            <a href={publicPagePath('privacy', props.language)}>{t.newScan.aiConsentPrivacy}</a>
-            {' · '}
-            <a href={publicPagePath('terms', props.language)}>{t.newScan.aiConsentTerms}</a>
-          </ScanCallout>
+            note={t.newScan.aiConsentNote}
+            href={`${publicPagePath('terms', props.language)}#terms-paid-ai`}
+            link={t.newScan.aiConsentTerms}
+          />
           {/* Separate from the notice above, because it is a choice and that
               one is not. Both providers stay off until one of these is ticked,
               and the body names the recipient first.
@@ -193,19 +179,16 @@ export function PlanStep(props: {
               ))}
             </>
           )}
-          {/* Open for the same reason as the notice above: it says what leaves
-              the site and who receives it, and it is read before paying. Shown
-              on every plan the tariff gives the Action Plan to, Basic included. */}
+          {/* Shown on every plan the tariff gives the Action Plan to, Basic
+              included. The list of what the button sends is in the terms. */}
           {planIncludesActionPlan(plan) ? (
-            <ScanCallout
+            <TermsNotice
               eyebrow={t.newScan.actionPlanInfoEyebrow}
-              title={t.newScan.actionPlanInfoTitle}
-              titleId="action-plan-info-title"
               mode={t.newScan.actionPlanInfoMode}
-              defaultOpen
-            >
-              {t.newScan.actionPlanInfoBody}
-            </ScanCallout>
+              note={t.newScan.actionPlanNote}
+              href={`${publicPagePath('terms', props.language)}#terms-action-plan`}
+              link={t.newScan.aiConsentTerms}
+            />
           ) : null}
           {PLAN_MODULES[plan].includes('Performance') ? (
             <ScanCallout
@@ -231,6 +214,27 @@ export function PlanStep(props: {
         <p className="field__hint">{freeAiInterfaceHint[props.language]}</p>
       ) : null}
     </NewScanStep>
+  );
+}
+
+/** The paid-audit notices: who is involved, and a link to the full text. */
+function TermsNotice(props: {
+  eyebrow: string;
+  mode: string;
+  note: string;
+  href: string;
+  link: string;
+}) {
+  return (
+    <div className="scan-notice">
+      <div className="scan-notice__header">
+        <span className="scan-notice__eyebrow">{props.eyebrow}</span>
+        <span className="status-chip status-chip--neutral">{props.mode}</span>
+      </div>
+      <p className="scan-notice__note">
+        {props.note} <a href={props.href}>{props.link}</a>
+      </p>
+    </div>
   );
 }
 
