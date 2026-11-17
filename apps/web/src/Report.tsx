@@ -64,6 +64,7 @@ import { ScanComparisonPanel } from './ScanComparison';
 import { SiteCoveragePanel } from './SiteCoverage';
 import { statusKind } from './status-kind';
 import { useDelayedFlag } from './use-delayed-flag';
+import { useQuietDashboardRefresh } from './use-quiet-dashboard-refresh';
 import { reportLanguage } from './report-language';
 
 /** The dashboard's own layout, drawn as placeholders while it loads. */
@@ -159,6 +160,7 @@ export function ResultsScreen(props: {
   useEffect(() => {
     void load();
   }, [load]);
+  const refresh = useQuietDashboardRefresh(scanId, setDashboard);
   // Fetched once the dashboard is here, and only here: the next-step blocks
   // and the Free result panel both count from it, and a second request for
   // the same summary could only disagree with the first.
@@ -433,6 +435,8 @@ export function ResultsScreen(props: {
             observations={geoObservations}
             evidence={geoEvidence}
             language={props.language}
+            scanId={scan.id}
+            onRefresh={refresh}
           />
         ) : null}
         {scan.plan === 'Free' && siteFailure === null && !checkedNothing ? (

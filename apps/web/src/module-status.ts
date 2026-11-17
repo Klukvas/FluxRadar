@@ -23,12 +23,14 @@ type ReasonKey = keyof (typeof copy)['en']['report']['moduleReason'];
 
 /**
  * Reasons that mean something else on the Free GEO preview (D-236): the owner's
- * own choice rather than a missing purchase notice, and a provider outage on a
- * one-time check that has no "run it again" to offer.
+ * own choice rather than a missing purchase notice, and a provider outage or a
+ * platform fault on a one-time answer that has no "run it again" to offer (the
+ * late answer a report adds is asked at most once too).
  */
 const FREE_PREVIEW_REASON_KEYS: Readonly<Record<string, ReasonKey>> = {
   ConsentMissing: 'aiFreeConsentNotGiven',
   ProviderUnavailable: 'aiFreePreviewProviderUnavailable',
+  PlatformFailure: 'aiFreePreviewPlatformFailure',
 };
 
 /**
@@ -118,6 +120,15 @@ const REASON_KEYS: Readonly<Record<string, ReasonKey>> = {
   AnalyticsProviderUnavailable: 'analyticsProviderUnavailable',
 };
 
+type ReasonKeys = Readonly<Record<string, ReasonKey>>;
+
+/**
+ * The table a Free preview row reads, causes included: a composite reason such
+ * as an evaluation that failed with ProviderUnavailable must not slip back to
+ * the paid sentence that advises running the check again.
+ */
+const FREE_PREVIEW_KEYS: ReasonKeys = { ...REASON_KEYS, ...FREE_PREVIEW_REASON_KEYS };
+
 /**
  * Whose problem each reason is. Read off the producing side's own causes, not
  * off the section: a Performance row whose provider was never configured and a
@@ -160,6 +171,7 @@ const REASON_BLAME: Readonly<Record<ReasonKey, ReasonBlame | null>> = {
   aiFreePreviewAllowlisted: null,
   aiFreePreviewAlreadyRequested: null,
   aiFreePreviewProviderUnavailable: null,
+  aiFreePreviewPlatformFailure: null,
   aiRedactionBlocked: 'ours',
   aiQuotaExceeded: 'byPlan',
   aiProviderUnavailable: 'oursRetry',
@@ -282,27 +294,25 @@ function reasonSentences(module: ScanModule, language: Language): readonly Reaso
   // On the Free GEO preview a missing consent is the owner's own choice, not a
   // purchase whose notice went missing (D-236; `freePreview` is written by
   // apps/api/src/orchestrator/geo-module-row.ts).
-  if (module.metadata?.freePreview === true) {
-    const key = FREE_PREVIEW_REASON_KEYS[whole];
-    if (key !== undefined) return [{ key, text: copy[language].report.moduleReason[key] }];
-  }
+  const keys = module.metadata?.freePreview === true ? FREE_PREVIEW_KEYS : REASON_KEYS;
 
   // Taken off first and said last: it is the final clause, and the one before
   // it ends in free text that would otherwise absorb it.
   const evaluation = ANSWER_EVALUATION_CLAUSE.exec(whole);
   const reason = evaluation === null ? whole : whole.slice(0, evaluation.index).trim();
-  const evaluated = evaluation === null ? [] : answerEvaluationSentences(evaluation, language);
+  const evaluated =
+    evaluation === null ? [] : answerEvaluationSentences(evaluation, language, keys);
   if (reason === '') return evaluated;
 
   const generation = QUERY_GENERATION_CLAUSE.exec(reason);
   if (generation === null) {
-    return [...runSentences(reason, language), ...evaluated];
+    return [...runSentences(reason, language, keys), ...evaluated];
   }
   const [, kind = '', detail = ''] = generation;
   const run = reason.slice(0, generation.index).trim();
   return [
-    ...(run === '' ? [] : runSentences(run, language)),
-    ...queryGenerationSentences(kind, detail, language),
+    ...(run === '' ? [] : runSentences(run, language, keys)),
+    ...queryGenerationSentences(kind, detail, language, keys),
     ...evaluated,
   ];
 }
@@ -317,6 +327,7 @@ function reasonSentences(module: ScanModule, language: Language): readonly Reaso
 function answerEvaluationSentences(
   match: RegExpExecArray,
   language: Language,
+  keys: ReasonKeys,
 ): readonly ReasonSentence[] {
   const t = copy[language].report.moduleReason;
   const [, unavailable = '', total = '', causes = ''] = match;
@@ -325,12 +336,16 @@ function answerEvaluationSentences(
       key: 'aiEvaluationUnavailable',
       text: fillCopy(t.aiEvaluationUnavailable, { unavailable, total }),
     },
-    ...distinctCauses(causes).map((cause) => sentenceFor(cause, language)),
+    ...distinctCauses(causes).map((cause) => sentenceFor(cause, language, keys)),
   ];
 }
 
 /** The sentences for the run's own reason: the counted forms, or a token. */
-function runSentences(reason: string, language: Language): readonly ReasonSentence[] {
+function runSentences(
+  reason: string,
+  language: Language,
+  keys: ReasonKeys,
+): readonly ReasonSentence[] {
   const t = copy[language].report.moduleReason;
 
   const counted = GEO_PARTIAL.exec(reason);
@@ -338,7 +353,7 @@ function runSentences(reason: string, language: Language): readonly ReasonSenten
     const [, unavailable = '', total = '', causes = ''] = counted;
     return [
       { key: 'aiPartial', text: fillCopy(t.aiPartial, { unavailable, total }) },
-      ...distinctCauses(causes).map((cause) => sentenceFor(cause, language)),
+      ...distinctCauses(causes).map((cause) => sentenceFor(cause, language, keys)),
     ];
   }
   const cancelled = GEO_CANCELLED.exec(reason);
@@ -346,7 +361,7 @@ function runSentences(reason: string, language: Language): readonly ReasonSenten
     const [, answered = '', total = ''] = cancelled;
     return [{ key: 'aiCancelled', text: fillCopy(t.aiCancelled, { answered, total }) }];
   }
-  return [sentenceFor(reason, language)];
+  return [sentenceFor(reason, language, keys)];
 }
 
 /**
@@ -361,6 +376,7 @@ function queryGenerationSentences(
   kind: string,
   detail: string,
   language: Language,
+  keys: ReasonKeys,
 ): readonly ReasonSentence[] {
   const t = copy[language].report.moduleReason;
   if (kind === 'InvalidResponse') {
@@ -373,7 +389,7 @@ function queryGenerationSentences(
   }
   return [
     { key: 'aiQueryGenerationUnavailable', text: t.aiQueryGenerationUnavailable },
-    sentenceFor(detail, language),
+    sentenceFor(detail, language, keys),
   ];
 }
 
@@ -386,9 +402,9 @@ function distinctCauses(causes: string): readonly string[] {
   return [...new Set(named)];
 }
 
-function sentenceFor(reason: string, language: Language): ReasonSentence {
+function sentenceFor(reason: string, language: Language, keys: ReasonKeys): ReasonSentence {
   const t = copy[language].report.moduleReason;
-  const key = REASON_KEYS[reason];
+  const key = keys[reason];
   // A reason this build has no sentence for is still a fact about the scan:
   // quoting it beats both silence and a paraphrase the reader cannot check.
   if (key === undefined) return { key: 'unknown', text: fillCopy(t.unknown, { reason }) };

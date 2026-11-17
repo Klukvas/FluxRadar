@@ -1388,7 +1388,8 @@ const BILINGUAL = {
           'The external performance service did not answer. Nothing was measured for this section — run the check again to try once more.',
         aiConsentMissing:
           'The AI visibility questions were not asked because this scan has no recorded AI-processing notice for the provider. New paid audits record it automatically after showing the disclosure before launch.',
-        // The Free preview without the owner's opt-in (D-236): a choice, not a fault.
+        // The Free preview whose box the owner unticked at launch (D-236): a
+        // choice, not a fault; the report can still add the answer later.
         aiFreeConsentNotGiven:
           'No AI question was asked: the AI answer was not included when this free check was started, so nothing was sent to any AI service.',
         aiFreePreviewAllowlisted:
@@ -1397,6 +1398,10 @@ const BILINGUAL = {
           'No AI question was asked on this run: an earlier run of this check already reached the AI step, and the AI answer is never requested twice for one free check. Nothing was sent on this run.',
         aiFreePreviewProviderUnavailable:
           'The AI service did not answer this time, so this free check has no AI answer. Your homepage check and its score are complete and unaffected; nothing here needs action from you.',
+        // The late Free answer failed after its AI step had begun: it is asked
+        // at most once, so the paid "run the check again" advice would mislead.
+        aiFreePreviewPlatformFailure:
+          'The AI step of this free check had started when FluxRadar hit a problem on its side, so there is no AI answer. The AI answer is asked at most once per free check, so it is not asked again. Your homepage check and its score are complete and unaffected.',
         aiRedactionBlocked:
           'FluxRadar stopped the request itself: before anything goes to an AI service it strips out passwords, keys and other private values, and that step did not finish. Nothing was sent.',
         aiQuotaExceeded:
@@ -3387,6 +3392,8 @@ const BILINGUAL = {
           'Цього разу питання ШІ не ставилося: попередній запуск цієї перевірки вже дійшов до кроку ШІ, а для однієї безкоштовної перевірки відповідь ШІ двічі не запитують. Цього разу нічого не надсилалося.',
         aiFreePreviewProviderUnavailable:
           'ШІ-сервіс цього разу не відповів, тож у цій безкоштовній перевірці немає відповіді ШІ. Перевірка головної сторінки та її оцінка повні й не змінилися; від вас нічого не потрібно.',
+        aiFreePreviewPlatformFailure:
+          'Крок ШІ цієї безкоштовної перевірки вже почався, коли на боці FluxRadar стався збій, тож відповіді ШІ немає. Для однієї безкоштовної перевірки відповідь ШІ запитують щонайбільше один раз, тож повторно її не запитуватимуть. Перевірка головної сторінки та її оцінка повні й не змінилися.',
         aiRedactionBlocked:
           'FluxRadar сама зупинила запит: перед надсиланням до AI-сервісу вона вилучає паролі, ключі та інші приватні значення, і цей крок не завершився. Нічого не надіслано.',
         aiQuotaExceeded:

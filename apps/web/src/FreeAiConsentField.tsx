@@ -1,9 +1,10 @@
-// The Free check's opt-in to its one-question AI preview (D-236).
+// The Free check's consent to its one-question AI preview (D-236).
 //
-// A checkbox, unticked, rather than the paid plans' included disclosure: a Free
-// check is free of AI processing unless the owner asks for it, and an unticked
-// box sends no record at all (new-scan-request.ts). The body says exactly what
-// the API's Free record authorises — Anthropic, one question, one evaluation.
+// A checkbox rather than the paid plans' included disclosure: the owner can
+// still turn the AI step off. It starts ticked (new-scan-form.ts), and an
+// unticked box sends no record at all (new-scan-request.ts), so a Free check
+// whose owner unticks it reaches no AI service. The body says exactly what the
+// API's Free record authorises — Anthropic, one question, one evaluation.
 
 import { Checkbox } from './components';
 import { freePreviewCopy } from './free-preview-copy';

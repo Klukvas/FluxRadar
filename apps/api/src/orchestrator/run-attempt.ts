@@ -80,13 +80,13 @@ import type { ModuleCoverage } from './run-coverage.ts';
 import { uxAiReviewOutcome } from './ux-ai-claims.ts';
 import { runUxConversion, uxRuleCoverage } from './ux.ts';
 
-const CRAWLER_USER_AGENT = 'FluxRadarBot/0.1';
+export const CRAWLER_USER_AGENT = 'FluxRadarBot/0.1';
 
 const providersJsonSchema = z.array(z.enum(AI_PROVIDER_NAMES));
 
 type ScanWithRelations = Scan & { readonly siteProfile: SiteProfile };
 
-function buildCrawlScope(origin: string, scope: ScanScopeInput, plan: Plan): CrawlScope {
+export function buildCrawlScope(origin: string, scope: ScanScopeInput, plan: Plan): CrawlScope {
   const { urlLimit } = TARIFFS[plan];
   if (plan === 'Free') {
     // §18: Free — ровно одна homepage-проверка, ссылки не обходим.
@@ -123,7 +123,7 @@ function buildCrawlScope(origin: string, scope: ScanScopeInput, plan: Plan): Cra
  * another location is a different country from the one the owner chose. So the
  * attempt stops, loudly, and the worker treats it as the platform failure it is.
  */
-async function usableEgress(deps: WorkerDeps, scope: ScanScopeInput): Promise<ScanEgress> {
+export async function usableEgress(deps: WorkerDeps, scope: ScanScopeInput): Promise<ScanEgress> {
   const egress = resolveScanEgress(
     deps.crawl,
     scope.egressLocation,
@@ -174,7 +174,7 @@ function ruleModuleCoverage(result: ModuleRunResult, context: RunRequestContext)
   };
 }
 
-function loadConsent(
+export function loadConsent(
   scan: Scan & { aiConsent?: { providersJson: string; noticeVersion: string } | null },
 ): AiConsent | null {
   const record = scan.aiConsent ?? null;
@@ -199,7 +199,7 @@ function loadConsent(
   return { scanId: scan.id, providers: providers.data, noticeVersion: record.noticeVersion };
 }
 
-async function persistGeoModule(
+export async function persistGeoModule(
   prisma: PrismaClient,
   scanId: string,
   geo: GeoModuleResult,

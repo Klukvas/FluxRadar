@@ -96,6 +96,14 @@ const REASONS: readonly ReasonCase[] = [
     blame: null,
     metadata: { freePreview: true },
   },
+  // The late Free answer failed after its AI step began: asked at most once,
+  // so it claims no side and promises no retry.
+  {
+    key: 'aiFreePreviewPlatformFailure',
+    reason: 'PlatformFailure',
+    blame: null,
+    metadata: { freePreview: true },
+  },
   { key: 'aiFreePreviewAllowlisted', reason: 'FreePreviewAllowlistedOrigin', blame: null },
   { key: 'aiFreePreviewAlreadyRequested', reason: 'FreePreviewAlreadyRequested', blame: null },
   { key: 'aiRedactionBlocked', reason: 'RedactionBlocked', blame: 'ours' },

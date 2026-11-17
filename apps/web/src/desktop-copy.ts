@@ -65,7 +65,7 @@ export const desktopCopy: Record<Language, DesktopCopy> = {
         noProfiles: () =>
           'Enter its homepage address. Saving a site costs nothing and starts nothing.',
         noScans: (domain) =>
-          `${FREE_CHECK_COUNT} checks on the homepage of ${domain} — title, description, headings, indexability, social link preview and image alt text — with a homepage score. Tick the box on the next screen to also get one AI answer about your business. Free, about a minute.`,
+          `${FREE_CHECK_COUNT} checks on the homepage of ${domain} — title, description, headings, indexability, social link preview and image alt text — with a homepage score. It also includes one AI answer about your business, which you can turn off on the next screen. Free, about a minute.`,
         running: (domain) =>
           `FluxRadar is reading ${domain}. You can leave this page; the report waits for you.`,
         partial: (domain) =>
@@ -118,7 +118,7 @@ export const desktopCopy: Record<Language, DesktopCopy> = {
         noProfiles: () =>
           'Введіть адресу головної сторінки. Збереження сайту нічого не коштує і нічого не запускає.',
         noScans: (domain) =>
-          `${FREE_CHECK_COUNT} ${ukCountForm(FREE_CHECK_COUNT, 'перевірка', 'перевірки', 'перевірок')} головної сторінки ${domain} — title, опис, заголовки, індексація, превʼю посилання для соцмереж і alt-текст зображень — з оцінкою головної сторінки. Позначте галочку на наступному екрані, щоб отримати ще й одну відповідь ШІ про ваш бізнес. Безкоштовно, близько хвилини.`,
+          `${FREE_CHECK_COUNT} ${ukCountForm(FREE_CHECK_COUNT, 'перевірка', 'перевірки', 'перевірок')} головної сторінки ${domain} — title, опис, заголовки, індексація, превʼю посилання для соцмереж і alt-текст зображень — з оцінкою головної сторінки. Перевірка також містить одну відповідь ШІ про ваш бізнес, її можна вимкнути на наступному екрані. Безкоштовно, близько хвилини.`,
         running: (domain) =>
           `FluxRadar читає ${domain}. Можна піти з цієї сторінки — звіт на вас почекає.`,
         partial: (domain) =>
@@ -171,7 +171,7 @@ export const desktopCopy: Record<Language, DesktopCopy> = {
         noProfiles: () =>
           'Введите адрес главной страницы. Сохранение сайта ничего не стоит и ничего не запускает.',
         noScans: (domain) =>
-          `${FREE_CHECK_COUNT} ${ruCountForm(FREE_CHECK_COUNT, 'проверка', 'проверки', 'проверок')} главной страницы ${domain}: title, описание, заголовки, индексация, превью ссылки для соцсетей и alt-текст изображений, с оценкой главной страницы. Отметьте галочку на следующем экране, чтобы получить ещё и один ответ ИИ о вашем бизнесе. Около минуты, оплата не нужна.`,
+          `${FREE_CHECK_COUNT} ${ruCountForm(FREE_CHECK_COUNT, 'проверка', 'проверки', 'проверок')} главной страницы ${domain}: title, описание, заголовки, индексация, превью ссылки для соцсетей и alt-текст изображений, с оценкой главной страницы. Проверка также включает один ответ ИИ о вашем бизнесе, его можно выключить на следующем экране. Около минуты, оплата не нужна.`,
         running: (domain) =>
           `FluxRadar читает ${domain}. Можно уйти с этой страницы: отчёт вас дождётся.`,
         partial: (domain) =>

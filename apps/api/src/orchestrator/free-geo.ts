@@ -92,7 +92,9 @@ export function skippedQuestionGeneration(quota: AiQuotaTracker): GeoQuestionGen
 /**
  * Why a Free scan does not ask its preview question.
  *
- * - `ConsentMissing` — the owner did not opt in (or the record names no Anthropic).
+ * - `ConsentMissing` — the owner unticked the box at launch (or the record names
+ *   no Anthropic). The finished report may still add the answer once, by an
+ *   explicit button (late-free-preview.ts), which never runs through here.
  * - `FreePreviewAllowlistedOrigin` — an operator-allowlisted origin, exempt from
  *   both Free limits and so re-checkable without end; its preview would spend
  *   provider money on every run, so it is never asked there.
@@ -120,7 +122,7 @@ export function decideFreeGeo(facts: FreeGeoFacts): FreeGeoDecision {
   if (facts.allowlistedOrigin) return { kind: 'skip', reason: 'FreePreviewAllowlistedOrigin' };
   // Consent is fixed per scan, so it is the truer reason whenever it is missing:
   // a crash between the Running write and the skipped row must not turn "you
-  // did not opt in" into "already requested" on the next attempt.
+  // unticked the box" into "already requested" on the next attempt.
   const consent = freeGeoConsent(facts.consent);
   if (consent === null) return { kind: 'skip', reason: 'ConsentMissing' };
   if (facts.alreadyRequested) return { kind: 'skip', reason: 'FreePreviewAlreadyRequested' };
@@ -166,6 +168,13 @@ function metadataOf(metadataJson: string | null): Record<string, unknown> | null
  *    marker: nothing was sent, so a retry decides afresh);
  *  - an answer from this scan is in the ledger;
  *  - this is a module retry, which the preview never answers twice.
+ *
+ * The late preview a finished report adds (late-free-preview.ts) is not queued
+ * as a module retry and does not run this guard: its own gate is the GEO row's
+ * Pending → Running compare-and-set. Its rows all carry `freePreview: true` and
+ * are never Not applicable while it runs, and its Running row also carries
+ * `previewRequested`, so any later attempt of the scan reads its stage as
+ * reached here too.
  */
 export function geoStageReached(
   row: StoredGeoRow | null,

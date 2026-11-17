@@ -11,7 +11,7 @@ import { isReportSnapshotReady } from './report-readiness.ts';
 const TERMINAL_MODULE_STATUSES = new Set(['Completed', 'Partial', 'Unavailable', 'Not applicable']);
 
 export function toScanDto(
-  scan: Scan & { readonly job?: { readonly status: string } | null },
+  scan: Scan & { readonly job?: { readonly status: string; readonly type?: string } | null },
   modules: readonly ScanModule[],
 ): Record<string, unknown> {
   const terminal = modules.filter((module) =>
