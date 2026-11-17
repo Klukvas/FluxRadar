@@ -31,7 +31,7 @@ function destinations() {
   return [
     '.menubar__apple',
     '.menubar [data-t="nav.home"]',
-    '.menubar [data-t="nav.faq"]',
+    '.site-footer [data-t="nav.faq"]',
     '.site-footer [data-t="blog.footerHome"]',
   ].map((selector) => document.querySelector(selector)?.getAttribute('href'));
 }

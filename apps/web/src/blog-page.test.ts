@@ -75,6 +75,9 @@ describe('blog pages share one header with the app', () => {
     expect(html).toContain('class="menubar"');
     expect(html).toContain('class="menubar__apple"');
     expect(html).toContain('id="menubar-links"');
+    const menubar = /<nav class="menubar"[\s\S]*?<\/nav>/.exec(html)?.[0] ?? '';
+    expect(menubar).not.toContain('data-t="nav.faq"');
+    expect(menubar).not.toContain('data-t="nav.blog"');
     expect(html).toContain(
       `href="${readPage(name).includes('<html lang="uk">') ? '/uk/faq' : '/faq'}"`,
     );
@@ -179,7 +182,12 @@ describe('blog footer attribution', () => {
   // The links that were already in each footer keep the order they had.
   it('appends the attribution after the existing footer links', () => {
     const links = Array.from(footerOf('index.html').querySelectorAll('a'));
-    expect(links.map((link) => link.getAttribute('href'))).toEqual(['/', FLUXLAB_URL]);
+    expect(links.map((link) => link.getAttribute('href'))).toEqual([
+      '/',
+      '/faq',
+      '/blog',
+      FLUXLAB_URL,
+    ]);
   });
 });
 
@@ -247,14 +255,13 @@ describe('blog header renders the same way on every page variant', () => {
     );
   }
 
-  // Regression: the blog and /faq abbreviated the row to Home / FAQ / Blog while
-  // every other page listed the workspace tabs too, so the navigation changed
-  // shape under a reader who followed the Blog link out of the product.
+  // FAQ and the blog sit in the footer. The header row is the workspace
+  // destinations, the same ones the product header lists.
   it.each(PAGES)('%s lists the destinations the product header lists', (name) => {
     expect(destinations(name)).toEqual(
       readPage(name).includes('<html lang="uk">')
-        ? ['Головна', 'Мої сайти', 'Перевірка', 'Звіти', 'Інтеграції', 'FAQ', 'Блог']
-        : ['Home', 'My sites', 'Scan', 'Reports', 'Integrations', 'FAQ', 'Blog'],
+        ? ['Головна', 'Мої сайти', 'Перевірка', 'Звіти', 'Інтеграції']
+        : ['Home', 'My sites', 'Scan', 'Reports', 'Integrations'],
     );
   });
 
@@ -262,11 +269,16 @@ describe('blog header renders the same way on every page variant', () => {
     const hrefs = [...headerOf(name).querySelectorAll('a.menubar__item')].map((element) =>
       element.getAttribute('href'),
     );
-    expect(hrefs).toEqual(
-      readPage(name).includes('<html lang="uk">')
-        ? ['/uk', '/uk/faq', '/blog']
-        : ['/', '/faq', '/blog'],
+    expect(hrefs).toEqual(readPage(name).includes('<html lang="uk">') ? ['/uk'] : ['/']);
+  });
+
+  it.each(PAGES)('%s keeps FAQ and the blog in the footer', (name) => {
+    const page = headerOf(name);
+    const faq = page.querySelector('footer [data-t="nav.faq"]');
+    expect(faq?.getAttribute('href')).toBe(
+      readPage(name).includes('<html lang="uk">') ? '/uk/faq' : '/faq',
     );
+    expect(page.querySelector('footer a[href="/blog"]')).not.toBeNull();
   });
 
   // The pages ship the tabs the way the product renders them for a reader who
@@ -277,13 +289,8 @@ describe('blog header renders the same way on every page variant', () => {
     for (const tab of tabs) expect(tab.hasAttribute('disabled')).toBe(true);
   });
 
-  it.each(PAGES)('%s marks the blog as the section the reader is in', (name) => {
-    const blogItem = /<a class="menubar__item[^"]*" href="\/blog"[^>]*>/.exec(readPage(name))?.[0];
-    expect(blogItem).toContain('is-active');
-    // The index is the page the link opens; an article only lives inside it.
-    expect(blogItem).toContain(
-      name === 'index.html' ? 'aria-current="page"' : 'aria-current="true"',
-    );
+  it.each(PAGES)('%s does not mark the blog inside the header', (name) => {
+    expect(readPage(name)).not.toMatch(/<a class="menubar__item[^"]*" href="\/blog"/);
   });
 
   it.each(PAGES)('%s names its main landmark the way the index does', (name) => {
@@ -540,8 +547,6 @@ describe('blog language filter', () => {
         labels.scan,
         labels.reports,
         labels.integrations,
-        labels.faq,
-        labels.blog,
       ]);
       expect(document.querySelector('[data-t="nav.profiles"]')?.getAttribute('title')).toBe(
         labels.descriptions.profiles,

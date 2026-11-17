@@ -8,8 +8,9 @@ import { siteChromeCopy } from './site-chrome-copy';
 // identical across /checks, /privacy, /terms and this page.
 //
 // The header is the shared `MenuBar` in its public variant: the same row of
-// destinations the home page, /checks and the legal documents show, with FAQ
-// marked as the page the reader is on. The public variant is what links out with
+// destinations the home page, /checks and the legal documents show. FAQ and
+// the blog are footer links; this page's footer marks FAQ as the open page.
+// The public variant is what links out with
 // plain `href`s instead of an SPA callback this page does not have — it is not a
 // shorter menu. Its workspace tabs follow the reader's session, as they do on
 // every page the app renders and in the static blog header.
@@ -102,7 +103,15 @@ export function FaqScreen(props: {
             · <a href={publicPagePath('home', props.language)}>{t.footerHome}</a> ·{' '}
             <a href={publicPagePath('checks', props.language)}>{t.footerCoverage}</a> ·{' '}
             <a href={publicPagePath('privacy', props.language)}>{t.footerPrivacy}</a> ·{' '}
-            <a href={publicPagePath('terms', props.language)}>{t.footerTerms}</a>
+            <a href={publicPagePath('terms', props.language)}>{t.footerTerms}</a> ·{' '}
+            <a
+              href={publicPagePath('faq', props.language)}
+              aria-current="page"
+              title={copy[props.language].nav.descriptions.faq}
+            >
+              {copy[props.language].nav.faq}
+            </a>{' '}
+            · <a href="/blog">{copy[props.language].home.footer.fieldNotes}</a>
           </span>
           <CreatedByFluxLab language={props.language} />
         </footer>

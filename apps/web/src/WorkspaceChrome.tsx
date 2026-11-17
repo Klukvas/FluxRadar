@@ -174,7 +174,9 @@ export function WorkspaceFooter({ language }: { readonly language: Language }) {
       <span className="desktop__footer-links">
         <a href="/checks">{copy[language].home.footer.coverageLink}</a>
         <a href={EXAMPLE_REPORT_PATH}>{copy[language].home.footer.exampleLink}</a>
-        <a href="/faq">{copy[language].nav.faq}</a>
+        <a href="/faq" title={copy[language].nav.descriptions.faq}>
+          {copy[language].nav.faq}
+        </a>
         <a href="/privacy">{copy[language].home.footer.privacyLink}</a>
         <a href="/terms">{copy[language].home.footer.termsLink}</a>
         <a href="/terms#terms-paid">{copy[language].home.footer.refundLink}</a>

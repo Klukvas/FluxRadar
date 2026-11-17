@@ -243,7 +243,9 @@ export function HomeScreen(props: {
             <a href={publicPagePath('exampleReport', props.language)}>
               {t.home.footer.exampleLink}
             </a>
-            <a href={publicPagePath('faq', props.language)}>{t.nav.faq}</a>
+            <a href={publicPagePath('faq', props.language)} title={t.nav.descriptions.faq}>
+              {t.nav.faq}
+            </a>
             <a href={publicPagePath('privacy', props.language)}>{t.home.footer.privacyLink}</a>
             <a href={publicPagePath('terms', props.language)}>{t.home.footer.termsLink}</a>
             <a href={publicPagePath('terms', props.language) + '#terms-paid'}>

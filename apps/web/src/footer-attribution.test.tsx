@@ -247,8 +247,8 @@ describe('the site footer on a report', () => {
     renderAt(`/scans/${reportScan.id}`, signedInReport);
     await screen.findByText('Site audit report');
 
-    // Scoped to the footer: the menu bar above links to /faq and /blog too, and
-    // the point here is where the reader lands at the *end* of the page.
+    // Scoped to the footer: FAQ and the blog live here, and the point is where
+    // the reader lands at the *end* of the page.
     const footer = within(document.querySelector('footer') as HTMLElement);
     const links = [
       ['Audit coverage', '/checks'],

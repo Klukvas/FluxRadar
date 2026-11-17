@@ -175,8 +175,11 @@ function PageFooter({ language }: { language: Language }) {
       <span>
         <a href={publicPagePath('home', language)}>{t.footerHome}</a> ·{' '}
         <a href={publicPagePath('checks', language)}>{copy[language].checks.title}</a> ·{' '}
-        <a href={publicPagePath('faq', language)}>{copy[language].nav.faq}</a> ·{' '}
-        <a href="/knowledge-base/prochytaty-zvit">{siteChromeCopy[language].readYourReport}</a>
+        <a href={publicPagePath('faq', language)} title={copy[language].nav.descriptions.faq}>
+          {copy[language].nav.faq}
+        </a>{' '}
+        · <a href="/knowledge-base/prochytaty-zvit">{siteChromeCopy[language].readYourReport}</a> ·{' '}
+        <a href="/blog">{copy[language].home.footer.fieldNotes}</a>
       </span>
       <CreatedByFluxLab language={language} />
     </footer>

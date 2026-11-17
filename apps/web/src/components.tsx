@@ -304,27 +304,6 @@ export function MenuBar(props: MenuBarProps) {
               </button>
             );
           })}
-          <a
-            className={props.active === 'faq' ? 'menubar__item is-active' : 'menubar__item'}
-            href={publicPagePath('faq', props.language)}
-            title={labels.descriptions.faq}
-            aria-current={props.active === 'faq' ? 'page' : undefined}
-            onClick={() => setMenuOpen(false)}
-          >
-            {labels.faq}
-          </a>
-          <a
-            className={
-              props.active === 'blog'
-                ? 'menubar__item menubar__blog-link is-active'
-                : 'menubar__item menubar__blog-link'
-            }
-            href="/blog"
-            aria-current={props.active === 'blog' ? 'page' : undefined}
-            onClick={() => setMenuOpen(false)}
-          >
-            {labels.blog}
-          </a>
           <span className="menubar__spacer" />
         </div>
         <div className="menubar__meta">
