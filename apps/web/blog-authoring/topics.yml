@@ -60,7 +60,10 @@ topics:
     related: [/blog/uk/novi-perevirky-saitu]
 
   - id: structured-data-small-business
-    status: todo
+    status: done
+    published: 2026-11-19
+    uk_slug: strukturovani-dani-biznesu
+    en_slug: structured-data-small-business
     title_uk: Структуровані дані для малого бізнесу — що справді варто додати
     title_en: Structured data for a small business — what is worth adding
     angle: >-
@@ -69,7 +72,10 @@ topics:
     related: [/knowledge-base/strukturovani-dani, /blog/uk/seo-dlia-lokalnoho-biznesu]
 
   - id: title-and-description
-    status: todo
+    status: done
+    published: 2026-11-19
+    uk_slug: title-i-opys-storinky
+    en_slug: page-titles-descriptions
     title_uk: Title і опис сторінки, на які хочеться клікнути
     title_en: Page titles and descriptions people want to click
     angle: >-

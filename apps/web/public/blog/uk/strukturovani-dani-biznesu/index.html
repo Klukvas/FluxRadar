@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Структуровані дані для малого бізнесу | FluxRadar</title>
+    <meta
+      name="description"
+      content="Яка розмітка Schema.org має сенс для малого бізнесу: Organization, LocalBusiness, Product і хлібні крихти, та чого не чекати від FAQ і власних відгуків."
+    />
+    <link rel="canonical" href="https://fluxradar.net/blog/uk/strukturovani-dani-biznesu" />
+    <link
+      rel="alternate"
+      hreflang="uk"
+      href="https://fluxradar.net/blog/uk/strukturovani-dani-biznesu"
+    />
+    <link
+      rel="alternate"
+      hreflang="en"
+      href="https://fluxradar.net/blog/structured-data-small-business"
+    />
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href="https://fluxradar.net/blog/structured-data-small-business"
+    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="article" />
+    <meta
+      property="og:title"
+      content="Структуровані дані для малого бізнесу: що справді варто додати"
+    />
+    <meta
+      property="og:description"
+      content="Яка розмітка Schema.org має сенс для малого бізнесу: Organization, LocalBusiness, Product і хлібні крихти, та чого не чекати від FAQ і власних відгуків."
+    />
+    <meta property="og:url" content="https://fluxradar.net/blog/uk/strukturovani-dani-biznesu" />
+    <meta property="og:locale" content="uk_UA" />
+    <meta property="og:image" content="https://fluxradar.net/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="FluxRadar · fluxradar.net" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://fluxradar.net/og-image.png" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "BlogPosting",
+            "headline": "Структуровані дані для малого бізнесу: що справді варто додати",
+            "description": "Яка розмітка Schema.org має сенс для малого бізнесу: Organization, LocalBusiness, Product і хлібні крихти, та чого не чекати від FAQ і власних відгуків.",
+            "inLanguage": "uk",
+            "datePublished": "2026-11-19",
+            "dateModified": "2026-11-19",
+            "mainEntityOfPage": "https://fluxradar.net/blog/uk/strukturovani-dani-biznesu",
+            "publisher": {
+              "@type": "Organization",
+              "name": "FluxLab",
+              "url": "https://fluxradar.net"
+            }
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "FluxRadar",
+                "item": "https://fluxradar.net/"
+              },
+              {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "Блог",
+                "item": "https://fluxradar.net/blog"
+              },
+              {
+                "@type": "ListItem",
+                "position": 3,
+                "name": "Структуровані дані для малого бізнесу: що справді варто додати",
+                "item": "https://fluxradar.net/blog/uk/strukturovani-dani-biznesu"
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+    <link rel="stylesheet" href="/blog/blog.css" />
+    <link rel="stylesheet" href="/blog/content.css" />
+  </head>
+  <body data-blog-page="article" data-content-section="blog">
+    <nav class="menubar" aria-label="Меню сайту">
+      <a class="menubar__apple" href="/uk"
+        ><svg viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+        </svg>
+        FluxRadar</a
+      >
+      <button
+        class="menubar__toggle"
+        type="button"
+        data-menu-toggle
+        data-t-label="nav.openMenu"
+        aria-label="Відкрити меню"
+        aria-expanded="false"
+        aria-controls="menubar-links"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" fill="none" />
+        </svg>
+      </button>
+      <div id="menubar-links" class="menubar__links">
+        <div class="menubar__sheet-head">
+          <span class="menubar__sheet-brand"
+            ><svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+            </svg>
+            FluxRadar</span
+          ><span class="menubar__sheet-status" data-t="nav.systemStatus"
+            >СТАНЦІЯ АУДИТУ ПУБЛІЧНИХ САЙТІВ · v0.1</span
+          ><button
+            class="menubar__close"
+            type="button"
+            data-menu-close
+            data-t-label="nav.closeMenu"
+            aria-label="Закрити меню"
+          >
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.5" fill="none" />
+            </svg>
+          </button>
+        </div>
+        <div class="menubar__nav">
+          <span class="menubar__group-label" data-t="nav.navigate">Навігація</span
+          ><a class="menubar__item" href="/uk" data-t="nav.home">Головна</a
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Ваші збережені сайти та історія їхніх перевірок."
+            data-t="nav.profiles"
+            data-t-title="nav.profilesHint"
+          >
+            Мої сайти</button
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Налаштуйте та запустіть нову перевірку."
+            data-t="nav.scan"
+            data-t-title="nav.scanHint"
+          >
+            Перевірка</button
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Готові та поточні результати перевірок."
+            data-t="nav.reports"
+            data-t-title="nav.reportsHint"
+          >
+            Звіти</button
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Необовʼязкові підключення даних. Публічна перевірка працює без них."
+            data-t="nav.integrations"
+            data-t-title="nav.integrationsHint"
+          >
+            Інтеграції</button
+          ><span class="menubar__spacer"></span>
+        </div>
+        <div class="menubar__meta">
+          <span class="menubar__group-label" data-t="nav.system">Система</span>
+          <div class="menubar__language" data-language>
+            <span id="menubar-language-label" data-t="nav.language">Мова</span
+            ><button
+              type="button"
+              role="combobox"
+              class="menubar__language-button"
+              data-language-button
+              aria-haspopup="listbox"
+              aria-expanded="false"
+              aria-controls="menubar-language-listbox"
+              aria-labelledby="menubar-language-label"
+            >
+              <span data-language-current>Українська</span
+              ><svg class="menubar__language-caret" viewBox="0 0 10 6" aria-hidden="true">
+                <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" />
+              </svg>
+            </button>
+            <ul
+              id="menubar-language-listbox"
+              class="menubar__language-listbox"
+              role="listbox"
+              aria-labelledby="menubar-language-label"
+              hidden
+            >
+              <li
+                class="menubar__language-option"
+                role="option"
+                data-language-option="en"
+                aria-selected="false"
+              >
+                English
+              </li>
+              <li
+                class="menubar__language-option is-active"
+                role="option"
+                data-language-option="uk"
+                aria-selected="true"
+              >
+                Українська
+              </li>
+            </ul>
+          </div>
+          <span class="menubar__system" data-t="nav.systemStatus"
+            >СТАНЦІЯ АУДИТУ ПУБЛІЧНИХ САЙТІВ · v0.1</span
+          >
+        </div>
+      </div>
+    </nav>
+    <div class="blog-page content-page">
+      <main id="blog-main">
+        <nav class="breadcrumbs" aria-label="Навігаційний ланцюжок">
+          <a href="/uk">Головна</a> / <a href="/blog">Блог</a> /
+          <span>Структуровані дані для малого бізнесу: що справді варто додати</span>
+        </nav>
+        <header>
+          <p class="kicker">СТРУКТУРОВАНІ ДАНІ · УКРАЇНСЬКОЮ</p>
+          <h1>Структуровані дані для малого бізнесу: що справді варто додати</h1>
+          <p class="lede">
+            Короткий перелік типів розмітки, які справді корисні невеликій компанії, і чесно про те,
+            чого від них не варто чекати.
+          </p>
+          <p class="content-date">
+            Опубліковано й перевірено: <time datetime="2026-11-19">19 листопада 2026</time>
+          </p>
+        </header>
+        <article class="content-article">
+          <p>
+            Структуровані дані — це опис сторінки у форматі, який легко прочитати машині: назва
+            компанії, адреса, години роботи, ціна товару, місце сторінки в структурі сайту.
+            Найчастіше їх додають як JSON-LD — окремий блок коду в HTML, який відвідувач не бачить.
+            Для власника невеликого бізнесу головне питання не «як це написати», а «що з цього
+            справді варто робити». Нижче — типи, які найчастіше мають сенс, і застереження, що
+            заощадять час розробника.
+          </p>
+          <nav class="article-toc" aria-label="Зміст">
+            <h2>У цьому матеріалі</h2>
+            <ul>
+              <li><a href="#section-1">Чого чекати від розмітки</a></li>
+              <li><a href="#section-2">Organization: хто стоїть за сайтом</a></li>
+              <li><a href="#section-3">LocalBusiness: якщо клієнти приходять до вас</a></li>
+              <li><a href="#section-4">Product і хлібні крихти: для магазину та каталогу</a></li>
+              <li>
+                <a href="#section-5">FAQ і відгуки: де очікування розходяться з реальністю</a>
+              </li>
+              <li><a href="#section-6">Що перевіряє FluxRadar</a></li>
+            </ul>
+          </nav>
+          <section id="section-1">
+            <h2>Чого чекати від розмітки</h2>
+            <p>
+              Google використовує структуровані дані, щоб краще зрозуміти зміст сторінки, а для
+              частини типів — щоб показати розширений результат: логотип, хлібні крихти, ціну. Проте
+              в загальних правилах Google прямо сказано: навіть правильна розмітка не гарантує, що
+              такий результат з’явиться. Тож розмітка — це спосіб точно описати те, що вже є на
+              сторінці, а не кнопка для вищих позицій.
+            </p>
+            <p>
+              Друге правило важливіше за вибір будь-якого типу: розмітка має описувати видимий
+              зміст. Google просить не розмічати те, чого відвідувач не бачить, і не додавати
+              нерелевантного чи оманливого змісту, наприклад вигаданих відгуків. За такі порушення
+              можлива ручна санкція — сторінка втрачає право на розширені результати.
+            </p>
+            <p>
+              З трьох підтримуваних форматів Google рекомендує JSON-LD. Його зручно додавати в
+              шаблон сайту й перевіряти окремо від верстки.
+            </p>
+          </section>
+          <section id="section-2">
+            <h2>Organization: хто стоїть за сайтом</h2>
+            <p>
+              Розмітка Organization описує компанію загалом. За документацією Google, частина її
+              властивостей допомагає відрізнити вашу організацію від інших із подібною назвою, а
+              частина може впливати на те, як компанію показано в пошуку, наприклад на логотип.
+            </p>
+            <p>
+              Обов’язкових властивостей тут немає. Google радить розміщувати опис на головній
+              сторінці або на одній сторінці про компанію. Для початку достатньо такого набору:
+            </p>
+            <ul>
+              <li><code>name</code> — назва так, як вона написана на сайті;</li>
+              <li><code>url</code> — адреса головної сторінки;</li>
+              <li><code>logo</code> — посилання на файл логотипа;</li>
+              <li><code>sameAs</code> — офіційні профілі компанії на інших сайтах, якщо вони є;</li>
+              <li>
+                <code>contactPoint</code> — основний спосіб зв’язку, якщо ним справді користуються.
+              </li>
+            </ul>
+            <p>
+              Не потрібно повторювати Organization на кожній сторінці з трохи різними даними. Один
+              узгоджений опис надійніший за десять схожих.
+            </p>
+          </section>
+          <section id="section-3">
+            <h2>LocalBusiness: якщо клієнти приходять до вас</h2>
+            <p>
+              Кав’ярні, салону, автосервісу чи клініці корисніша розмітка LocalBusiness. Google
+              вимагає в ній дві властивості: <code>name</code> і <code>address</code> — фізичну
+              адресу, якомога повнішу. Рекомендовані: <code>telephone</code>,
+              <code>openingHoursSpecification</code> (години роботи), <code>geo</code> (координати),
+              <code>url</code> і <code>priceRange</code>.
+            </p>
+            <p>
+              Обирайте найточніший підтип: Google наводить як приклади Restaurant, DaySpa і
+              HealthClub. Загальний LocalBusiness доречний, коли точнішого типу немає.
+            </p>
+            <p>
+              Ось навчальний приклад для вигаданої кав’ярні. Адреса, телефон і години тут умовні; у
+              вашій розмітці мають бути саме ті дані, що написані на сторінці контактів:
+            </p>
+            <pre><code>{
+  "@context": "https://schema.org",
+  "@type": "CafeOrCoffeeShop",
+  "name": "Кавова майстерня",
+  "url": "https://example.com/",
+  "telephone": "+380 00 000 0000",
+  "address": {
+    "@type": "PostalAddress",
+    "streetAddress": "вул. Прикладна, 1",
+    "addressLocality": "Львів",
+    "addressCountry": "UA"
+  },
+  "openingHoursSpecification": [{
+    "@type": "OpeningHoursSpecification",
+    "dayOfWeek": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+    "opens": "08:00",
+    "closes": "20:00"
+  }]
+}</code></pre>
+            <p>
+              Найпоширеніша проблема тут — розбіжності. На сторінці контактів новий графік, а в
+              розмітці — торішній; у шапці сайту один номер, у JSON-LD — інший. Перед публікацією
+              звірте розмітку з тим, що бачить відвідувач, і з профілем компанії у зовнішніх
+              сервісах. Як узгодити контакти в усіх місцях, ми розбирали в статті про локальне SEO.
+            </p>
+          </section>
+          <section id="section-4">
+            <h2>Product і хлібні крихти: для магазину та каталогу</h2>
+            <p>
+              Якщо ви продаєте онлайн, найбільше уваги варта розмітка Product на картках товарів.
+              Google розрізняє два випадки: сторінки, де товар можна купити (merchant listings), і
+              сторінки, де купити не можна, як-от огляди (product snippets). Набори властивостей у
+              них різні, тож розробнику варто звірятися з документацією саме для вашого випадку.
+            </p>
+            <p>
+              Ціна, валюта й наявність у розмітці мають збігатися з тим, що бачить покупець. Якщо
+              шаблон бере ціну для сторінки з одного джерела, а для розмітки — з іншого, розбіжність
+              з’явиться після першого ж оновлення прайсу.
+            </p>
+            <p>
+              BreadcrumbList описує шлях до сторінки: Головна → Категорія → Товар. Його нескладно
+              додати в шаблон, і він корисний сайтам із кількома рівнями вкладеності. Але врахуйте
+              обмеження: з січня 2025 року Google показує хлібні крихти в результатах пошуку лише на
+              комп’ютерах, а не на мобільних.
+            </p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Тип</th>
+                  <th>Кому</th>
+                  <th>Що пам’ятати</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Organization</td>
+                  <td>Будь-якій компанії</td>
+                  <td>Один опис на головній або сторінці «Про нас»</td>
+                </tr>
+                <tr>
+                  <td>LocalBusiness</td>
+                  <td>Бізнесу з фізичною адресою</td>
+                  <td>Обов’язкові name і address, найточніший підтип</td>
+                </tr>
+                <tr>
+                  <td>Product</td>
+                  <td>Інтернет-магазину</td>
+                  <td>Ціна й наявність як на сторінці</td>
+                </tr>
+                <tr>
+                  <td>BreadcrumbList</td>
+                  <td>Сайту з категоріями</td>
+                  <td>У пошуку показується лише на комп’ютерах</td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+          <section id="section-5">
+            <h2>FAQ і відгуки: де очікування розходяться з реальністю</h2>
+            <p>
+              Багато порад досі радять FAQPage, щоб «зайняти більше місця у видачі». Це вже не
+              працює. За журналом змін документації Google Пошуку, розширений результат FAQ перестав
+              показуватися з 7 травня 2026 року, а в червні 2026 року його документацію прибрали.
+              Сторінка з відповідями на справжні запитання клієнтів лишається корисною для людей —
+              просто не чекайте від неї окремого вигляду в пошуку.
+            </p>
+            <p>
+              Із відгуками схожа історія. У документації LocalBusiness властивості
+              <code>review</code> та <code>aggregateRating</code> рекомендовані лише сайтам, які
+              збирають відгуки про інші місцеві бізнеси. Якщо компанія розмічає відгуки про себе на
+              власному сайті, розраховувати на зірочки в Google не варто. Справжні відгуки показуйте
+              відвідувачам, але не вигадуйте рейтингів і не додавайте їх у розмітку заради зірочок.
+            </p>
+            <p>
+              Практичний висновок простий: почніть з Organization, додайте LocalBusiness, якщо у вас
+              є адреса для клієнтів, Product — якщо є магазин, і BreadcrumbList — якщо є категорії.
+              Решту додавайте, лише коли знаєте, навіщо.
+            </p>
+          </section>
+          <section id="section-6">
+            <h2>Що перевіряє FluxRadar</h2>
+            <p>
+              У платних пакетах Basic і Complete модуль SEO читає блоки JSON-LD на прочитаних
+              сторінках і повідомляє про таке:
+            </p>
+            <ul>
+              <li>блок, який не вдається розібрати як JSON — одна зайва кома ламає весь блок;</li>
+              <li>
+                об’єкт без <code>@context</code> або без <code>@type</code>; якщо типи вказано у
+                вузлах <code>@graph</code>, це вважається нормою;
+              </li>
+              <li>
+                сторінку з видимими адресою й телефоном, де не помічено LocalBusiness або відомого
+                підтипу, — це підказка про можливість, а не помилка;
+              </li>
+              <li>
+                опис місцевого бізнесу без <code>name</code> чи адреси, а також без рекомендованих
+                телефону, годин роботи або координат;
+              </li>
+              <li>
+                відгуки чи рейтинг у LocalBusiness на тому самому сайті — як нагадування про правила
+                зірочок.
+              </li>
+            </ul>
+            <p>
+              Межі теж важливі. FluxRadar читає розмітку з HTML, який повертає сервер, тож JSON-LD,
+              доданий скриптом після завантаження, перевірка може не побачити. Він не оцінює, чи має
+              сторінка право на розширений результат, і не звіряє ціни чи графік у розмітці з
+              видимим текстом. Для цього скористайтеся Rich Results Test від Google і перегляньте
+              кілька сторінок самостійно.
+            </p>
+          </section>
+          <aside class="related-reading">
+            <h2>Читайте також</h2>
+            <ul>
+              <li>
+                <a href="/blog/structured-data-small-business" hreflang="en">English version</a>
+              </li>
+              <li>
+                <a href="/blog/uk/title-i-opys-storinky"
+                  >Title і опис сторінки, на які хочеться клікнути</a
+                >
+              </li>
+              <li>
+                <a href="/blog/uk/seo-dlia-lokalnoho-biznesu"
+                  >SEO для локального бізнесу: що перевірити спочатку</a
+                >
+              </li>
+              <li>
+                <a href="/knowledge-base/strukturovani-dani"
+                  >Як перевірити структуровані дані на сторінці</a
+                >
+              </li>
+            </ul>
+          </aside>
+          <section class="article-sources">
+            <h2>Джерела та перевірка</h2>
+            <ul>
+              <li>
+                <a
+                  href="https://developers.google.com/search/docs/appearance/structured-data/sd-policies"
+                  >Google: загальні правила структурованих даних</a
+                >
+              </li>
+              <li>
+                <a
+                  href="https://developers.google.com/search/docs/appearance/structured-data/local-business"
+                  >Google: розмітка LocalBusiness</a
+                >
+              </li>
+              <li>
+                <a
+                  href="https://developers.google.com/search/docs/appearance/structured-data/organization"
+                  >Google: розмітка Organization</a
+                >
+              </li>
+              <li>
+                <a href="https://developers.google.com/search/updates"
+                  >Google: журнал змін документації Пошуку</a
+                >
+              </li>
+            </ul>
+            <p>
+              Зовнішні настанови перевірено 19 листопада 2026 року. Навчальні приклади не описують
+              результати клієнтів і не обіцяють позицій у пошуку.
+            </p>
+          </section>
+        </article>
+        <p class="content-cta">
+          <a href="/uk">Перевірте свій сайт</a> ·
+          <a href="/knowledge-base">Практичні інструкції</a> ·
+          <a href="/blog">Статті для власників сайтів</a>
+        </p>
+        <footer class="site-footer">
+          <a href="/blog">&#x2190; Усі нотатки</a> <a href="/knowledge-base">База знань</a
+          ><a href="/uk/faq" data-t="nav.faq">FAQ</a>
+          <span class="powered-by"
+            ><a
+              class="powered-by__link"
+              href="https://flux-lab.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-t-label="blog.poweredByAria"
+              aria-label="Створено FluxLab (відкривається в новій вкладці)"
+              ><span class="powered-by__mark" aria-hidden="true">◈</span
+              ><span data-t="blog.poweredBy">Створено FluxLab</span></a
+            ></span
+          >
+        </footer>
+      </main>
+    </div>
+    <script src="/blog/public-links.js"></script>
+    <script src="/blog/attribution.js"></script>
+    <script src="/blog/blog.js"></script>
+  </body>
+</html>
