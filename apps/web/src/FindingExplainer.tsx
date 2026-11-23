@@ -220,7 +220,7 @@ type CopyState = 'idle' | 'copied' | 'failed';
  * from the button's first render could run after a quick copy had finished and
  * wipe its "copied" or its refusal.
  */
-function useClipboardCopy(text: string | null, ruleId: string) {
+export function useClipboardCopy(text: string | null, ruleId: string) {
   const [outcome, setOutcome] = useState<{ text: string; state: CopyState } | null>(null);
   const state: CopyState = outcome !== null && outcome.text === text ? outcome.state : 'idle';
   const copy = async (): Promise<void> => {

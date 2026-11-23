@@ -65,7 +65,8 @@ describe('HOME states the offer before a click', () => {
       expect(note).not.toHaveTextContent(/\{.*\}/);
       expect(start).not.toHaveBeenCalled();
       fireEvent.change(input, { target: { value: 'not a site' } });
-      fireEvent.click(screen.getByRole('button'));
+      // By name: the slider beside the form has buttons of its own.
+      fireEvent.click(screen.getByRole('button', { name: copy[language].home.hero.submit }));
       const error = screen.getByRole('alert');
       expect(input.getAttribute('aria-describedby')?.split(' ')).toEqual([note?.id, error.id]);
       expect(note).toHaveTextContent(`Complete ${COMPLETE_PRICE}`);

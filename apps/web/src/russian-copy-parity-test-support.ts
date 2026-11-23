@@ -46,6 +46,7 @@ import { findingsCopy } from './findings-copy';
 import { exampleReportCopy } from './example-report-copy';
 import { exampleReportContent } from './example-report-content';
 import { geoDigestCopy } from './geo-digest-copy';
+import { heroOfferCopy } from './hero-offer-copy';
 import { copy } from './i18n';
 import { newScanCopy } from './new-scan-copy';
 import { offlineBannerCopy } from './OfflineBanner';
@@ -75,6 +76,7 @@ const CATALOGUES = {
   exampleReportContent,
   findingsCopy,
   geoDigestCopy,
+  heroOfferCopy,
   newScanCopy,
   offlineBannerCopy,
   LEGACY_PLAN_NAME,

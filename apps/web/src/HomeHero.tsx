@@ -5,7 +5,7 @@
 // "a tool for programmers". What is left says what we do, asks for the site,
 // says what happens next and what it costs, and shows a report beside it.
 
-import { HeroExampleReport } from './HeroExampleReport';
+import { HeroOfferSlider } from './HeroOfferSlider';
 import { HeroSiteForm } from './HeroSiteForm';
 import { copy, fillCopy, type Language } from './i18n';
 import { BASIC_PRICE, COMPLETE_PRICE } from './tariff-prices';
@@ -47,7 +47,7 @@ export function HomeHero(props: {
           {t.pricingLink} <span aria-hidden="true">↓</span>
         </a>
       </div>
-      <HeroExampleReport language={props.language} />
+      <HeroOfferSlider language={props.language} />
     </section>
   );
 }

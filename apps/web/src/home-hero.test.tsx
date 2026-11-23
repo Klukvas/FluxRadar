@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { EXAMPLE_REPORT_PATH } from './app-routes';
 import { HomeScreen } from './HomeScreen';
+import { heroOfferCopy } from './hero-offer-copy';
 import { copy, type Language } from './i18n';
 import { BASIC_PRICE } from './tariff-prices';
 
@@ -66,7 +67,7 @@ describe('home hero', () => {
     renderHome('en');
     const column = screen.getByRole('heading', { level: 1 }).parentElement as HTMLElement;
     expect(column).toHaveClass('home-hero__panel');
-    const window = screen.getByRole('region', { name: 'Example report' });
+    const window = screen.getByRole('region', { name: 'What you get' });
     expect(window).not.toHaveClass('home-hero__panel');
     expect(window.querySelector('.home-hero__panel')).toBeNull();
   });
@@ -116,17 +117,24 @@ describe('home hero', () => {
     expect(copy[language].home.hero.note).not.toMatch(/\$\d/);
   });
 
+  // The window is a slider of what a report holds now; its first slide is the
+  // example report it used to be, word for word, and it is the slide shown
+  // until the visitor or the clock moves on.
   it.each<[Language, string, string]>([
-    ['en', 'Example report', 'Full example'],
-    ['uk', 'Приклад звіту', 'Весь приклад'],
-  ])('shows an example report window beside the form (%s)', (language, name, linkName) => {
+    ['en', 'What you get', 'Full example'],
+    ['uk', 'Що ви отримаєте', 'Весь приклад'],
+  ])('shows the example report as the slider’s first slide (%s)', (language, name, linkName) => {
     renderHome(language);
     const t = copy[language].home.hero.example;
     const window = screen.getByRole('region', { name });
-    expect(within(window).getByText(t.site)).toBeInTheDocument();
-    expect(within(window).getByText(t.meta)).toBeInTheDocument();
-    expect(within(window).getByRole('list')).toHaveAttribute('role', 'list');
-    const findings = within(window).getAllByRole('listitem');
+    const tab = within(window).getByRole('tab', { selected: true });
+    expect(tab).toHaveTextContent(heroOfferCopy[language].tabs.report);
+    const slide = document.getElementById(tab.getAttribute('aria-controls') ?? '') as HTMLElement;
+    expect(slide).toHaveAttribute('role', 'tabpanel');
+    expect(within(slide).getByText(t.site)).toBeInTheDocument();
+    expect(within(slide).getByText(t.meta)).toBeInTheDocument();
+    expect(within(slide).getByRole('list')).toHaveAttribute('role', 'list');
+    const findings = within(slide).getAllByRole('listitem');
     expect(findings).toHaveLength(3);
     t.findings.forEach((finding, index) => {
       const item = findings[index] as HTMLElement;
