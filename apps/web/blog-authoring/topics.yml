@@ -84,7 +84,10 @@ topics:
     related: [/knowledge-base/title-opysy-zaholovky]
 
   - id: images-alt-formats
-    status: todo
+    status: done
+    published: 2026-11-23
+    uk_slug: zobrazhennia-alt-formaty
+    en_slug: website-images-alt-lazy-loading
     title_uk: Зображення на сайті — alt, формати та ліниве завантаження
     title_en: Website images — alt text, formats and lazy loading
     angle: >-
@@ -93,7 +96,10 @@ topics:
     related: [/blog/uk/dostupnist-form-zaiavky]
 
   - id: redirect-chains-404
-    status: todo
+    status: done
+    published: 2026-11-23
+    uk_slug: redyrekty-pislia-chystky
+    en_slug: redirects-404-after-cleanup
     title_uk: Ланцюжки редиректів і 404 після чистки контенту
     title_en: Redirect chains and 404s after a content clean-up
     angle: >-
