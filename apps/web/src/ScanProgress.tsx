@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { apiRequest, type Scan, type ScanModule } from './api';
 import { Button, EmptyState, FieldRow, Panel, ProgressBar, StatusChip, Window } from './components';
+import { FreeAiAsk } from './FreeAiAsk';
 import { copy, fillCopy, type Language } from './i18n';
 import { moduleStatusReasons } from './module-status';
 import { planName } from './plan-modules';
@@ -33,6 +34,11 @@ const FOCUSABLE = 'button:not([disabled]), a[href]';
 export function ScanScreen(props: {
   scan: Scan | null;
   language: Language;
+  /**
+   * This Free check was started without its AI question (from the address on
+   * the public page), so the screen asks for it while the check runs.
+   */
+  askFreeAi?: boolean;
   onUpdate: (scan: Scan) => void;
   onDone: () => void;
   onReports: () => void;
@@ -42,6 +48,9 @@ export function ScanScreen(props: {
   const cancelCopy = scanCancelCopy[props.language];
   const [cancelBusy, setCancelBusy] = useState(false);
   const [confirmCancel, setConfirmCancel] = useState<Scan | null>(null);
+  // A yes to the AI question waits on this screen until the check ends; what
+  // would take the owner away meanwhile is held back (FreeAiAsk).
+  const [aiAnswerHeld, setAiAnswerHeld] = useState(false);
   const cancelTrigger = useRef<HTMLButtonElement>(null);
   const cancelDialog = useRef<HTMLElement>(null);
   const liveMark = useRef<LiveProgressMark | null>(null);
@@ -178,9 +187,23 @@ export function ScanScreen(props: {
         ) : reportFinalizing ? (
           <p role="status">{t.finalizing}</p>
         ) : (
-          <ScanProgressStatus scan={scan} language={props.language} now={Date.now()} />
+          <ScanProgressStatus
+            scan={scan}
+            language={props.language}
+            now={Date.now()}
+            keepPageOpen={aiAnswerHeld}
+          />
         )}
       </Panel>
+      {props.askFreeAi === true && scan.plan === 'Free' ? (
+        <FreeAiAsk
+          key={scan.id}
+          scan={scan}
+          settled={settled}
+          language={props.language}
+          onHeldChange={setAiAnswerHeld}
+        />
+      ) : null}
       <Panel title={t.sectionsTitle}>
         {scan.modules.length === 0 ? (
           <p className="muted">{t.sectionsPreparing}</p>
@@ -211,9 +234,11 @@ export function ScanScreen(props: {
       </Panel>
       <div className="button-row">
         {terminal ? (
-          <Button onClick={props.onDone} variant="primary">
-            {t.openReport}
-          </Button>
+          aiAnswerHeld ? null : (
+            <Button onClick={props.onDone} variant="primary">
+              {t.openReport}
+            </Button>
+          )
         ) : (
           <>
             <details className="scan-secondary-actions">

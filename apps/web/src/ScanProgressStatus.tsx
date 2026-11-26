@@ -15,7 +15,13 @@ import { isRunningLong, progressStage, type ProgressStage } from './scan-progres
 
 type ProgressCopy = (typeof copy)[Language]['scanProgress'];
 
-export function ScanProgressStatus(props: { scan: Scan; language: Language; now: number }) {
+export function ScanProgressStatus(props: {
+  scan: Scan;
+  language: Language;
+  now: number;
+  /** The owner has asked for something this screen sends when the check ends. */
+  keepPageOpen?: boolean;
+}) {
   const t = copy[props.language].scanProgress;
   const stage = progressStage(props.scan);
   const pagesRead = props.scan.progress.scannedUrls ?? 0;
@@ -34,7 +40,7 @@ export function ScanProgressStatus(props: { scan: Scan; language: Language; now:
       ) : null}
       <p className="muted">{t.typicalDuration}</p>
       {isRunningLong(props.scan, props.now) ? <p>{t.runningLong}</p> : null}
-      <p className="muted">{t.closePage}</p>
+      {props.keepPageOpen === true ? null : <p className="muted">{t.closePage}</p>}
       <p className="muted">{t.whereReport}</p>
       <p className="muted">
         <small>{scopeLine(props.scan, t, props.language)}</small>

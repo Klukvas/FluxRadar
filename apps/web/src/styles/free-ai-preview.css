@@ -35,6 +35,20 @@
   border-top: 0;
 }
 
+/* What to do about an answer that did not describe the business: one
+   sentence and one button, under the model's own words. */
+.free-geo-answer__next {
+  display: grid;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.free-geo-answer__next > p {
+  max-width: 72ch;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
 .free-geo-answer__lead,
 .free-geo-answer__headline,
 .free-geo-claims__text,
@@ -244,6 +258,21 @@
 .free-ai-add__disclosure {
   font-size: 12px;
   color: var(--plat-600);
+}
+
+/* The same question on the progress screen of a check started without it
+   (FreeAiAsk.tsx): the one-model line, the disclosure, two buttons. */
+.free-ai-ask {
+  display: grid;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.free-ai-ask__one-model,
+.free-ai-ask__status {
+  margin: 0;
+  max-width: 72ch;
+  overflow-wrap: anywhere;
 }
 
 /* Nothing here moves; the rule is explicit so a later transition cannot creep

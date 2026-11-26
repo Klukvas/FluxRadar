@@ -6,6 +6,7 @@ import { freePreviewCopy } from './free-preview-copy';
 import { aiAnswerLanguage, hasFreeAiAnswer } from './free-geo-claims';
 import { FreeGeoAnswer } from './FreeGeoAnswer';
 import type { Language } from './i18n';
+import type { PaidPlan } from './plan-modules';
 import {
   lateAttemptOf,
   leftOutAtLaunch,
@@ -92,6 +93,8 @@ export function FreeAiPreview(props: {
   scanId?: string;
   /** Re-reads the report in place, for the running state to see the answer land. */
   onRefresh?: () => Promise<unknown>;
+  /** Absent where the report has nowhere to send an upgrade. */
+  onUpgrade?: (plan: PaidPlan) => void;
 }) {
   const geoModule = props.modules.find((module) => module.module === GEO_MODULE);
   const answer = previewAnswer(props.observations);
@@ -116,6 +119,7 @@ export function FreeAiPreview(props: {
           evidence={props.evidence}
           language={props.language}
           answerLanguage={aiAnswerLanguage(geoModule)}
+          {...(props.onUpgrade !== undefined ? { onUpgrade: props.onUpgrade } : {})}
         />
       )}
     </section>

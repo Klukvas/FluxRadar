@@ -78,11 +78,12 @@ export function NewScanRoute({
 
 /** A running scan's progress window. */
 export function ScanRoute({ app }: { readonly app: AppModel }) {
-  const { language, navigate, selectedScan, setError, setSelectedScan } = app;
+  const { freeAiAskScanId, language, navigate, selectedScan, setError, setSelectedScan } = app;
   return (
     <ScanScreen
       scan={selectedScan}
       language={language}
+      askFreeAi={selectedScan !== null && selectedScan.id === freeAiAskScanId}
       onUpdate={setSelectedScan}
       onDone={() => (selectedScan ? navigate('results', selectedScan.id) : navigate('reports'))}
       onReports={() => navigate('reports')}

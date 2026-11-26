@@ -18,12 +18,20 @@
 // become links.
 
 import type { GeoEvaluation, GeoEvidence, GeoObservation } from './api';
+import { Button } from './components';
 import { aiTextLang, freeGeoHeadline } from './free-geo-claims';
 import { FreeGeoClaims } from './FreeGeoClaims';
 import { freePreviewCopy } from './free-preview-copy';
+import { freeReportCopy } from './free-report-copy';
+import { trackUpgradeClicked } from './funnel-analytics';
 import { geoEvaluationNote, safeHttpUrl } from './GeoEvaluation';
 import type { Language } from './i18n';
+import type { PaidPlan } from './plan-modules';
 import type { AiLanguage } from './site-language';
+import { BASIC_PRICE } from './tariff-prices';
+
+/** The plan the block offers: the cheapest one that runs the AI/GEO section. */
+const NOT_DESCRIBED_UPGRADE_PLAN: PaidPlan = 'Basic';
 
 /** The evidence label the API gives the owner's saved brand (packages/ai geo-evidence). */
 const BRAND_SOURCE_LABEL = 'Brand name';
@@ -122,6 +130,8 @@ export function FreeGeoAnswer(props: {
    * the row does not say. Its model-written text is marked with it.
    */
   answerLanguage: AiLanguage | null;
+  /** Absent where the report has nowhere to send an upgrade. */
+  onUpgrade?: (plan: PaidPlan) => void;
 }) {
   const t = freePreviewCopy[props.language].preview;
   const { observation, answerLanguage } = props;
@@ -132,13 +142,15 @@ export function FreeGeoAnswer(props: {
       : ` ${t.askedIn(answerLanguage)}`;
   const evaluation = observation.evaluation ?? null;
   const opensByDefault = answerOpensByDefault(evaluation);
+  const headline = freeGeoHeadline(evaluation);
+  const { onUpgrade } = props;
   return (
     <div className="free-geo-answer">
       <p className="muted free-geo-answer__lead">
         {t.answerLead(savedBrand(props.evidence))}
         {askedIn}
       </p>
-      <p className="free-geo-answer__headline">{t.headline[freeGeoHeadline(evaluation)]}</p>
+      <p className="free-geo-answer__headline">{t.headline[headline]}</p>
       <Verdict
         observation={observation}
         evidence={props.evidence}
@@ -160,6 +172,25 @@ export function FreeGeoAnswer(props: {
           />
         </div>
       </details>
+      {/* After the model's own words, so the reader has just read the answer
+          that says nothing about them when they are told what to do about it. */}
+      {headline === 'not-described' ? (
+        <div className="free-geo-answer__next">
+          <p>{t.notDescribedNext}</p>
+          {onUpgrade === undefined ? null : (
+            <div className="button-row">
+              <Button
+                onClick={() => {
+                  trackUpgradeClicked(NOT_DESCRIBED_UPGRADE_PLAN, 'free_ai_answer');
+                  onUpgrade(NOT_DESCRIBED_UPGRADE_PLAN);
+                }}
+              >
+                {freeReportCopy[props.language].basicAction(BASIC_PRICE)}
+              </Button>
+            </div>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

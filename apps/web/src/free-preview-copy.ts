@@ -53,6 +53,31 @@ export interface FreePreviewCopy {
     /** The same, when robots.txt keeps the homepage closed: fix that first. */
     readonly oneAttemptLeftRobots: string;
   };
+  /**
+   * The question a running Free check asks when it was started without its AI
+   * box — from the address on the public page, which shows no scan form. The
+   * disclosure beside its button is `consent.body`, the same text as everywhere.
+   */
+  readonly ask: {
+    readonly heading: string;
+    /** One question, one model — and what a paid check asks instead. */
+    readonly oneModel: string;
+    readonly yes: string;
+    readonly no: string;
+    /**
+     * Agreed while the check is still running: it is sent when the check ends,
+     * by this screen — so it says the screen has to stay open.
+     */
+    readonly queued: string;
+    /** The request is on its way. */
+    readonly sending: string;
+    /** The request was accepted: the report shows the answer when it lands. */
+    readonly requested: string;
+    /** The request did not go through: the report says whether it can still be added. */
+    readonly failed: string;
+    /** The owner said no: nothing is sent, and the report may still offer it. */
+    readonly declined: string;
+  };
   readonly preview: {
     readonly heading: string;
     /** What was done, without the question or the model: the brand, when one was saved. */
@@ -64,6 +89,11 @@ export interface FreePreviewCopy {
     readonly askedIn: (asked: AiLanguage) => string;
     /** One plain sentence leading the block: the verdict, before any detail. */
     readonly headline: Readonly<Record<FreeGeoHeadline, string>>;
+    /**
+     * Under an answer that did not describe the business: what one answer does
+     * and does not show, and what the paid AI/GEO section adds to it.
+     */
+    readonly notDescribedNext: string;
     /** A claim's state, in the chips and in the count row (the words carry it, not colour). */
     readonly claimStatus: Readonly<Record<GeoClaimVerdict, string>>;
     /** Accessible names of the count row and the claim list. */
@@ -125,6 +155,21 @@ export const freePreviewCopy: Readonly<Record<Language, FreePreviewCopy>> = {
       oneAttemptLeftRobots:
         'One attempt is left for this check, so fix robots.txt before you press the button.',
     },
+    ask: {
+      heading: 'Ask an AI what it knows about your business?',
+      oneModel:
+        'The free check asks one model, Claude, one question. A paid audit asks two models — Claude and ChatGPT — more questions about your brand and your market.',
+      yes: 'Yes, ask Claude',
+      no: 'No, thanks',
+      queued:
+        'Got it. We send the question as soon as the homepage check finishes — keep this page open until then.',
+      sending: 'Sending the question…',
+      requested: 'The question has been sent. The answer appears in your report in about a minute.',
+      failed:
+        'The question could not be sent just now. Your report shows whether the AI answer can still be added.',
+      declined:
+        'No question will be sent. If you change your mind, the report may still let you add the AI answer.',
+    },
     preview: {
       heading: 'What AI says about your business',
       answerLead: (brand) =>
@@ -136,9 +181,12 @@ export const freePreviewCopy: Readonly<Record<Language, FreePreviewCopy>> = {
         confirmed: 'What the AI says about you matches your site.',
         partial: 'Some of what the AI says matches your site; the rest could not be confirmed.',
         unconfirmed: 'Your site neither confirms nor contradicts what the AI says.',
+        'not-described': 'The AI could not describe your business.',
         'nothing-checkable': 'The AI’s answer said nothing about you that could be checked.',
         'not-checked': 'This answer was not checked against your site.',
       },
+      notDescribedNext:
+        'This is one answer from one AI assistant. Basic asks Claude and ChatGPT more questions — direct questions about your brand, answered from what they already know, and questions about your market, answered with their own web search — shows whether the answers mention you and which sources they rely on, and lets you request an AI Action Plan.',
       claimStatus: {
         contradicted: 'Contradicts',
         matched: 'Confirmed',
@@ -200,6 +248,21 @@ export const freePreviewCopy: Readonly<Record<Language, FreePreviewCopy>> = {
       oneAttemptLeftRobots:
         'Для цієї перевірки лишилася одна спроба, тож спершу виправте robots.txt, а потім натискайте кнопку.',
     },
+    ask: {
+      heading: 'Запитати ШІ, що він знає про ваш бізнес?',
+      oneModel:
+        'Безкоштовна перевірка ставить одне питання одній моделі — Claude. Платний аудит опитує дві моделі — Claude і ChatGPT — і ставить більше питань про ваш бренд і ваш ринок.',
+      yes: 'Так, запитати Claude',
+      no: 'Ні, дякую',
+      queued:
+        'Добре. Питання надішлемо, щойно завершиться перевірка головної сторінки, — доти не закривайте цю сторінку.',
+      sending: 'Надсилаємо питання…',
+      requested: 'Питання надіслано. Відповідь зʼявиться у звіті приблизно за хвилину.',
+      failed:
+        'Зараз не вдалося надіслати питання. У звіті буде видно, чи можна ще додати відповідь ШІ.',
+      declined:
+        'Питання не надсилаємо. Якщо передумаєте, відповідь ШІ, можливо, ще вдасться додати у звіті.',
+    },
     preview: {
       heading: 'Що ШІ каже про ваш бізнес',
       answerLead: (brand) =>
@@ -211,9 +274,12 @@ export const freePreviewCopy: Readonly<Record<Language, FreePreviewCopy>> = {
         confirmed: 'Те, що ШІ каже про вас, збігається з вашим сайтом.',
         partial: 'Частина сказаного ШІ збігається з вашим сайтом, решту підтвердити не вдалося.',
         unconfirmed: 'Ваш сайт не підтверджує й не спростовує того, що каже ШІ.',
+        'not-described': 'ШІ не зміг описати ваш бізнес.',
         'nothing-checkable': 'У відповіді ШІ немає нічого про вас, що можна було б перевірити.',
         'not-checked': 'Цю відповідь не звіряли з вашим сайтом.',
       },
+      notDescribedNext:
+        'Це одна відповідь одного ШІ-помічника. Basic ставить Claude і ChatGPT більше запитань — прямі запитання про ваш бренд, на які вони відповідають із того, що вже знають, і запитання про ваш ринок, на які вони відповідають за допомогою власного вебпошуку, — показує, чи згадують вас відповіді та на які джерела вони спираються, і дає змогу замовити AI-план дій.',
       claimStatus: {
         contradicted: 'Суперечить',
         matched: 'Підтверджено',
@@ -276,6 +342,21 @@ export const freePreviewCopy: Readonly<Record<Language, FreePreviewCopy>> = {
       oneAttemptLeftRobots:
         'Для этой проверки осталась одна попытка, поэтому сначала исправьте robots.txt, а потом нажимайте кнопку.',
     },
+    ask: {
+      heading: 'Спросить ИИ, что он знает о вашем бизнесе?',
+      oneModel:
+        'Бесплатная проверка задаёт один вопрос одной модели, Claude. Платный аудит опрашивает две модели, Claude и ChatGPT, и задаёт больше вопросов о вашем бренде и вашем рынке.',
+      yes: 'Да, спросить Claude',
+      no: 'Нет, спасибо',
+      queued:
+        'Хорошо. Вопрос отправим, как только закончится проверка главной страницы. До тех пор не закрывайте эту страницу.',
+      sending: 'Отправляем вопрос…',
+      requested: 'Вопрос отправлен. Ответ появится в отчёте примерно через минуту.',
+      failed:
+        'Сейчас не удалось отправить вопрос. В отчёте будет видно, можно ли ещё добавить ответ ИИ.',
+      declined:
+        'Вопрос не отправляем. Если передумаете, ответ ИИ, возможно, ещё получится добавить в отчёте.',
+    },
     preview: {
       heading: 'Что ИИ говорит о вашем бизнесе',
       answerLead: (brand) =>
@@ -287,9 +368,12 @@ export const freePreviewCopy: Readonly<Record<Language, FreePreviewCopy>> = {
         confirmed: 'То, что ИИ говорит о вас, совпадает с вашим сайтом.',
         partial: 'Часть сказанного ИИ совпадает с вашим сайтом, остальное подтвердить не удалось.',
         unconfirmed: 'Ваш сайт не подтверждает и не опровергает то, что говорит ИИ.',
+        'not-described': 'ИИ не смог описать ваш бизнес.',
         'nothing-checkable': 'В ответе ИИ нет ничего о вас, что можно было бы проверить.',
         'not-checked': 'Этот ответ не сверяли с вашим сайтом.',
       },
+      notDescribedNext:
+        'Это один ответ одного ИИ-помощника. Basic задаёт Claude и ChatGPT больше вопросов. На прямые вопросы о вашем бренде они отвечают из того, что уже знают, а на вопросы о вашем рынке отвечают с помощью своего веб-поиска. Отчёт показывает, упоминают ли вас ответы и на какие источники они опираются, и позволяет запросить ИИ-план действий.',
       claimStatus: {
         contradicted: 'Противоречит',
         matched: 'Подтверждено',

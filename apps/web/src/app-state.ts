@@ -5,7 +5,7 @@
 // which React does not observe: a state hook is matched to its call position,
 // and that position is the same on every render.
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { Account, CurrentPlan, Scan, SiteProfile } from './api';
 import { readInitialRoute, type InitialRoute, type Screen } from './app-routes';
@@ -89,6 +89,16 @@ function useSelectionState() {
   // report's upgrade button (Complete from a Free report's upsell or locked
   // preview, and from the Action Plan's locked block).
   const [newScanPlan, setNewScanPlan] = useState<CurrentPlan | null>(null);
+  // The Free check started straight from the public page's address field. It
+  // was launched without its AI question — nobody had been shown the consent —
+  // so its progress screen asks for it (auto-free-check.ts, FreeAiAsk.tsx).
+  const [freeAiAskScanId, setFreeAiAskScanId] = useState<string | null>(null);
+  // One automatic start at a time: a second press of the home page's button
+  // while the first is still asking the site would race it to the screen.
+  const freeCheckStarting = useRef(false);
+  // The site whose free check is being started, while it is: drawn as a
+  // "checking your site" window over whatever screen is current.
+  const [startingCheckFor, setStartingCheckFor] = useState<string | null>(null);
   return {
     selectedProfile,
     setSelectedProfile,
@@ -101,6 +111,11 @@ function useSelectionState() {
     setIssueRuleFilter,
     newScanPlan,
     setNewScanPlan,
+    freeAiAskScanId,
+    setFreeAiAskScanId,
+    freeCheckStarting,
+    startingCheckFor,
+    setStartingCheckFor,
   };
 }
 

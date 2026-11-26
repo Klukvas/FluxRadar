@@ -10,6 +10,7 @@ import type {
   Scan,
   ScanModule,
 } from './api';
+import { FreeGeoAnswer } from './FreeGeoAnswer';
 import { freePreviewCopy } from './free-preview-copy';
 import { GeoObservationCard } from './GeoObservationCard';
 import { copy, type Language } from './i18n';
@@ -667,5 +668,43 @@ describe('the language the AI question was asked in', () => {
         expect(line.querySelector('[lang]')).toBeNull();
       }
     }
+  });
+});
+
+describe('the Free answer that did not describe the business', () => {
+  const notDescribed = {
+    purpose: 'closed-book',
+    question: REAL_QUESTION,
+    status: 'answered',
+    reason: null,
+    provider: PROVIDER,
+    modelId: MODEL_ID,
+    answer: 'I have no information about Smile Clinic.',
+    citations: [],
+    mentions: null,
+    evaluation: {
+      status: 'Completed',
+      reason: null,
+      overall: 'no-description',
+      answerDescribesSubject: false,
+      claims: [],
+      provider: PROVIDER,
+      modelId: MODEL_ID,
+    },
+  } as unknown as GeoObservation;
+
+  it('says what a paid audit adds, but offers no button where there is nowhere to go', () => {
+    render(
+      <FreeGeoAnswer
+        observation={notDescribed}
+        evidence={null}
+        language="en"
+        answerLanguage={null}
+      />,
+    );
+
+    expect(screen.getByText(freePreviewCopy.en.preview.headline['not-described'])).toBeVisible();
+    expect(screen.getByText(freePreviewCopy.en.preview.notDescribedNext)).toBeVisible();
+    expect(screen.queryByRole('button', { name: /Basic/ })).toBeNull();
   });
 });
