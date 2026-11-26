@@ -16,6 +16,8 @@
 import { normalizeUrl } from '@fluxradar/fingerprint';
 
 import { blockedSearchEngines } from './robots.js';
+import { applyQueryPolicy, isHostInScope, isPathnameAllowedByPatterns } from './scope.js';
+import { SITEMAP_MAX_URLS } from './sitemap.js';
 
 import type { CrawlResult, PageSnapshot } from './types.js';
 
@@ -67,6 +69,137 @@ export function crawlCoverage(result: CrawlResult): CrawlCoverage {
     urlsOverLimit,
     urlsBlockedByRobots: result.blockedByRobots.length,
   };
+}
+
+/** What the site's own sitemap lists, set against what the crawl fetched. */
+export interface SitemapCoverage {
+  /** Distinct in-scope addresses the sitemap lists. */
+  readonly urls: number;
+  /** Of those, the ones this crawl never fetched. */
+  readonly unread: number;
+  /** The sitemap was cut at `SITEMAP_MAX_URLS`, so both counts are floors. */
+  readonly capped: boolean;
+}
+
+/**
+ * How many pages the site itself says it has, and how many of them were left.
+ *
+ * `crawlCoverage` cannot answer this for a crawl with a depth limit: the queue
+ * drops a sitemap address deeper than `maxDepth` before it is counted anywhere,
+ * so a homepage-only check of a 300-page site reported "1 of 1 addresses". The
+ * sitemap was downloaded all the same, and it is the site's own statement of
+ * its size.
+ *
+ * Addresses are keyed as the queue keys them, so one page listed twice or under
+ * a query variant is one page — and then compared without the scheme, which the
+ * queue does not do. A site long since moved to https whose sitemap still says
+ * `http://` would otherwise have its own homepage counted as a page nobody read.
+ *
+ * robots.txt is not consulted: a listed address the site also disallows is
+ * still counted, which is why anything shown to an owner says "listed in your
+ * sitemap" and not "pages we could have read". When `capped`, the count is of
+ * what survived dedup and scope out of the first `SITEMAP_MAX_URLS` entries, so
+ * it can understate a large site by a wide margin; it never overstates one.
+ *
+ * Returns null when the sitemap lists nothing in scope — no sitemap is not a
+ * site of zero pages.
+ */
+export function sitemapCoverage(result: CrawlResult): SitemapCoverage | null {
+  const listed = new Set(
+    result.sitemapUrls.flatMap((rawUrl) => {
+      const url = sitemapPageAddress(rawUrl, result.scope);
+      return url === null ? [] : [comparisonKey(url)];
+    }),
+  );
+  if (listed.size === 0) return null;
+  // Every address a fetched page answered at, hops included: a sitemap that
+  // lists `/start` while `/` redirected through it to `/en/` has had all three
+  // read, whichever spelling the crawl kept.
+  const fetched = new Set(
+    result.pages.flatMap((page) =>
+      [page.normalizedUrl, page.finalUrl, ...page.redirectChain.map((hop) => hop.url)].flatMap(
+        (rawUrl) => {
+          const url = queuedForm(rawUrl, result.scope.queryPolicy);
+          return url === null ? [] : [comparisonKey(url)];
+        },
+      ),
+    ),
+  );
+  return {
+    urls: listed.size,
+    unread: [...listed].filter((key) => !fetched.has(key)).length,
+    capped: result.sitemapUrls.length >= SITEMAP_MAX_URLS,
+  };
+}
+
+/**
+ * A sitemap entry as the queue would key it, or null when the crawl would not
+ * read it: another host, a path the scope leaves out, or a file.
+ *
+ * The host rule is the crawl's own (`isHostInScope` against the origin), on
+ * purpose. A site saved as `a.com` that answers at `www.a.com` publishes a
+ * sitemap of `www.` addresses, and the crawl does not follow its homepage
+ * there — so counting them would promise, in the block that sells the full
+ * audit, pages the full audit will not read either. The count disappears
+ * instead, which understates and is allowed.
+ */
+function sitemapPageAddress(rawUrl: string, scope: CrawlResult['scope']): string | null {
+  const url = queuedForm(rawUrl, scope.queryPolicy);
+  if (url === null) return null;
+  const { hostname, pathname } = new URL(url);
+  const originHostname = new URL(scope.origin).hostname;
+  if (!isHostInScope(hostname, originHostname, scope.includeSubdomains)) return null;
+  if (!isPathnameAllowedByPatterns(pathname, scope)) return null;
+  return FILE_EXTENSION.test(pathname) ? null : url;
+}
+
+/**
+ * An address in the form the crawl's queue keys it: no fragment, the scan's
+ * query policy applied, normalized. Null for anything that is not an address —
+ * a sitemap is the site's own file and may hold anything, and the crawl skips
+ * such an entry the same way.
+ */
+function queuedForm(
+  rawUrl: string,
+  queryPolicy: CrawlResult['scope']['queryPolicy'],
+): string | null {
+  try {
+    const hashAt = rawUrl.indexOf('#');
+    const parsed = applyQueryPolicy(
+      new URL(hashAt === -1 ? rawUrl : rawUrl.slice(0, hashAt)),
+      queryPolicy,
+    );
+    return normalizeUrl(parsed.href);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Extensions that name a file rather than a page. A sitemap may list a price
+ * list or a photo, and "14 more pages" must not count them; the paid crawl's
+ * own count is untouched by this.
+ */
+const FILE_EXTENSION =
+  /\.(pdf|epub|docx?|xlsx?|xlsm|pptx?|ppsx|odt|ods|odp|csv|txt|rtf|ics|vcf|zip|rar|7z|gz|tgz|tar|bz2|xz|exe|dmg|msi|apk|jpe?g|jfif|png|gif|webp|avif|heic|svg|ico|bmp|tiff?|psd|eps|ai|dwg|mp3|m4a|aac|flac|wav|ogg|mp4|m4v|mov|mkv|wmv|mpe?g|webm|avi|kml|kmz|gpx|woff2?|ttf|otf|js|css|xml|json|rss|atom|m3u8|vtt|srt|glb|gltf|usdz|stl|md|mobi|djvu|iso|webmanifest)$/i;
+
+/** A directory's index document: the same page as the directory itself. */
+const INDEX_FILE = /\/(index|default)\.(s?html?|php\d?|aspx?|jsp|cfm)$/i;
+
+/**
+ * The key two spellings of one page share, for this count only: no scheme, no
+ * `www.`, no index document and no trailing slash, so `http://www.a.com/b/`,
+ * `https://a.com/b` and `https://a.com/b/index.html` are one page. Both sides of
+ * the count go through it, so it only ever merges keys: it can lower the count
+ * and never raise it. The crawler's own `normalizeUrl` is left alone — its keys
+ * are fingerprints and cannot change.
+ */
+function comparisonKey(url: string): string {
+  const { hostname, port, pathname, search } = new URL(url);
+  const folded = pathname.replace(INDEX_FILE, '/');
+  // `//` and `/a//` collapse like `/` and `/a/`; the root keeps its one slash.
+  const path = folded.replace(/\/+$/, '') || '/';
+  return `${hostname.replace(/^www\./i, '')}${port === '' ? '' : `:${port}`}${path}${search}`;
 }
 
 /**

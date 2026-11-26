@@ -369,6 +369,12 @@ export interface CrawlSummary {
   readonly urlsBlockedByRobots: number;
   readonly limitedBy: 'owner' | 'plan' | null;
   readonly maxPages: number;
+  /** Absent when the site has no sitemap and on scans from before it was recorded. */
+  readonly sitemap?: {
+    readonly urls: number;
+    readonly unread: number;
+    readonly capped: boolean;
+  };
 }
 
 export interface Scan {

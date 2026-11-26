@@ -3,6 +3,8 @@
 import type { Scan } from './api';
 import { Button } from './components';
 import { findingsCopy } from './findings-copy';
+import { freeReportCopy } from './free-report-copy';
+import { unreadSitemapPages } from './free-sitemap';
 import type { Language } from './i18n';
 import type { PaidPlan } from './plan-modules';
 import { displayDomain } from './scan-status';
@@ -24,10 +26,17 @@ export function FreeUpsell(props: {
   onUpgrade: (plan: PaidPlan) => void;
 }) {
   const f = findingsCopy[props.language].upsell;
+  const unread = unreadSitemapPages(props.scan.crawlSummary);
+  // A counted "14 more pages" where the sitemap gives the number; the general
+  // sentence where it does not.
+  const rest =
+    unread === null
+      ? undefined
+      : freeReportCopy[props.language].sitemapUnread(unread.count, unread.capped);
   return (
     <section className="report-block upsell" aria-labelledby="upsell-heading">
       <h3 id="upsell-heading">{f.heading}</h3>
-      <p>{f.lead(displayDomain(props.scan.domain), props.openProblems, props.checks)}</p>
+      <p>{f.lead(displayDomain(props.scan.domain), props.openProblems, props.checks, rest)}</p>
       <p>{f.basic}</p>
       <p>{f.difference}</p>
       <p className="upsell__intro">{f.listIntro}</p>

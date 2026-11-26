@@ -1,4 +1,6 @@
-import type { Language } from './i18n';
+import { formatCount } from './format-count';
+import { ukPagesAccusative, type Language } from './i18n';
+import { ruPagesAccusative } from './i18n.ru.grammar';
 
 export const freeReportCopy = {
   en: {
@@ -26,6 +28,12 @@ export const freeReportCopy = {
     locked: 'Paid audit',
     upgrade: 'Run the complete audit',
     aiExcluded: 'The AI answer does not contribute to the homepage score.',
+    homepageRead: 'The free check read one page of your site: the homepage.',
+    // "Listed in your sitemap", never "pages of your site": the sitemap is the
+    // site's own list, and the check did not verify it. `capped` means the
+    // list was cut at the crawler's ceiling, so the count is a floor.
+    sitemapUnread: (count: number, capped: boolean) =>
+      `Your sitemap lists ${capped ? 'at least ' : ''}${formatCount(count, 'en')} more ${count === 1 ? 'page' : 'pages'} that this check did not read.`,
   },
   uk: {
     pointUnit: 'балів',
@@ -52,6 +60,9 @@ export const freeReportCopy = {
     locked: 'Платний аудит',
     upgrade: 'Запустити повний аудит',
     aiExcluded: 'AI-відповідь не впливає на оцінку головної сторінки.',
+    homepageRead: 'Безкоштовна перевірка прочитала одну сторінку вашого сайту — головну.',
+    sitemapUnread: (count: number, capped: boolean) =>
+      `Ще ${capped ? 'щонайменше ' : ''}${formatCount(count, 'uk')} ${ukPagesAccusative(count)} з вашого sitemap ця перевірка не прочитала.`,
   },
   ru: {
     pointUnit: 'баллов',
@@ -78,5 +89,8 @@ export const freeReportCopy = {
     locked: 'Платный аудит',
     upgrade: 'Запустить полный аудит',
     aiExcluded: 'ИИ-ответ не влияет на оценку главной страницы.',
+    homepageRead: 'Бесплатная проверка прочитала одну страницу вашего сайта: главную.',
+    sitemapUnread: (count: number, capped: boolean) =>
+      `Ещё ${capped ? 'как минимум ' : ''}${formatCount(count, 'ru')} ${ruPagesAccusative(count)} из вашего sitemap эта проверка не прочитала.`,
   },
 } satisfies Record<Language, unknown>;

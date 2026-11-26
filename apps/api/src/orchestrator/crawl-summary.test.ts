@@ -102,4 +102,24 @@ describe('buildCrawlSummary', () => {
     expect(summary.limitedBy).toBeNull();
     expect(summary.pagesRead).toBe(summary.urlsDiscovered);
   });
+
+  it('records how much of the sitemap a homepage-only check left unread', () => {
+    const homepageOnly: CrawlResult = {
+      ...crawl(0, 0),
+      pages: [page(`${ORIGIN}/`)],
+      sitemapUrls: [`${ORIGIN}/`, `${ORIGIN}/pricing`, `${ORIGIN}/blog`],
+      scope: { origin: ORIGIN, includeSubdomains: false, maxPages: 1, maxDepth: 0 },
+    };
+
+    const summary = buildCrawlSummary(homepageOnly, ORIGIN, scope({ maxPages: 1 }), 'Free', 1);
+
+    expect(summary.urlsDiscovered).toBe(1);
+    expect(summary.sitemap).toEqual({ urls: 3, unread: 2, capped: false });
+  });
+
+  it('records no sitemap figure for a site without one', () => {
+    const summary = buildCrawlSummary(crawl(1, 0), ORIGIN, scope({ maxPages: 1 }), 'Free', 1);
+
+    expect(summary).not.toHaveProperty('sitemap');
+  });
 });

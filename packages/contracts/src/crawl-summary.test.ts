@@ -109,3 +109,35 @@ describe('parseCrawlSummary', () => {
     expect(crawlSummarySchema.safeParse({ ...summary(), pagesRead: -1 }).success).toBe(false);
   });
 });
+
+describe('the sitemap figure on a stored summary', () => {
+  it('keeps the figure through a store and a read', () => {
+    const stored = summary({ sitemap: { urls: 15, unread: 14, capped: false } });
+
+    expect(parseCrawlSummary(JSON.stringify(stored))?.sitemap).toEqual({
+      urls: 15,
+      unread: 14,
+      capped: false,
+    });
+  });
+
+  it('reads a summary stored before the figure existed', () => {
+    const parsed = parseCrawlSummary(JSON.stringify(summary()));
+
+    expect(parsed).not.toBeNull();
+    expect(parsed?.sitemap).toBeUndefined();
+  });
+
+  // A damaged figure must not be shown — and must not take the rest of the
+  // summary with it: the refund reason and the coverage line are read from it.
+  it.each([
+    ['not numbers', { urls: -1, unread: 'many', capped: false }],
+    ['more unread than listed', { urls: 3, unread: 4, capped: false }],
+  ])('drops a damaged figure on its own (%s)', (_name, sitemap) => {
+    const parsed = parseCrawlSummary(JSON.stringify({ ...summary(), sitemap }));
+
+    expect(parsed).not.toBeNull();
+    expect(parsed?.pagesRead).toBe(15);
+    expect(parsed?.sitemap).toBeUndefined();
+  });
+});
