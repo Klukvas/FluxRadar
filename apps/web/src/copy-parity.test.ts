@@ -17,6 +17,7 @@ import { evidenceChromeCopy } from './finding-evidence-copy';
 import { findingsCopy } from './findings-copy';
 import { findingsDocumentCopy } from './findings-document-copy';
 import { geoDigestCopy } from './geo-digest-copy';
+import { heroOfferCopy } from './hero-offer-copy';
 import { newScanCopy } from './new-scan-copy';
 import { offlineBannerCopy } from './OfflineBanner';
 import { reportFailureCopy } from './report-failure-copy';
@@ -31,6 +32,7 @@ const CATALOGUES = {
   offlineBannerCopy,
   reportFailureCopy,
   geoDigestCopy,
+  heroOfferCopy,
 } as const;
 
 /**
