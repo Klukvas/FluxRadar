@@ -325,35 +325,40 @@ describe('a Free report whose AI answer did not describe the business', () => {
     } as GeoObservation;
   }
 
-  it('says so in the headline and shows the answer that says it', async () => {
+  it('leads with the finding and folds the answer that says it', async () => {
     renderDashboard(freeDashboard([SEO, geoModule()], [evaluated(false)]));
     const block = await screen.findByRole('region', { name: 'What AI says about your business' });
     const t = freePreviewCopy.en.preview;
 
     expect(within(block).getByText(t.headline['not-described'])).toBeVisible();
-    expect(within(block).getByText(UNKNOWN_ANSWER)).toBeVisible();
     expect(within(block).queryByText(t.headline['nothing-checkable'])).toBeNull();
+    // "For information only" would talk down the one finding the block has.
+    expect(block).not.toHaveTextContent(t.scoreNote);
+    // The model's "I have no information" is one click away, not the headline.
+    expect(within(block).getByText(UNKNOWN_ANSWER)).not.toBeVisible();
+    fireEvent.click(within(block).getByText(t.showAnswer));
+    expect(within(block).getByText(UNKNOWN_ANSWER)).toBeVisible();
   });
 
-  it('offers the plan that runs the AI section, from inside the block', async () => {
+  it('sells the market questions, not more of the same one, from inside the block', async () => {
     const onUpgrade = renderDashboard(freeDashboard([SEO, geoModule()], [evaluated(false)]));
     const block = await screen.findByRole('region', { name: 'What AI says about your business' });
+    const t = freePreviewCopy.en.preview.market;
 
-    expect(within(block).getByText(freePreviewCopy.en.preview.notDescribedNext)).toBeVisible();
-    fireEvent.click(
-      within(block).getByRole('button', { name: freeReportCopy.en.basicAction(BASIC_PRICE) }),
-    );
+    expect(within(block).getByText(t.title)).toBeVisible();
+    expect(within(block).getByText(t.scale)).toBeVisible();
+    fireEvent.click(within(block).getByRole('button', { name: t.action(BASIC_PRICE) }));
     expect(onUpgrade).toHaveBeenCalledWith(expect.objectContaining({ plan: 'Free' }), 'Basic');
   });
 
-  it('keeps the neutral sentence, and sells nothing, for an answer that did describe it', async () => {
+  it('keeps the neutral note for an answer that did describe it, with the market line under it', async () => {
     renderDashboard(freeDashboard([SEO, geoModule()], [evaluated(true)]));
     const block = await screen.findByRole('region', { name: 'What AI says about your business' });
     const t = freePreviewCopy.en.preview;
 
     expect(within(block).getByText(t.headline['nothing-checkable'])).toBeVisible();
-    expect(within(block).queryByText(t.notDescribedNext)).toBeNull();
-    expect(within(block).queryByRole('button')).toBeNull();
+    expect(block).toHaveTextContent(t.scoreNote);
+    expect(within(block).getByText(t.market.title)).toBeVisible();
   });
 });
 

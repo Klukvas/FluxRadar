@@ -18,23 +18,15 @@
 // become links.
 
 import type { GeoEvaluation, GeoEvidence, GeoObservation } from './api';
-import { Button } from './components';
-import { aiTextLang, freeGeoHeadline } from './free-geo-claims';
+import { aiTextLang, freeGeoHeadline, type FreeGeoHeadline } from './free-geo-claims';
 import { FreeGeoClaims } from './FreeGeoClaims';
+import { FreeGeoMarketTeaser } from './FreeGeoMarketTeaser';
+import { PROFILE_EVIDENCE_LABELS, profileEvidenceValue } from './free-market-question';
 import { freePreviewCopy } from './free-preview-copy';
-import { freeReportCopy } from './free-report-copy';
-import { trackUpgradeClicked } from './funnel-analytics';
 import { geoEvaluationNote, safeHttpUrl } from './GeoEvaluation';
 import type { Language } from './i18n';
 import type { PaidPlan } from './plan-modules';
 import type { AiLanguage } from './site-language';
-import { BASIC_PRICE } from './tariff-prices';
-
-/** The plan the block offers: the cheapest one that runs the AI/GEO section. */
-const NOT_DESCRIBED_UPGRADE_PLAN: PaidPlan = 'Basic';
-
-/** The evidence label the API gives the owner's saved brand (packages/ai geo-evidence). */
-const BRAND_SOURCE_LABEL = 'Brand name';
 
 /**
  * The brand the owner saved, from this scan's evidence — or null.
@@ -43,19 +35,23 @@ const BRAND_SOURCE_LABEL = 'Brand name';
  * so a brand found here is one a person actually typed.
  */
 function savedBrand(evidence: GeoEvidence | null): string | null {
-  const source = evidence?.sources.find(
-    (entry) => entry.kind === 'profile' && entry.label === BRAND_SOURCE_LABEL,
-  );
-  const brand = source?.excerpt.trim() ?? '';
-  return brand === '' ? null : brand;
+  return profileEvidenceValue(evidence, PROFILE_EVIDENCE_LABELS.brand);
 }
 
 /**
  * Whether the answer starts open: when there is no verdict and no claim to
  * show, the answer is the only content, and a closed disclosure would leave
  * the block saying nothing.
+ *
+ * Except when the verdict is that the AI does not know the business: the
+ * headline says all the answer does, and the model's "I have no information
+ * about…" read in full only sounds like something broke.
  */
-function answerOpensByDefault(evaluation: GeoEvaluation | null): boolean {
+function answerOpensByDefault(
+  evaluation: GeoEvaluation | null,
+  headline: FreeGeoHeadline,
+): boolean {
+  if (headline === 'not-described') return false;
   return (
     evaluation === null || evaluation.status === 'Unavailable' || evaluation.claims.length === 0
   );
@@ -141,13 +137,14 @@ export function FreeGeoAnswer(props: {
       ? ''
       : ` ${t.askedIn(answerLanguage)}`;
   const evaluation = observation.evaluation ?? null;
-  const opensByDefault = answerOpensByDefault(evaluation);
   const headline = freeGeoHeadline(evaluation);
-  const { onUpgrade } = props;
+  const opensByDefault = answerOpensByDefault(evaluation, headline);
+  const scoreNote = headline === 'not-described' ? '' : ` ${t.scoreNote}`;
   return (
     <div className="free-geo-answer">
       <p className="muted free-geo-answer__lead">
         {t.answerLead(savedBrand(props.evidence))}
+        {scoreNote}
         {askedIn}
       </p>
       <p className="free-geo-answer__headline">{t.headline[headline]}</p>
@@ -172,25 +169,14 @@ export function FreeGeoAnswer(props: {
           />
         </div>
       </details>
-      {/* After the model's own words, so the reader has just read the answer
-          that says nothing about them when they are told what to do about it. */}
-      {headline === 'not-described' ? (
-        <div className="free-geo-answer__next">
-          <p>{t.notDescribedNext}</p>
-          {onUpgrade === undefined ? null : (
-            <div className="button-row">
-              <Button
-                onClick={() => {
-                  trackUpgradeClicked(NOT_DESCRIBED_UPGRADE_PLAN, 'free_ai_answer');
-                  onUpgrade(NOT_DESCRIBED_UPGRADE_PLAN);
-                }}
-              >
-                {freeReportCopy[props.language].basicAction(BASIC_PRICE)}
-              </Button>
-            </div>
-          )}
-        </div>
-      ) : null}
+      {/* Whatever the verdict: the answer above is about the business by name,
+          and the market — who the AI names instead — is the part only a paid
+          check asks. */}
+      <FreeGeoMarketTeaser
+        evidence={props.evidence}
+        language={props.language}
+        {...(props.onUpgrade !== undefined ? { onUpgrade: props.onUpgrade } : {})}
+      />
     </div>
   );
 }
