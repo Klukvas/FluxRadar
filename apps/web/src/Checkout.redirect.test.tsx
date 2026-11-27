@@ -14,7 +14,12 @@ import { choosePlanCard } from './new-scan-test-support';
 // did, and the scan appears only once the signed webhook created it.
 
 const account = { accountId: 'account-1', email: 'operator@example.com' };
-const profile = { id: 'profile-1', name: 'My Site', domain: 'https://example.com' };
+const profile = {
+  id: 'profile-1',
+  name: 'My Site',
+  domain: 'https://example.com',
+  industry: 'Dental clinic',
+};
 
 /** A reference exactly as the server issues one: `frcs_` and a UUID. */
 const REFERENCE = 'frcs_0f8fad5b-d9cb-469f-a165-70867728950e';

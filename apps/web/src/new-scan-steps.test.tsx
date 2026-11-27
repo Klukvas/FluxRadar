@@ -24,11 +24,13 @@ const SALON: SiteProfile = {
   id: 'profile-salon',
   name: 'Salon',
   domain: 'https://mysalon.com.ua',
+  industry: 'Dental clinic',
 } as SiteProfile;
 const SHOP: SiteProfile = {
   id: 'profile-shop',
   name: 'Shop',
   domain: 'https://shop.example',
+  industry: 'Dental clinic',
 } as SiteProfile;
 
 const NEVER_CHECKED = { state: null, checkedAt: null, expired: false, canPurchase: false };

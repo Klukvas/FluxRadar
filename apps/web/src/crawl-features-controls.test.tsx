@@ -15,7 +15,12 @@ import type { Plan } from './plan-modules';
 // progress screen offers no pause (the feature was removed) and keeps cancel.
 
 const account = { accountId: 'account-1', email: 'operator@example.com', internalFreeAccess: true };
-const profile = { id: 'profile-1', name: 'My Site', domain: 'https://example.com' };
+const profile = {
+  id: 'profile-1',
+  name: 'My Site',
+  domain: 'https://example.com',
+  industry: 'Dental clinic',
+};
 
 const scan = {
   id: 'scan-1',

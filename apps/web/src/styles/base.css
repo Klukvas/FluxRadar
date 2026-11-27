@@ -1975,6 +1975,26 @@ code,
   margin: 0;
 }
 
+/* Services or industry, asked above the pay button (MarketContextFields). */
+.market-context {
+  display: grid;
+  gap: var(--sp-2);
+  min-width: 0;
+  margin: 0;
+  padding: var(--sp-3) 0 0;
+  border: 0;
+  border-top: 1px solid var(--plat-300);
+}
+
+.market-context__heading {
+  padding: 0;
+  font-weight: 700;
+}
+
+.market-context > p {
+  margin: 0;
+}
+
 .launch-summary {
   border-top: 1px solid var(--plat-300);
 }

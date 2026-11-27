@@ -26,9 +26,19 @@ const internalAccount = {
   email: 'operator@example.com',
   internalFreeAccess: true,
 };
-const profile = { id: 'profile-1', name: 'My Site', domain: 'https://example.com' };
+const profile = {
+  id: 'profile-1',
+  name: 'My Site',
+  domain: 'https://example.com',
+  industry: 'Dental clinic',
+};
 /** A second saved site, so the prefill can arrive with a plan already chosen. */
-const otherProfile = { id: 'profile-2', name: 'Other Site', domain: 'https://other.example.com' };
+const otherProfile = {
+  id: 'profile-2',
+  name: 'Other Site',
+  domain: 'https://other.example.com',
+  industry: 'Dental clinic',
+};
 
 const scan = {
   id: 'scan-1',

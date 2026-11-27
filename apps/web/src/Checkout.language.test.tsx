@@ -14,7 +14,12 @@ import { choosePlanCard } from './new-scan-test-support';
 
 const account = { accountId: 'account-1', email: 'operator@example.com' };
 
-const profile = { id: 'profile-1', name: 'My Site', domain: 'https://example.com' };
+const profile = {
+  id: 'profile-1',
+  name: 'My Site',
+  domain: 'https://example.com',
+  industry: 'Dental clinic',
+};
 
 const checkoutConfig = {
   provider: 'creem',
