@@ -137,7 +137,9 @@ describe('the progress screen while a yes to the AI question waits', () => {
     expect(
       fetchMock.mock.calls.filter(([input]) => String(input).endsWith('/free-ai-preview')),
     ).toHaveLength(1);
-    expect(screen.getByRole('button', { name: t.openReport })).toBeInTheDocument();
+    // The screen gives the button back on the render after the card lets go of
+    // the yes, which a loaded run can reach a tick after the status text.
+    expect(await screen.findByRole('button', { name: t.openReport })).toBeInTheDocument();
   });
 
   it('leaves the screen as it was for a check that does not ask', () => {
