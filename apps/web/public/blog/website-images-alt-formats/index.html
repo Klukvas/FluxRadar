@@ -1,0 +1,511 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Website images: alt text, formats, lazy loading | FluxRadar</title>
+    <meta
+      name="description"
+      content="How to write alt text for people, which formats suit photos and logos, why images need width and height, and why your hero image should not be lazy-loaded."
+    />
+    <link rel="canonical" href="https://fluxradar.net/blog/website-images-alt-formats" />
+    <link
+      rel="alternate"
+      hreflang="uk"
+      href="https://fluxradar.net/blog/uk/zobrazhennia-na-saiti"
+    />
+    <link
+      rel="alternate"
+      hreflang="en"
+      href="https://fluxradar.net/blog/website-images-alt-formats"
+    />
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href="https://fluxradar.net/blog/website-images-alt-formats"
+    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Website images: alt text, formats and lazy loading" />
+    <meta
+      property="og:description"
+      content="How to write alt text for people, which formats suit photos and logos, why images need width and height, and why your hero image should not be lazy-loaded."
+    />
+    <meta property="og:url" content="https://fluxradar.net/blog/website-images-alt-formats" />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:image" content="https://fluxradar.net/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="FluxRadar · fluxradar.net" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://fluxradar.net/og-image.png" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "BlogPosting",
+            "headline": "Website images: alt text, formats and lazy loading",
+            "description": "How to write alt text for people, which formats suit photos and logos, why images need width and height, and why your hero image should not be lazy-loaded.",
+            "inLanguage": "en",
+            "datePublished": "2026-11-26",
+            "dateModified": "2026-11-26",
+            "mainEntityOfPage": "https://fluxradar.net/blog/website-images-alt-formats",
+            "publisher": {
+              "@type": "Organization",
+              "name": "FluxLab",
+              "url": "https://fluxradar.net"
+            }
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "FluxRadar",
+                "item": "https://fluxradar.net/"
+              },
+              {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "Blog",
+                "item": "https://fluxradar.net/blog"
+              },
+              {
+                "@type": "ListItem",
+                "position": 3,
+                "name": "Website images: alt text, formats and lazy loading",
+                "item": "https://fluxradar.net/blog/website-images-alt-formats"
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+    <link rel="stylesheet" href="/blog/blog.css" />
+    <link rel="stylesheet" href="/blog/content.css" />
+  </head>
+  <body data-blog-page="article" data-content-section="blog">
+    <nav class="menubar" aria-label="Site menu">
+      <a class="menubar__apple" href="/"
+        ><svg viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+        </svg>
+        FluxRadar</a
+      >
+      <button
+        class="menubar__toggle"
+        type="button"
+        data-menu-toggle
+        data-t-label="nav.openMenu"
+        aria-label="Open menu"
+        aria-expanded="false"
+        aria-controls="menubar-links"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" fill="none" />
+        </svg>
+      </button>
+      <div id="menubar-links" class="menubar__links">
+        <div class="menubar__sheet-head">
+          <span class="menubar__sheet-brand"
+            ><svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+            </svg>
+            FluxRadar</span
+          ><span class="menubar__sheet-status" data-t="nav.systemStatus"
+            >PUBLIC WEB AUDIT STATION · v0.1</span
+          ><button
+            class="menubar__close"
+            type="button"
+            data-menu-close
+            data-t-label="nav.closeMenu"
+            aria-label="Close menu"
+          >
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.5" fill="none" />
+            </svg>
+          </button>
+        </div>
+        <div class="menubar__nav">
+          <span class="menubar__group-label" data-t="nav.navigate">Navigate</span
+          ><a class="menubar__item" href="/" data-t="nav.home">Home</a
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Your saved sites and their check history."
+            data-t="nav.profiles"
+            data-t-title="nav.profilesHint"
+          >
+            My sites</button
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Set up and start a new audit."
+            data-t="nav.scan"
+            data-t-title="nav.scanHint"
+          >
+            Scan</button
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Completed and in-progress audit results."
+            data-t="nav.reports"
+            data-t-title="nav.reportsHint"
+          >
+            Reports</button
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Optional data connections. The public-site scan works without them."
+            data-t="nav.integrations"
+            data-t-title="nav.integrationsHint"
+          >
+            Integrations</button
+          ><span class="menubar__spacer"></span>
+        </div>
+        <div class="menubar__meta">
+          <span class="menubar__group-label" data-t="nav.system">System</span>
+          <div class="menubar__language" data-language>
+            <span id="menubar-language-label" data-t="nav.language">Language</span
+            ><button
+              type="button"
+              role="combobox"
+              class="menubar__language-button"
+              data-language-button
+              aria-haspopup="listbox"
+              aria-expanded="false"
+              aria-controls="menubar-language-listbox"
+              aria-labelledby="menubar-language-label"
+            >
+              <span data-language-current>English</span
+              ><svg class="menubar__language-caret" viewBox="0 0 10 6" aria-hidden="true">
+                <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" />
+              </svg>
+            </button>
+            <ul
+              id="menubar-language-listbox"
+              class="menubar__language-listbox"
+              role="listbox"
+              aria-labelledby="menubar-language-label"
+              hidden
+            >
+              <li
+                class="menubar__language-option is-active"
+                role="option"
+                data-language-option="en"
+                aria-selected="true"
+              >
+                English
+              </li>
+              <li
+                class="menubar__language-option"
+                role="option"
+                data-language-option="uk"
+                aria-selected="false"
+              >
+                Українська
+              </li>
+            </ul>
+          </div>
+          <span class="menubar__system" data-t="nav.systemStatus"
+            >PUBLIC WEB AUDIT STATION · v0.1</span
+          >
+        </div>
+      </div>
+    </nav>
+    <div class="blog-page content-page">
+      <main id="blog-main">
+        <nav class="breadcrumbs" aria-label="Breadcrumb">
+          <a href="/">Home</a> / <a href="/blog">Blog</a> /
+          <span>Website images: alt text, formats and lazy loading</span>
+        </nav>
+        <header>
+          <p class="kicker">IMAGES · IN ENGLISH</p>
+          <h1>Website images: alt text, formats and lazy loading</h1>
+          <p class="lede">
+            Product photos, logos and banners make a site feel alive, but they can also slow it down
+            and leave some visitors without the content. Four things to check in every template.
+          </p>
+          <p class="content-date">
+            Published and checked: <time datetime="2026-11-26">November 26, 2026</time>
+          </p>
+        </header>
+        <article class="content-article">
+          <p>
+            Images on a website do different jobs. One shows a product, another works as a button, a
+            third is pure decoration. That job decides what text the image needs, which format to
+            save it in and when the browser should load it. Below are practical rules for a site
+            owner, plus the specific attributes to agree with your developer. The examples are
+            illustrative.
+          </p>
+          <nav class="article-toc" aria-label="Contents">
+            <h2>In this article</h2>
+            <ul>
+              <li><a href="#section-1">Alt text is written for people</a></li>
+              <li><a href="#section-2">Images that search can find</a></li>
+              <li><a href="#section-3">Formats for photos, logos and icons</a></li>
+              <li><a href="#section-4">Dimensions that stop the page jumping</a></li>
+              <li><a href="#section-5">Lazy loading, but not for the hero image</a></li>
+              <li><a href="#section-6">What FluxRadar checks</a></li>
+            </ul>
+          </nav>
+          <section id="section-1">
+            <h2>Alt text is written for people</h2>
+            <p>
+              The <code>alt</code> attribute is the text that stands in for an image when it cannot
+              be seen: a screen reader reads it out, and the browser shows it if the file fails to
+              load. So start with one question: what would someone who cannot see the picture miss?
+            </p>
+            <p>The W3C alt decision tree gives a simple sequence:</p>
+            <ul>
+              <li>
+                <strong>Decorative images</strong> (a background pattern, a divider) get an empty
+                <code>alt=""</code>, so assistive technology skips them.
+              </li>
+              <li>
+                <strong>Images that are links or buttons</strong> describe where the link goes or
+                what happens, not what the icon looks like. A magnifying glass in the header is
+                "Search", not "magnifying glass".
+              </li>
+              <li>
+                <strong>Informative photos</strong> get a short description of the point: "Black
+                coffee machine with a milk jug on a kitchen counter".
+              </li>
+              <li>
+                <strong>Images of text</strong>: if that text appears nowhere else on the page, put
+                it in the alt.
+              </li>
+              <li>
+                <strong>Complex graphics</strong> (charts, diagrams) need more than a short alt:
+                give the same information as text or a table nearby.
+              </li>
+            </ul>
+            <p>
+              Google also asks for useful alt text that fits the page's context and warns against
+              filling it with keywords, which makes for a poor experience and can look like spam.
+              Note that an empty alt and a missing alt are different. Empty means "this is
+              decoration"; with no attribute at all, a screen reader may read out the file name
+              instead.
+            </p>
+            <p>
+              A quick self-check: open a product or service page and read only the alt texts, one
+              after another. If they tell you what is shown and what can be clicked, you are fine.
+              If you see "IMG_2041", "photo" or the same description under every picture, the
+              template needs a look. In most CMSs alt text is set in the media library, so fixing
+              one file fixes it everywhere that file is used.
+            </p>
+          </section>
+          <section id="section-2">
+            <h2>Images that search can find</h2>
+            <p>
+              If a photo should help people find a product or service, make it an ordinary
+              <code>&lt;img&gt;</code> element with its address in the <code>src</code> attribute.
+              Google states plainly that it does not index CSS images, such as a
+              <code>background-image</code>. That is fine for a decorative background, not for a
+              product photo.
+            </p>
+            <p>A few more points from Google's documentation:</p>
+            <ul>
+              <li>
+                Use short, descriptive file names: <code>black-coffee-machine.jpg</code> beats
+                <code>IMG00023.JPG</code>.
+              </li>
+              <li>
+                If you serve several sizes with <code>srcset</code> or <code>&lt;picture&gt;</code>,
+                always keep a fallback address in <code>src</code>: not every browser or crawler
+                understands those attributes.
+              </li>
+              <li>Make the file extension match the real file type.</li>
+            </ul>
+          </section>
+          <section id="section-3">
+            <h2>Formats for photos, logos and icons</h2>
+            <p>
+              Google Search supports images in BMP, GIF, JPEG, PNG, WebP, SVG and AVIF. So choosing
+              a format is mostly about page weight and image quality, not about being found.
+            </p>
+            <table>
+              <thead>
+                <tr>
+                  <th>What the image shows</th>
+                  <th>What to use</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Product, interior or team photos</td>
+                  <td>WebP or AVIF, with JPEG as the fallback</td>
+                </tr>
+                <tr>
+                  <td>Logo, icon, diagram</td>
+                  <td>SVG, when a vector version exists</td>
+                </tr>
+                <tr>
+                  <td>Screenshots, text, sharp lines</td>
+                  <td>Lossless compression: PNG or lossless WebP</td>
+                </tr>
+              </tbody>
+            </table>
+            <p>
+              According to MDN, lossy WebP files are on average 25–35% smaller than JPEGs of similar
+              quality, and lossy AVIF files around 50% smaller. MDN also recommends a fallback for
+              AVIF and WebP through the <code>&lt;picture&gt;</code> element: the browser takes the
+              first format it supports, and everyone else gets the JPEG or PNG.
+            </p>
+            <p>
+              In practice, a site owner does not need to convert every photo by hand. Ask your
+              developer or agency whether your CMS or CDN already serves modern formats, and check
+              how large the files a phone actually receives are. A 4000-pixel photo squeezed into a
+              400-pixel product card is a common finding that no format will fix.
+            </p>
+          </section>
+          <section id="section-4">
+            <h2>Dimensions that stop the page jumping</h2>
+            <p>
+              You start reading or reach for a button, and then a banner loads above it and pushes
+              everything down. That is a layout shift, and Core Web Vitals measure it as CLS.
+            </p>
+            <p>
+              One common cause is images without dimensions: until the file arrives, the browser
+              does not know how much room to leave. web.dev recommends adding <code>width</code> and
+              <code>height</code> attributes to every <code>&lt;img&gt;</code> tag and says that
+              leaving them out increases the images' impact on CLS. The attributes do not make an
+              image rigid: responsive styles still scale it, and the browser simply knows its
+              proportions in advance.
+            </p>
+            <p>
+              To check without tools, open a page on a phone with a slow connection and watch
+              whether the text moves while photos appear. If it does, ask your developer to check
+              dimensions in the product card, banner and gallery templates.
+            </p>
+          </section>
+          <section id="section-5">
+            <h2>Lazy loading, but not for the hero image</h2>
+            <p>
+              The <code>loading="lazy"</code> attribute asks the browser to hold off loading an
+              image until it gets close to the visible part of the screen. On long pages with
+              galleries or a catalogue, that saves data and time. web.dev notes that browsers which
+              do not support the attribute simply ignore it, and the default value is
+              <code>eager</code>, meaning normal loading.
+            </p>
+            <p>
+              The key warning from the same article: do not lazy-load images that are likely to be
+              visible as soon as the page opens, especially the main image that often becomes the
+              LCP element, the largest thing on the first screen. A lazy hero banner starts loading
+              later, so the page looks unfinished for longer.
+            </p>
+            <p>
+              A simple rule for templates: nothing on the first screen gets
+              <code>loading="lazy"</code>; everything below it can. Check sliders and optimisation
+              plugins in particular, since they often switch lazy loading on for every image without
+              exception.
+            </p>
+          </section>
+          <section id="section-6">
+            <h2>What FluxRadar checks</h2>
+            <p>
+              FluxRadar reads the HTML your server returns and the responses it receives while
+              crawling:
+            </p>
+            <ul>
+              <li>
+                <strong>Images without alt.</strong> A finding appears when an
+                <code>&lt;img&gt;</code> has no <code>alt</code> attribute at all. An empty
+                <code>alt=""</code> counts as correct for decorative images. The free check does
+                this for the home page; Basic and Complete do it for every crawled page.
+              </li>
+              <li>
+                <strong>Broken images and media</strong> (Complete). A finding appears only when the
+                crawl actually requested the file and got a 4xx or 5xx error, could not fetch it, or
+                received an HTML page instead of an image. A file the crawl did not check is not
+                reported as broken.
+              </li>
+            </ul>
+            <p>
+              The tool does not judge whether alt text is well written, and it does not check file
+              formats, <code>width</code> and <code>height</code> attributes or lazy loading. Review
+              alt text and first-screen behaviour yourself on a few typical pages.
+            </p>
+          </section>
+          <aside class="related-reading">
+            <h2>Related reading</h2>
+            <ul>
+              <li><a href="/blog/uk/zobrazhennia-na-saiti" hreflang="uk">Українська версія</a></li>
+              <li>
+                <a href="/blog/redirect-chains-after-cleanup"
+                  >Redirect chains and 404s after a content clean-up</a
+                >
+              </li>
+              <li>
+                <a href="/blog/core-web-vitals-plain-words"
+                  >Core Web Vitals in plain words for site owners</a
+                >
+              </li>
+            </ul>
+          </aside>
+          <section class="article-sources">
+            <h2>Sources and verification</h2>
+            <ul>
+              <li>
+                <a href="https://www.w3.org/WAI/tutorials/images/decision-tree/"
+                  >W3C WAI: An alt decision tree</a
+                >
+              </li>
+              <li>
+                <a href="https://developers.google.com/search/docs/appearance/google-images"
+                  >Google: Image SEO best practices</a
+                >
+              </li>
+              <li>
+                <a href="https://web.dev/articles/browser-level-image-lazy-loading"
+                  >web.dev: Browser-level image lazy loading</a
+                >
+              </li>
+              <li>
+                <a
+                  href="https://developer.mozilla.org/en-US/docs/Web/Media/Guides/Formats/Image_types"
+                  >MDN: Image file type and format guide</a
+                >
+              </li>
+            </ul>
+            <p>
+              External guidance checked on November 26, 2026. The examples are illustrative: they do
+              not describe client results and do not promise search positions.
+            </p>
+          </section>
+        </article>
+        <p class="content-cta">
+          <a href="/">Check your site</a> ·
+          <a href="/knowledge-base">Practical guides (in Ukrainian)</a> ·
+          <a href="/blog">Articles for site owners</a>
+        </p>
+        <footer class="site-footer">
+          <a href="/blog">&#x2190; All notes</a>
+          <a href="/knowledge-base">Knowledge base (in Ukrainian)</a
+          ><a href="/faq" data-t="nav.faq">FAQ</a>
+          <span class="powered-by"
+            ><a
+              class="powered-by__link"
+              href="https://flux-lab.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-t-label="blog.poweredByAria"
+              aria-label="Created by FluxLab (opens in a new tab)"
+              ><span class="powered-by__mark" aria-hidden="true">◈</span
+              ><span data-t="blog.poweredBy">Created by FluxLab</span></a
+            ></span
+          >
+        </footer>
+      </main>
+    </div>
+    <script src="/blog/public-links.js"></script>
+    <script src="/blog/attribution.js"></script>
+    <script src="/blog/blog.js"></script>
+  </body>
+</html>

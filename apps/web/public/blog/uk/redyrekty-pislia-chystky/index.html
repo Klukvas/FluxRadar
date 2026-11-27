@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ланцюжки редиректів і 404 після чистки | FluxRadar</title>
+    <meta
+      name="description"
+      content="Коли видалену сторінку перенаправити, а коли чесно віддати 404 чи 410, як роками накопичуються ланцюжки редиректів і як усе перевірити після чистки сайту."
+    />
+    <link rel="canonical" href="https://fluxradar.net/blog/uk/redyrekty-pislia-chystky" />
+    <link
+      rel="alternate"
+      hreflang="uk"
+      href="https://fluxradar.net/blog/uk/redyrekty-pislia-chystky"
+    />
+    <link
+      rel="alternate"
+      hreflang="en"
+      href="https://fluxradar.net/blog/redirect-chains-after-cleanup"
+    />
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href="https://fluxradar.net/blog/redirect-chains-after-cleanup"
+    />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="Ланцюжки редиректів і 404 після чистки контенту" />
+    <meta
+      property="og:description"
+      content="Коли видалену сторінку перенаправити, а коли чесно віддати 404 чи 410, як роками накопичуються ланцюжки редиректів і як усе перевірити після чистки сайту."
+    />
+    <meta property="og:url" content="https://fluxradar.net/blog/uk/redyrekty-pislia-chystky" />
+    <meta property="og:locale" content="uk_UA" />
+    <meta property="og:image" content="https://fluxradar.net/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="FluxRadar · fluxradar.net" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:image" content="https://fluxradar.net/og-image.png" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "BlogPosting",
+            "headline": "Ланцюжки редиректів і 404 після чистки контенту",
+            "description": "Коли видалену сторінку перенаправити, а коли чесно віддати 404 чи 410, як роками накопичуються ланцюжки редиректів і як усе перевірити після чистки сайту.",
+            "inLanguage": "uk",
+            "datePublished": "2026-11-26",
+            "dateModified": "2026-11-26",
+            "mainEntityOfPage": "https://fluxradar.net/blog/uk/redyrekty-pislia-chystky",
+            "publisher": {
+              "@type": "Organization",
+              "name": "FluxLab",
+              "url": "https://fluxradar.net"
+            }
+          },
+          {
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {
+                "@type": "ListItem",
+                "position": 1,
+                "name": "FluxRadar",
+                "item": "https://fluxradar.net/"
+              },
+              {
+                "@type": "ListItem",
+                "position": 2,
+                "name": "Блог",
+                "item": "https://fluxradar.net/blog"
+              },
+              {
+                "@type": "ListItem",
+                "position": 3,
+                "name": "Ланцюжки редиректів і 404 після чистки контенту",
+                "item": "https://fluxradar.net/blog/uk/redyrekty-pislia-chystky"
+              }
+            ]
+          }
+        ]
+      }
+    </script>
+    <link rel="stylesheet" href="/blog/blog.css" />
+    <link rel="stylesheet" href="/blog/content.css" />
+  </head>
+  <body data-blog-page="article" data-content-section="blog">
+    <nav class="menubar" aria-label="Меню сайту">
+      <a class="menubar__apple" href="/uk"
+        ><svg viewBox="0 0 12 12" aria-hidden="true">
+          <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+        </svg>
+        FluxRadar</a
+      >
+      <button
+        class="menubar__toggle"
+        type="button"
+        data-menu-toggle
+        data-t-label="nav.openMenu"
+        aria-label="Відкрити меню"
+        aria-expanded="false"
+        aria-controls="menubar-links"
+      >
+        <svg viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" fill="none" />
+        </svg>
+      </button>
+      <div id="menubar-links" class="menubar__links">
+        <div class="menubar__sheet-head">
+          <span class="menubar__sheet-brand"
+            ><svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M3 1h2v2h2V1h2v2h2v2H9v2h2v2H9v2H7V9H5v2H3V9H1V7h2V5H1V3h2z" />
+            </svg>
+            FluxRadar</span
+          ><span class="menubar__sheet-status" data-t="nav.systemStatus"
+            >СТАНЦІЯ АУДИТУ ПУБЛІЧНИХ САЙТІВ · v0.1</span
+          ><button
+            class="menubar__close"
+            type="button"
+            data-menu-close
+            data-t-label="nav.closeMenu"
+            aria-label="Закрити меню"
+          >
+            <svg viewBox="0 0 12 12" aria-hidden="true">
+              <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" stroke-width="1.5" fill="none" />
+            </svg>
+          </button>
+        </div>
+        <div class="menubar__nav">
+          <span class="menubar__group-label" data-t="nav.navigate">Навігація</span
+          ><a class="menubar__item" href="/uk" data-t="nav.home">Головна</a
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Ваші збережені сайти та історія їхніх перевірок."
+            data-t="nav.profiles"
+            data-t-title="nav.profilesHint"
+          >
+            Мої сайти</button
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Налаштуйте та запустіть нову перевірку."
+            data-t="nav.scan"
+            data-t-title="nav.scanHint"
+          >
+            Перевірка</button
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Готові та поточні результати перевірок."
+            data-t="nav.reports"
+            data-t-title="nav.reportsHint"
+          >
+            Звіти</button
+          ><button
+            class="menubar__item"
+            type="button"
+            disabled
+            title="Необовʼязкові підключення даних. Публічна перевірка працює без них."
+            data-t="nav.integrations"
+            data-t-title="nav.integrationsHint"
+          >
+            Інтеграції</button
+          ><span class="menubar__spacer"></span>
+        </div>
+        <div class="menubar__meta">
+          <span class="menubar__group-label" data-t="nav.system">Система</span>
+          <div class="menubar__language" data-language>
+            <span id="menubar-language-label" data-t="nav.language">Мова</span
+            ><button
+              type="button"
+              role="combobox"
+              class="menubar__language-button"
+              data-language-button
+              aria-haspopup="listbox"
+              aria-expanded="false"
+              aria-controls="menubar-language-listbox"
+              aria-labelledby="menubar-language-label"
+            >
+              <span data-language-current>Українська</span
+              ><svg class="menubar__language-caret" viewBox="0 0 10 6" aria-hidden="true">
+                <path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none" />
+              </svg>
+            </button>
+            <ul
+              id="menubar-language-listbox"
+              class="menubar__language-listbox"
+              role="listbox"
+              aria-labelledby="menubar-language-label"
+              hidden
+            >
+              <li
+                class="menubar__language-option"
+                role="option"
+                data-language-option="en"
+                aria-selected="false"
+              >
+                English
+              </li>
+              <li
+                class="menubar__language-option is-active"
+                role="option"
+                data-language-option="uk"
+                aria-selected="true"
+              >
+                Українська
+              </li>
+            </ul>
+          </div>
+          <span class="menubar__system" data-t="nav.systemStatus"
+            >СТАНЦІЯ АУДИТУ ПУБЛІЧНИХ САЙТІВ · v0.1</span
+          >
+        </div>
+      </div>
+    </nav>
+    <div class="blog-page content-page">
+      <main id="blog-main">
+        <nav class="breadcrumbs" aria-label="Навігаційний ланцюжок">
+          <a href="/uk">Головна</a> / <a href="/blog">Блог</a> /
+          <span>Ланцюжки редиректів і 404 після чистки контенту</span>
+        </nav>
+        <header>
+          <p class="kicker">РЕДИРЕКТИ · УКРАЇНСЬКОЮ</p>
+          <h1>Ланцюжки редиректів і 404 після чистки контенту</h1>
+          <p class="lede">
+            Чистка застарілих сторінок корисна, доки після неї не лишаються биті посилання й
+            редиректи через пʼять адрес. Як ухвалити рішення для кожної сторінки й перевірити
+            результат.
+          </p>
+          <p class="content-date">
+            Опубліковано й перевірено: <time datetime="2026-11-26">26 листопада 2026</time>
+          </p>
+        </header>
+        <article class="content-article">
+          <p>
+            Рано чи пізно на сайті накопичуються старі акції, закриті вакансії, товари, яких більше
+            немає, і дублікати статей. Їх прибирають — і саме тоді зʼявляються дві типові проблеми:
+            посилання, що ведуть у нікуди, і ланцюжки перенаправлень, які роками наростали з кожною
+            зміною структури. Цей матеріал — про рішення під час чистки та перевірку після неї. Як
+            розібрати окрему знахідку про бите посилання, описано в базі знань.
+          </p>
+          <nav class="article-toc" aria-label="Зміст">
+            <h2>У цьому матеріалі</h2>
+            <ul>
+              <li><a href="#section-1">Три рішення для кожної видаленої сторінки</a></li>
+              <li><a href="#section-2">Чому не варто вести все на головну</a></li>
+              <li><a href="#section-3">Як роками виростають ланцюжки</a></li>
+              <li><a href="#section-4">Серверний редирект надійніший</a></li>
+              <li><a href="#section-5">Перевірка після чистки</a></li>
+              <li><a href="#section-6">Що перевіряє FluxRadar</a></li>
+            </ul>
+          </nav>
+          <section id="section-1">
+            <h2>Три рішення для кожної видаленої сторінки</h2>
+            <p>Перед видаленням складіть список адрес і для кожної оберіть одне з рішень:</p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Ситуація</th>
+                  <th>Що зробити</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Є сторінка, яка справді замінює стару</td>
+                  <td>Постійний редирект (301 або 308) на неї</td>
+                </tr>
+                <tr>
+                  <td>Сторінку прибрали ненадовго</td>
+                  <td>Тимчасовий редирект (302 або 307)</td>
+                </tr>
+                <tr>
+                  <td>Заміни немає</td>
+                  <td>Відповідь 404 або 410</td>
+                </tr>
+              </tbody>
+            </table>
+            <p>
+              Google пояснює різницю так: постійний редирект — сильний сигнал, що основною слід
+              вважати нову адресу; тимчасовий лишає в результатах стару. Тому постійний варто
+              ставити, лише коли ви певні, що назад не повернете.
+            </p>
+            <p>
+              Між 404 і 410 для Google різниці немає: у документації сказано, що всі помилки 4xx,
+              крім 429, обробляються однаково. Проіндексовані адреси з такою відповіддю видаляються
+              з індексу, а на швидкість обходу сайту ці коди не впливають. Отже, обирайте той код,
+              який зручніше підтримувати вашій команді, і не переживайте, що чесна 404 «зашкодить»
+              сайту.
+            </p>
+            <p>
+              Список адрес найпростіше зібрати з кількох джерел: поточного sitemap, експорту
+              сторінок із CMS і звіту аналітики про сторінки, які ще відвідують. Особливо позначте
+              сторінки, на які посилаються інші сайти або які люди зберігають у закладках: саме для
+              них рішення про редирект важить найбільше. Збережіть цей список — він знадобиться для
+              перевірки.
+            </p>
+          </section>
+          <section id="section-2">
+            <h2>Чому не варто вести все на головну</h2>
+            <p>
+              Найпростіше рішення — перенаправити всі видалені сторінки на головну чи в загальну
+              категорію. Але людина переходила за конкретною річчю: інструкцією до старої моделі,
+              умовами акції, статтею. На головній вона цього не знайде і, найімовірніше, піде.
+            </p>
+            <p>
+              Друга пастка — сторінка, яка пише «товар не знайдено», але відповідає кодом 200.
+              Google може позначити таку сторінку як soft 404: формально вона працює, а за змістом
+              це помилка. Краще одразу віддати правдивий статус.
+            </p>
+            <p>
+              Хороша сторінка 404 при цьому корисна: коротко поясніть, що матеріалу немає, і дайте
+              пошук та кілька основних розділів. Це допомагає людині, не вводячи в оману пошукову
+              систему.
+            </p>
+          </section>
+          <section id="section-3">
+            <h2>Як роками виростають ланцюжки</h2>
+            <p>
+              Ланцюжок — це коли адреса веде на іншу, та на ще одну, і лише потім відкривається
+              сторінка. Майже ніхто не створює його навмисно. Ось навчальний приклад, як це буває:
+            </p>
+            <ul>
+              <li>
+                2019: сайт переходить на HTTPS — <code>http://</code> веде на <code>https://</code>;
+              </li>
+              <li>2021: прибирають <code>www</code> — ще одне правило;</li>
+              <li>2023: додають мовну папку <code>/uk/</code>;</li>
+              <li>2026: сторінку послуги перейменовують.</li>
+            </ul>
+            <p>
+              Кожне правило окремо правильне. Але старе посилання з партнерського сайту тепер
+              проходить через чотири переходи. За документацією Google, Googlebot зазвичай іде
+              максимум за 10 переходами, тож пошук, найімовірніше, дійде до сторінки. Але кожен
+              перехід — це окремий запит і затримка для людини, особливо на мобільному звʼязку, а
+              цикл, де адреси ведуть одна на одну, не відкриється ніколи.
+            </p>
+            <p>
+              Виправлення — «сплющити» ланцюжок: кожна стара адреса повинна вести одразу на кінцеву.
+              А внутрішні посилання, меню й sitemap мають указувати на кінцеву адресу без жодного
+              редиректу. Редирект лишається для зовнішніх посилань і закладок.
+            </p>
+          </section>
+          <section id="section-4">
+            <h2>Серверний редирект надійніший</h2>
+            <p>
+              Google називає редирект на боці сервера найкращим способом відправити і людей, і пошук
+              на правильну сторінку. Миттєвий meta refresh Google трактує як постійний редирект, а з
+              затримкою — як тимчасовий. Перенаправлення через скрипт у браузері радять
+              використовувати лише тоді, коли інші варіанти недоступні: Google виконує такий код
+              після обходу, але рендеринг може не вдатися.
+            </p>
+            <p>
+              Для власника сайту це означає просте запитання до розробника чи хостингу: де
+              зберігаються наші правила перенаправлення і хто їх переглядає після кожної зміни
+              структури? Якщо правила розкидані між плагіном CMS, налаштуваннями сервера й CDN,
+              ланцюжки зʼявляються найчастіше.
+            </p>
+            <p>
+              Допомагає звичайна таблиця: стара адреса, нова адреса, дата і причина зміни. Коли
+              через кілька років сторінку перейменують знову, команда одразу побачить усі старі
+              адреси, які треба перевести на нову напряму, а не додавати ще одну ланку до ланцюжка.
+            </p>
+          </section>
+          <section id="section-5">
+            <h2>Перевірка після чистки</h2>
+            <p>Найкраще перевіряти за списком, складеним до видалення. Для кожної адреси:</p>
+            <ul>
+              <li>
+                статус відповідає рішенню: 301/308 туди, де є заміна, 404/410 туди, де її немає;
+              </li>
+              <li>редирект веде на кінцеву сторінку за один перехід;</li>
+              <li>кінцева сторінка справді відповідає тому, що обіцяло старе посилання.</li>
+            </ul>
+            <p>
+              Потім перевірте сайт загалом: чи не лишилося в меню, статтях і картках товарів
+              посилань на видалені адреси, і чи немає їх у sitemap. Окремо відкрийте кілька старих
+              адрес із варіантами <code>http://</code> та <code>www</code>: саме там зазвичай
+              ховаються зайві переходи. Ланцюжок відповідей видно на вкладці Network в інструментах
+              розробника браузера або у звіті краулера.
+            </p>
+            <p>
+              Через кілька тижнів повторіть перевірку. Якщо маєте доступ до Search Console,
+              перегляньте сторінки з помилками 404 і soft 404. Якщо хостинг дає журнали сервера,
+              подивіться, які відсутні адреси запитують найчастіше. Стара сторінка, яку досі шукають
+              десятки людей, — привід ще раз подумати, чи немає для неї доречної заміни. А сторінки,
+              які ніхто не відкриває, можна спокійно лишити з відповіддю 404.
+            </p>
+          </section>
+          <section id="section-6">
+            <h2>Що перевіряє FluxRadar</h2>
+            <p>
+              Ці перевірки входять у тарифи Basic і Complete та виконуються для сторінок, які обхід
+              справді відкрив:
+            </p>
+            <ul>
+              <li>
+                <strong>Ланцюжок або цикл редиректів.</strong> Знахідка зʼявляється, якщо до
+                кінцевої відповіді адреса проходить два чи більше переходи. Один редирект, наприклад
+                з HTTP на HTTPS, вважається нормою. Цикл або нескінченний ланцюжок теж стає
+                знахідкою.
+              </li>
+              <li>
+                <strong>Сторінка не відповідає кодом 200.</strong> Обійдена сторінка зрештою віддала
+                код 400 або вище.
+              </li>
+              <li>
+                <strong>Посилання на сторінки з помилкою.</strong> Внутрішнє посилання веде на
+                адресу, яка під час обходу відповіла 4xx або 5xx. Знахідка вказує сторінку, де
+                стоїть посилання.
+              </li>
+            </ul>
+            <p>
+              FluxRadar бачить лише ті адреси, на які є посилання на сайті або які ви додали до
+              обходу. Старі адреси, на які ведуть тільки зовнішні сайти чи закладки, він не знайде
+              сам — їх перевірте за власним списком. Інструмент також не вирішує, чи доречна
+              сторінка, на яку веде редирект.
+            </p>
+          </section>
+          <aside class="related-reading">
+            <h2>Читайте також</h2>
+            <ul>
+              <li>
+                <a href="/blog/redirect-chains-after-cleanup" hreflang="en">English version</a>
+              </li>
+              <li>
+                <a href="/knowledge-base/redyrekty-ta-404"
+                  >Як перевірити редиректи, биті посилання та 404</a
+                >
+              </li>
+              <li>
+                <a href="/blog/uk/mihratsiia-saitu-bez-vtrat"
+                  >Міграція сайту: як зменшити ризик втрати видимості</a
+                >
+              </li>
+              <li>
+                <a href="/blog/uk/zobrazhennia-na-saiti"
+                  >Зображення на сайті: alt, формати та ліниве завантаження</a
+                >
+              </li>
+            </ul>
+          </aside>
+          <section class="article-sources">
+            <h2>Джерела та перевірка</h2>
+            <ul>
+              <li>
+                <a href="https://developers.google.com/search/docs/crawling-indexing/301-redirects"
+                  >Google: редиректи та пошук</a
+                >
+              </li>
+              <li>
+                <a
+                  href="https://developers.google.com/search/docs/crawling-indexing/http-network-errors"
+                  >Google: HTTP-статуси й мережеві помилки</a
+                >
+              </li>
+            </ul>
+            <p>
+              Зовнішні настанови перевірено 26 листопада 2026 року. Навчальні приклади не описують
+              результати клієнтів і не обіцяють позицій у пошуку.
+            </p>
+          </section>
+        </article>
+        <p class="content-cta">
+          <a href="/uk">Перевірте свій сайт</a> ·
+          <a href="/knowledge-base">Практичні інструкції</a> ·
+          <a href="/blog">Статті для власників сайтів</a>
+        </p>
+        <footer class="site-footer">
+          <a href="/blog">&#x2190; Усі нотатки</a> <a href="/knowledge-base">База знань</a
+          ><a href="/uk/faq" data-t="nav.faq">FAQ</a>
+          <span class="powered-by"
+            ><a
+              class="powered-by__link"
+              href="https://flux-lab.dev"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-t-label="blog.poweredByAria"
+              aria-label="Створено FluxLab (відкривається в новій вкладці)"
+              ><span class="powered-by__mark" aria-hidden="true">◈</span
+              ><span data-t="blog.poweredBy">Створено FluxLab</span></a
+            ></span
+          >
+        </footer>
+      </main>
+    </div>
+    <script src="/blog/public-links.js"></script>
+    <script src="/blog/attribution.js"></script>
+    <script src="/blog/blog.js"></script>
+  </body>
+</html>
