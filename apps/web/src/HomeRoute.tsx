@@ -96,7 +96,7 @@ function ownerHome(app: AppModel, account: Account) {
           navigate('desktop');
           return;
         }
-        void followIntent({ site, plan: null });
+        void followIntent({ site, plan: null }, account);
       }}
       onChoosePlan={(plan) => {
         setNewScanPlan(plan);

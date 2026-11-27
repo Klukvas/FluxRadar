@@ -2,9 +2,11 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { freePreviewCopy } from './free-preview-copy';
+import { freeReportCopy } from './free-report-copy';
 import { FULL_SCORE_MAX, freeScoreCopy } from './free-score-copy';
 import { ResultsScreen } from './Report';
 import type { GeoObservation, Scan, ScanModule } from './api';
+import { BASIC_PRICE } from './tariff-prices';
 
 // ─── The scored Free report and its AI preview (D-236) ───────────────────────
 //
@@ -297,6 +299,109 @@ describe('a scored Free report', () => {
       screen.getByText(/the AI answer was not included when this free check/),
     ).toBeInTheDocument();
     expect(screen.queryByText(/New paid audits record it automatically/)).toBeNull();
+  });
+});
+
+// The report that prompted these: a well-built site got a full homepage score,
+// no findings, and — at the very bottom, under a neutral sentence — an AI
+// answer saying it had never heard of the business. The one finding that was
+// about the owner was the last thing on the page.
+describe('a Free report whose AI answer did not describe the business', () => {
+  const UNKNOWN_ANSWER = 'I have no information about Smile Clinic.';
+
+  function evaluated(answerDescribesSubject: boolean): GeoObservation {
+    return {
+      ...ANSWERED,
+      answer: UNKNOWN_ANSWER,
+      evaluation: {
+        status: 'Completed',
+        reason: null,
+        overall: 'no-description',
+        answerDescribesSubject,
+        claims: [],
+        provider: 'anthropic',
+        modelId: 'claude-judge-5',
+      },
+    } as GeoObservation;
+  }
+
+  it('leads with the finding and folds the answer that says it', async () => {
+    renderDashboard(freeDashboard([SEO, geoModule()], [evaluated(false)]));
+    const block = await screen.findByRole('region', { name: 'What AI says about your business' });
+    const t = freePreviewCopy.en.preview;
+
+    expect(within(block).getByText(t.headline['not-described'])).toBeVisible();
+    expect(within(block).queryByText(t.headline['nothing-checkable'])).toBeNull();
+    // "For information only" would talk down the one finding the block has.
+    expect(block).not.toHaveTextContent(t.scoreNote);
+    // The model's "I have no information" is one click away, not the headline.
+    expect(within(block).getByText(UNKNOWN_ANSWER)).not.toBeVisible();
+    fireEvent.click(within(block).getByText(t.showAnswer));
+    expect(within(block).getByText(UNKNOWN_ANSWER)).toBeVisible();
+  });
+
+  it('sells the market questions, not more of the same one, from inside the block', async () => {
+    const onUpgrade = renderDashboard(freeDashboard([SEO, geoModule()], [evaluated(false)]));
+    const block = await screen.findByRole('region', { name: 'What AI says about your business' });
+    const t = freePreviewCopy.en.preview.market;
+
+    expect(within(block).getByText(t.title)).toBeVisible();
+    expect(within(block).getByText(t.scale)).toBeVisible();
+    fireEvent.click(within(block).getByRole('button', { name: t.action(BASIC_PRICE) }));
+    expect(onUpgrade).toHaveBeenCalledWith(expect.objectContaining({ plan: 'Free' }), 'Basic');
+  });
+
+  it('keeps the neutral note for an answer that did describe it, with the market line under it', async () => {
+    renderDashboard(freeDashboard([SEO, geoModule()], [evaluated(true)]));
+    const block = await screen.findByRole('region', { name: 'What AI says about your business' });
+    const t = freePreviewCopy.en.preview;
+
+    expect(within(block).getByText(t.headline['nothing-checkable'])).toBeVisible();
+    expect(block).toHaveTextContent(t.scoreNote);
+    expect(within(block).getByText(t.market.title)).toBeVisible();
+  });
+});
+
+describe('where a Free report puts the AI block', () => {
+  it('shows it above the upsell and the section cards', async () => {
+    renderDashboard(freeDashboard([SEO, geoModule()], [ANSWERED]));
+    const block = await screen.findByRole('region', { name: 'What AI says about your business' });
+    const upsell = await screen.findByRole('region', {
+      name: 'Your homepage is checked. The rest of the site is not',
+    });
+    const catalog = screen.getByRole('region', { name: 'Ran in this report' });
+
+    expect(block.compareDocumentPosition(upsell) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    expect(block.compareDocumentPosition(catalog) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+  });
+});
+
+describe('a Free report of a site whose sitemap lists more pages', () => {
+  it('counts them in the upsell instead of saying only that the rest is unchecked', async () => {
+    const dashboard = freeDashboard([SEO, geoModule()], [ANSWERED]);
+    const scan = {
+      ...dashboard.scan,
+      crawlSummary: {
+        reach: 'reachable',
+        startStatus: 200,
+        accessControlSignals: [],
+        pagesRead: 1,
+        pagesFetched: 1,
+        urlsDiscovered: 1,
+        urlsOverLimit: 0,
+        urlsBlockedByRobots: 0,
+        limitedBy: null,
+        maxPages: 1,
+        sitemap: { urls: 15, unread: 14, capped: false },
+      },
+    } as Scan;
+    renderDashboard({ ...dashboard, scan });
+    const upsell = await screen.findByRole('region', {
+      name: 'Your homepage is checked. The rest of the site is not',
+    });
+
+    expect(upsell).toHaveTextContent(freeReportCopy.en.sitemapUnread(14, false));
+    expect(upsell).not.toHaveTextContent('The other pages of the site have not been checked yet.');
   });
 });
 

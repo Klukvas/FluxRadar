@@ -23,6 +23,7 @@ import {
 } from './egress-location';
 import { copy, type Language } from './i18n';
 import { launchErrorMessage } from './launch-errors';
+import { useMarketContextGate, type MarketContextGate } from './market-context-gate';
 import { expertSettingsChanged, useFollowSelectedProfile } from './new-scan-form-rules';
 import {
   configurationStateOf,
@@ -128,6 +129,8 @@ export interface NewScanForm {
   readonly busy: boolean;
   /** False while a submission would be refused, for whatever reason. */
   readonly canLaunch: boolean;
+  /** Services or industry, asked above the pay button when the site has neither. */
+  readonly marketContext: MarketContextGate;
   /** False while the settings cannot be stored on the profile. */
   readonly canSave: boolean;
   readonly carriedOver: boolean;
@@ -401,6 +404,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   const [configLoading, setConfigLoading] = useState(false);
   const usingSavedProfile = target !== '';
   const selected = props.profiles.find((profile) => profile.id === target);
+  const marketContext = useMarketContextGate(selected, plan);
   const currentProfileConfig = profileScanConfigFromForm(scope, plan);
   const unavailablePlanFallback =
     usingSavedProfile &&
@@ -591,6 +595,8 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
       method: 'PATCH',
       body: JSON.stringify({
         scanConfig: currentProfileConfig,
+        // In this same write: a separate one would move the version checked here.
+        ...marketContext.patch,
         expectedProfileConfigVersion: savedConfigVersion ?? selected?.scanConfigVersion,
       }),
     });
@@ -795,7 +801,9 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
   // happen, and the server refuses to sell it. Saving the settings is not a
   // purchase, so it is not gated on either of these.
   const reachabilityChecked = plan === 'Free' || props.internalFreeAccess || siteReachable;
-  const canLaunch = formReady && !egressBlocked && reachabilityChecked;
+  // A paid check with no services or industry asks the AI nothing about the
+  // market, and comes back saying what the Free check already said.
+  const canLaunch = formReady && !egressBlocked && reachabilityChecked && !marketContext.blocking;
   const canSave =
     formReady && !unavailablePlanFallback && invalidScopeFields(scope, plan).length === 0;
   // Who is about to be charged decides both the button and the terms line, so
@@ -818,6 +826,7 @@ export function useNewScanForm(props: NewScanFormProps): NewScanForm {
     busy,
     canLaunch,
     canSave,
+    marketContext,
     carriedOver,
     checkoutConfig,
     checkoutPending,

@@ -3,6 +3,7 @@ import { Button, FieldRow } from './components';
 import { FreeAiSummary } from './FreeAiSummary';
 import { formatCount } from './format-count';
 import { copy, type Language } from './i18n';
+import { MarketContextFields, MARKET_CONTEXT_BLOCKED_ID } from './MarketContextFields';
 import { newScanCopy } from './new-scan-copy';
 import type { NewScanForm } from './new-scan-form';
 import { PLAN_URL_LIMIT, type Plan } from './plan-modules';
@@ -109,9 +110,11 @@ function LaunchActions(props: { form: NewScanForm; language: Language }) {
   const t = copy[props.language];
   const c = newScanCopy[props.language];
   const {
+    busy,
     canLaunch,
     egressBlocked,
     launchLabel,
+    marketContext,
     paidScopeControls,
     robotsOverrideStale,
     robotsUnconfirmed,
@@ -136,10 +139,15 @@ function LaunchActions(props: { form: NewScanForm; language: Language }) {
           {t.newScan.blockedByEgress}
         </p>
       ) : null}
+      <MarketContextFields gate={marketContext} language={props.language} disabled={busy} />
       <Button
         type="submit"
         variant="primary"
-        {...(robotsUnconfirmed || egressBlocked ? { 'aria-describedby': 'launch-blocked' } : {})}
+        {...(robotsUnconfirmed || egressBlocked
+          ? { 'aria-describedby': 'launch-blocked' }
+          : marketContext.blocking
+            ? { 'aria-describedby': MARKET_CONTEXT_BLOCKED_ID }
+            : {})}
         disabled={!canLaunch}
       >
         {launchLabel}

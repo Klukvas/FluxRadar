@@ -6,7 +6,7 @@
 // were when they were declared inside the component, so none of them acts on
 // state older than the screen it was called from.
 
-import { apiRequest, type Account, type Scan } from './api';
+import { apiRequest, type Account, type Scan, type SiteProfile } from './api';
 import { resendVerification } from './AccountScreen';
 import { accountCopy } from './account-copy';
 import type { Navigate, OpenScanById } from './app-navigation';
@@ -19,6 +19,7 @@ import {
 } from './app-routes';
 import { loadProfiles } from './app-session';
 import type { AppState, VisitorIntent } from './app-state';
+import { startFreeCheckForSite } from './auto-free-check';
 import type { Language } from './i18n';
 
 /** What the actions act on: the shell's state, its language, and the two ways it moves. */
@@ -116,18 +117,89 @@ function scanActions({
  * made. A picked plan opens the scan form on that plan. Returns false when
  * there was nothing to carry out.
  */
-function followIntentFor({ navigate, setNewScanPlan }: ActionContext) {
-  return async (pending: VisitorIntent): Promise<boolean> => {
+/** How long the account re-read before an automatic start may take before the shell's copy is used. */
+const ACCOUNT_REREAD_TIMEOUT_MS = 10_000;
+
+function followIntentFor(context: ActionContext, onScanCreated: (scan: Scan) => void) {
+  const { freeCheckStarting, language, navigate, setError, setFreeAiAskScanId } = context;
+  const { setAccount, setNewScanPlan, setProfiles, setSelectedProfile } = context;
+  const { setStartingCheckFor } = context;
+  /** The add-a-site form with the address already in it: nothing was created. */
+  const openAddSite = (site: string): void => {
+    navigate('desktop', undefined, `?add=${encodeURIComponent(site)}`);
+  };
+  /** The scan form for a site just saved, with the reason it did not start on top. */
+  const openScanForm = (profile: SiteProfile, message: string): void => {
+    setError(message);
+    setNewScanPlan(null);
+    // The site goes in the address too, so a reload reopens the form on it.
+    navigate('new-scan', undefined, `?${SCAN_PROFILE_PARAM}=${encodeURIComponent(profile.id)}`);
+  };
+  const startFreeCheck = async (site: string, account: Account): Promise<void> => {
+    // The account as the server has it now: the free check may have been used
+    // in another tab since this one last asked, and starting on a stale "unused"
+    // would save the site only to be refused.
+    const current = await apiRequest<Account>('/auth/me', {
+      signal: AbortSignal.timeout(ACCOUNT_REREAD_TIMEOUT_MS),
+    }).catch((caught: unknown) => {
+      console.error('FluxRadar could not re-read the account before a free check', caught);
+      return account;
+    });
+    // What it learned is kept: a spent check must read as spent on the scan
+    // form this may lead to, not be offered again only to be refused.
+    if (current.freeCheckUsed === true) {
+      setAccount((shell) => (shell === null ? null : { ...shell, freeCheckUsed: true }));
+    }
+    const outcome = await startFreeCheckForSite(site, language, current);
+    if (outcome.kind === 'free-check-used') {
+      openAddSite(site);
+      return;
+    }
+    if (outcome.kind === 'profile-failed') {
+      setError(outcome.message);
+      openAddSite(site);
+      return;
+    }
+    setSelectedProfile(outcome.profile);
+    // The workspace lists the new site whether or not its check started; a
+    // failed re-read leaves the list as it was and the next screen still opens.
+    await loadProfiles(setProfiles).catch((caught: unknown) => {
+      console.error('FluxRadar sites could not be re-read after a site was saved', caught);
+    });
+    if (outcome.kind !== 'started') {
+      openScanForm(outcome.profile, outcome.message);
+      return;
+    }
+    setFreeAiAskScanId(outcome.scan.id);
+    onScanCreated(outcome.scan);
+  };
+  /**
+   * `account` is the one just signed in, or the owner already in the
+   * workspace: the shell's own copy may not have caught up with a sign-in yet.
+   */
+  return async (pending: VisitorIntent, account: Account): Promise<boolean> => {
     if (pending.site === null) {
       if (pending.plan === null) return false;
       setNewScanPlan(pending.plan);
       navigate('new-scan');
       return true;
     }
-    // An address from the public page is intent, not permission to silently
-    // create a profile or start a scan. Keep the plan and open Profiles.
-    setNewScanPlan(pending.plan);
-    navigate('desktop', undefined, `?add=${encodeURIComponent(pending.site)}`);
+    if (pending.plan !== null) {
+      // A paid plan was picked: what is checked and how is still the buyer's
+      // to set, so the site goes to its form and the plan is kept for it.
+      setNewScanPlan(pending.plan);
+      openAddSite(pending.site);
+      return true;
+    }
+    if (freeCheckStarting.current) return true;
+    freeCheckStarting.current = true;
+    setStartingCheckFor(pending.site);
+    try {
+      await startFreeCheck(pending.site, account);
+    } finally {
+      freeCheckStarting.current = false;
+      setStartingCheckFor(null);
+    }
     return true;
   };
 }
@@ -158,7 +230,7 @@ function profileCreationNavigation({ navigate }: ActionContext) {
  */
 function onAuthedFor(
   context: ActionContext,
-  followIntent: (pending: VisitorIntent) => Promise<boolean>,
+  followIntent: (pending: VisitorIntent, account: Account) => Promise<boolean>,
 ) {
   const { entryRoute, intent, navigate, openScanById, setTourOpen } = context;
   const { setAccount, setEmailAction, setError, setIntent, setProfiles } = context;
@@ -187,7 +259,7 @@ function onAuthedFor(
     setIntent(null);
     // The owner is in the middle of something they asked for; the tour waits
     // for their next visit (the account stays "pending" until it is seen).
-    if (pending !== null && (await followIntent(pending))) return;
+    if (pending !== null && (await followIntent(pending, value))) return;
     // Sign-in is a detour, not a destination: whoever followed a workspace link
     // gets that screen, and everyone else gets the workspace they signed in for.
     navigate(isWorkspaceScreen(entryRoute.screen) ? entryRoute.screen : 'desktop');
@@ -263,7 +335,7 @@ function onboardingActions({ navigate, setAccount, setError, setTourOpen }: Acti
 /** Every action the screens call, built from this render's state. */
 export function appActions(context: ActionContext) {
   const scans = scanActions(context);
-  const followIntent = followIntentFor(context);
+  const followIntent = followIntentFor(context, scans.onScanCreated);
   return {
     ...scans,
     rememberScanProfile: scanProfileAddress(),

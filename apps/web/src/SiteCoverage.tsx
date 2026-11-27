@@ -14,6 +14,8 @@
 
 import type { CrawlSummary } from './api';
 import { Panel, ProgressBar } from './components';
+import { freeReportCopy } from './free-report-copy';
+import { unreadSitemapPages, type UnreadSitemapPages } from './free-sitemap';
 import { copy, fillCopy, type Language } from './i18n';
 
 export function SiteCoveragePanel(props: {
@@ -60,6 +62,16 @@ function SiteCoverageBody(props: {
     return <p className="muted">{t.siteCoverageNoAddresses}</p>;
   }
 
+  // A Free check found one address because it looked at one. Where the site's
+  // sitemap says how many it has, that is the honest denominator; "1 of 1"
+  // with a full bar reads as a whole site checked.
+  const unread = props.homepageOnly && summary.pagesRead === 1 ? unreadSitemapPages(summary) : null;
+  if (unread !== null) {
+    return (
+      <HomepageOfSitemap pagesRead={summary.pagesRead} unread={unread} language={props.language} />
+    );
+  }
+
   const percent = Math.round((summary.pagesRead / summary.urlsDiscovered) * 100);
   const complete = summary.pagesRead === summary.urlsDiscovered;
   return (
@@ -93,6 +105,33 @@ function SiteCoverageBody(props: {
           {fillCopy(t.siteCoverageRobots, { count: String(summary.urlsBlockedByRobots) })}
         </p>
       ) : null}
+    </>
+  );
+}
+
+/** A Free report of a site whose sitemap lists more than the homepage. */
+function HomepageOfSitemap(props: {
+  pagesRead: number;
+  unread: UnreadSitemapPages;
+  language: Language;
+}) {
+  const t = copy[props.language].report;
+  const f = freeReportCopy[props.language];
+  const { pagesRead } = props;
+  return (
+    <>
+      <p>{f.homepageRead}</p>
+      <p>{f.sitemapUnread(props.unread.count, props.unread.capped)}</p>
+      {props.unread.capped ? null : (
+        // Never 0% beside "one page was read"; and no bar at all when the count
+        // is only a floor, since its share would be a guess.
+        <ProgressBar
+          variant="result"
+          caption={t.siteCoverageCaption}
+          value={Math.max(1, Math.round((pagesRead / (pagesRead + props.unread.count)) * 100))}
+          label={t.siteCoverageCaption}
+        />
+      )}
     </>
   );
 }

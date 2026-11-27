@@ -8,7 +8,7 @@
 import type { CrawlSummary, Plan, ScanScopeInput } from '@fluxradar/contracts';
 import { TARIFFS } from '@fluxradar/contracts';
 import type { CrawlResult } from '@fluxradar/crawler';
-import { assessSiteReach, crawlCoverage } from '@fluxradar/crawler';
+import { assessSiteReach, crawlCoverage, sitemapCoverage } from '@fluxradar/crawler';
 
 /** At most this many header signals are kept as evidence (contract bound). */
 const MAX_ACCESS_CONTROL_SIGNALS = 10;
@@ -22,6 +22,7 @@ export function buildCrawlSummary(
 ): CrawlSummary {
   const coverage = crawlCoverage(crawlResult);
   const reach = assessSiteReach(crawlResult, origin);
+  const sitemap = sitemapCoverage(crawlResult);
   return {
     reach: reach.kind,
     startStatus: reach.startStatus,
@@ -39,6 +40,7 @@ export function buildCrawlSummary(
     urlsBlockedByRobots: coverage.urlsBlockedByRobots,
     limitedBy: limitedBy(coverage.urlsOverLimit, scope, plan),
     maxPages,
+    ...(sitemap === null ? {} : { sitemap }),
   };
 }
 

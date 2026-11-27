@@ -156,8 +156,12 @@ export const russianFindingsCopy: FindingsCopy = {
   },
   upsell: {
     heading: 'Главную проверили. Остальной сайт ещё нет',
-    lead: (domain, problems, checks = FREE_CHECK_COUNT) => {
-      const rest = 'Другие страницы сайта ещё не проверены.';
+    lead: (
+      domain,
+      problems,
+      checks = FREE_CHECK_COUNT,
+      rest = 'Другие страницы сайта ещё не проверены.',
+    ) => {
       if (problems === null)
         return `Проверка посмотрела ${checks} ${ruCountForm(checks, 'пункт', 'пункта', 'пунктов')} на главной странице ${domain}. ${rest}`;
       if (problems === 0)

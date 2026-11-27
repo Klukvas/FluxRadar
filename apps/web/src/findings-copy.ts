@@ -168,8 +168,17 @@ export type FindingsCopy = {
    */
   readonly upsell: {
     readonly heading: string;
-    /** `problems` is null while the issue summary is loading: no number is said then. */
-    readonly lead: (domain: string, problems: number | null, checks?: number) => string;
+    /**
+     * `problems` is null while the issue summary is loading: no number is said
+     * then. `rest` replaces the closing sentence about the unchecked pages when
+     * the report can count them (the site's sitemap).
+     */
+    readonly lead: (
+      domain: string,
+      problems: number | null,
+      checks?: number,
+      rest?: string,
+    ) => string;
     readonly basic: string;
     readonly basicAction: string;
     readonly difference: string;
@@ -360,8 +369,12 @@ export const findingsCopy: Readonly<Record<Language, FindingsCopy>> = {
     },
     upsell: {
       heading: 'Your homepage is checked. The rest of the site is not',
-      lead: (domain, problems, checks = FREE_CHECK_COUNT) => {
-        const rest = 'The other pages of the site have not been checked yet.';
+      lead: (
+        domain,
+        problems,
+        checks = FREE_CHECK_COUNT,
+        rest = 'The other pages of the site have not been checked yet.',
+      ) => {
         if (problems === null)
           return `The free check looked at ${checks} things on the homepage of ${domain}. ${rest}`;
         if (problems === 0)
@@ -536,8 +549,12 @@ export const findingsCopy: Readonly<Record<Language, FindingsCopy>> = {
     },
     upsell: {
       heading: 'Головну перевірено. Решту сайту — ще ні',
-      lead: (domain, problems, checks = FREE_CHECK_COUNT) => {
-        const rest = 'Інші сторінки сайту ще не перевірено.';
+      lead: (
+        domain,
+        problems,
+        checks = FREE_CHECK_COUNT,
+        rest = 'Інші сторінки сайту ще не перевірено.',
+      ) => {
         if (problems === null)
           return `Безкоштовна перевірка подивилася ${checks} ${ukCountForm(checks, 'річ', 'речі', 'речей')} на головній сторінці ${domain}. ${rest}`;
         if (problems === 0)

@@ -14,11 +14,16 @@ const LAUNCH_REFUSALS = new Map<string, (t: NewScanCopy) => string>([
   ['FREE_CHECK_DOMAIN_USED', (t) => t.freeCheckDomainUsedError],
 ]);
 
+/** The page-language sentence for a refusal the API named by code, or null. */
+export function codedLaunchRefusal(caught: unknown, language: Language): string | null {
+  if (!(caught instanceof ApiRequestError) || caught.code === null) return null;
+  const refusal = LAUNCH_REFUSALS.get(caught.code);
+  return refusal === undefined ? null : refusal(copy[language].newScan);
+}
+
 /** What to tell the owner when a scan they asked for did not start. */
 export function launchErrorMessage(caught: unknown, language: Language, fallback: string): string {
-  if (caught instanceof ApiRequestError && caught.code !== null) {
-    const refusal = LAUNCH_REFUSALS.get(caught.code);
-    if (refusal !== undefined) return refusal(copy[language].newScan);
-  }
+  const coded = codedLaunchRefusal(caught, language);
+  if (coded !== null) return coded;
   return caught instanceof Error ? caught.message : fallback;
 }

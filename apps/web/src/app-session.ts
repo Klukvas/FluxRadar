@@ -15,10 +15,11 @@ import {
   scanRoutePreference,
   type Screen,
 } from './app-routes';
-import type { AppState } from './app-state';
+import type { AppState, VisitorIntent } from './app-state';
 import { authCopy } from './auth-copy';
+import { startFreeCheckForSite } from './auto-free-check';
 import { consumeGoogleReturn } from './google-auth-return';
-import { isLanguage, type Language } from './i18n';
+import { isLanguage, readStoredLanguage, type Language } from './i18n';
 
 type ConfirmEmailSignedIn = (token: string, current: Account) => Promise<void>;
 
@@ -36,6 +37,10 @@ type SessionBoot = Pick<
   | 'setSelectedScan'
   | 'setTourOpen'
   | 'setNewScanPlan'
+  | 'setError'
+  | 'setFreeAiAskScanId'
+  | 'setStartingCheckFor'
+  | 'freeCheckStarting'
 > & {
   readonly openScanById: OpenScanById;
   readonly confirmEmailSignedIn: ConfirmEmailSignedIn;
@@ -139,6 +144,106 @@ export function useSessionBoot(boot: SessionBoot): void {
   ]);
 }
 
+/**
+ * The address a visitor typed before signing in with Google, carried out after
+ * the redirect brought them back.
+ *
+ * The same rule as the sign-in dialog's own path (`followIntentFor`): with no
+ * paid plan picked the free homepage check starts at once; with one picked, or
+ * when the site could not be saved, the add-a-site form opens on the address.
+ * It lives here because the redirect reloads the app, and the boot is all that
+ * runs before the first screen is drawn.
+ */
+async function followGoogleSite(
+  pending: { readonly site: string; readonly plan: VisitorIntent['plan'] },
+  googleLanguage: Language | null,
+  account: Account,
+  boot: SessionBoot,
+): Promise<void> {
+  const { freeCheckStarting, setBooting, setScreen, setStartingCheckFor } = boot;
+  const withLanguage = (path: string): string => {
+    if (googleLanguage === null) return path;
+    return `${path}${path.includes('?') ? '&' : '?'}lang=${googleLanguage}`;
+  };
+  const openAddSite = (): void => {
+    setScreen('desktop');
+    window.history.replaceState(
+      null,
+      '',
+      withLanguage(`/profiles?add=${encodeURIComponent(pending.site)}`),
+    );
+  };
+  // Nothing to start: the form, at once, with no window flashing over it.
+  if (pending.plan !== null || account.freeCheckUsed === true || freeCheckStarting.current) {
+    if (!freeCheckStarting.current) openAddSite();
+    return;
+  }
+  freeCheckStarting.current = true;
+  // The boot loader would otherwise stay up for as long as the site takes to
+  // answer; the workspace opens under a window that says what is happening,
+  // and stays covered until the screen the start ends on is in place.
+  setScreen('desktop');
+  setStartingCheckFor(pending.site);
+  setBooting(false);
+  try {
+    await finishGoogleStart(pending.site, googleLanguage, account, boot, {
+      openAddSite,
+      withLanguage,
+    });
+  } finally {
+    freeCheckStarting.current = false;
+    setStartingCheckFor(null);
+  }
+}
+
+/** The automatic start of `followGoogleSite`, from the request to the screen it ends on. */
+async function finishGoogleStart(
+  site: string,
+  googleLanguage: Language | null,
+  account: Account,
+  boot: SessionBoot,
+  routes: { readonly openAddSite: () => void; readonly withLanguage: (path: string) => string },
+): Promise<void> {
+  const { setAccount, setError, setFreeAiAskScanId, setNewScanPlan, setProfiles } = boot;
+  const { setScreen, setSelectedProfile, setSelectedScan } = boot;
+  const outcome = await startFreeCheckForSite(
+    site,
+    googleLanguage ?? readStoredLanguage(),
+    account,
+  );
+  if (outcome.kind === 'free-check-used') {
+    routes.openAddSite();
+    return;
+  }
+  if (outcome.kind === 'profile-failed') {
+    setError(outcome.message);
+    routes.openAddSite();
+    return;
+  }
+  setSelectedProfile(outcome.profile);
+  await loadProfiles(setProfiles).catch((caught: unknown) => {
+    console.error('FluxRadar sites could not be re-read after a site was saved', caught);
+  });
+  if (outcome.kind !== 'started') {
+    setError(outcome.message);
+    setNewScanPlan(null);
+    setScreen('new-scan');
+    window.history.replaceState(null, '', routes.withLanguage(newScanPath(outcome.profile.id)));
+    return;
+  }
+  // Functional, like `onScanCreated`: requests have passed since the session
+  // was read, and this must not write that older copy back.
+  setAccount((current) => (current === null ? null : { ...current, freeCheckUsed: true }));
+  setFreeAiAskScanId(outcome.scan.id);
+  setSelectedScan(outcome.scan);
+  setScreen('scan');
+  window.history.replaceState(
+    null,
+    '',
+    routes.withLanguage(pathForScreen('scan', outcome.scan.id)),
+  );
+}
+
 /** Puts a signed-in owner on the screen their address asked for, or on their running scan. */
 async function restoreSignedInSession(value: Account, boot: SessionBoot): Promise<void> {
   const { entryRoute, confirmEmailSignedIn, openScanById, setProfiles } = boot;
@@ -197,11 +302,11 @@ async function restoreSignedInSession(value: Account, boot: SessionBoot): Promis
           );
         }
       } else if (pending?.site) {
-        setScreen('desktop');
-        window.history.replaceState(
-          null,
-          '',
-          `/profiles?add=${encodeURIComponent(pending.site)}${languageSearch ? `&lang=${googleLanguage}` : ''}`,
+        await followGoogleSite(
+          { site: pending.site, plan: pending.plan },
+          googleLanguage,
+          value,
+          boot,
         );
       } else if (pending?.plan) {
         setScreen('new-scan');

@@ -91,6 +91,7 @@ const PROFILE: SiteProfile = {
   id: 'profile-1',
   name: 'My Site',
   domain: 'https://example.com',
+  industry: 'Dental clinic',
 };
 
 const CHECKOUT_SESSION = {

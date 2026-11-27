@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { App } from './App';
 import { saveCookieConsent } from './browser-consent';
+import { copy } from './i18n';
 import { COMPLETE_PRICE } from './tariff-prices';
 import { checkedPlan } from './new-scan-test-support';
 
@@ -102,23 +103,12 @@ afterEach(() => {
 });
 
 describe('the home page carries what the visitor asked for through sign-up', () => {
-  it('hands a typed site to the profile form once the account exists', async () => {
-    let registered = false;
-    const fetchMock = stubApi((path) => {
-      if (path === '/auth/me')
-        return registered ? envelope(account) : failure(401, 'UNAUTHORIZED', 'no');
-      if (path === '/auth/register') {
-        registered = true;
-        return envelope(account, 201);
-      }
-      if (path === '/profiles') return envelope(registered ? [profile] : []);
-      return envelope(null);
-    });
+  /** Types an address on the home page and creates an account in the dialog it opens. */
+  async function checkSiteAndRegister(): Promise<void> {
     render(<App />);
     await screen.findByRole('heading', {
       name: 'Online website audit: SEO, AI visibility and what to fix first',
     });
-
     fireEvent.change(screen.getByRole('textbox', { name: 'Your website address' }), {
       target: { value: 'shop.example.com/pricing' },
     });
@@ -133,12 +123,147 @@ describe('the home page carries what the visitor asked for through sign-up', () 
       target: { value: 'valid-password' },
     });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Create account' }));
+  }
+
+  const runningScan = { ...freeScan, status: 'Running', completedAt: null, modules: [] };
+  const reachable = { state: 'reachable', canPurchase: true, checkedAt: null };
+
+  /**
+   * The API a new visitor meets. Every route the automatic start uses can be
+   * overridden; `registered` flips when the account is created.
+   */
+  function newVisitorApi(
+    routes: Partial<Record<string, () => Response>> = {},
+  ): ReturnType<typeof vi.fn> {
+    let registered = false;
+    return stubApi((path, init) => {
+      const override = routes[path];
+      if (override !== undefined) return override();
+      if (path === '/auth/me')
+        return registered ? envelope(account) : failure(401, 'UNAUTHORIZED', 'no');
+      if (path === '/auth/register') {
+        registered = true;
+        return envelope(account, 201);
+      }
+      if (path === '/profiles/resolve') return envelope({ profile, created: true }, 201);
+      if (path === `/profiles/${profile.id}/reachability`) return envelope(reachable);
+      if (path === `/profiles/${profile.id}/free-check`) return envelope(runningScan, 201);
+      if (path === '/profiles') return envelope(registered ? [profile] : []);
+      if (path === `/scans/${freeScan.id}` && init?.method === undefined)
+        return envelope(runningScan);
+      return envelope(null);
+    });
+  }
+
+  /** The writes in the order they were sent, by path. */
+  function postedPaths(fetchMock: ReturnType<typeof vi.fn>): string[] {
+    return fetchMock.mock.calls
+      .filter(([, init]) => (init as RequestInit | undefined)?.method === 'POST')
+      .map(([input]) => new URL(String(input)).pathname);
+  }
+
+  // Of the first twenty-one accounts, eleven never saved a site: the address
+  // they had typed opened a form that asked for it again. The check now starts.
+  it('starts the free check of a typed site the moment the account exists', async () => {
+    const fetchMock = newVisitorApi();
+    await checkSiteAndRegister();
+
+    await waitFor(() => expect(window.location.pathname).toBe(`/scans/${freeScan.id}`));
+    // Saved, asked whether it answers, and only then started.
+    expect(postedPaths(fetchMock)).toEqual([
+      '/auth/register',
+      '/profiles/resolve',
+      `/profiles/${profile.id}/reachability`,
+      `/profiles/${profile.id}/free-check`,
+    ]);
+    expect(calls(fetchMock, '/profiles/resolve', 'POST')).toEqual([
+      `|${JSON.stringify({ domain: 'https://shop.example.com' })}`,
+    ]);
+    // The check alone, in the page's language: nobody has been shown the AI disclosure.
+    expect(calls(fetchMock, `/profiles/${profile.id}/free-check`, 'POST')).toEqual([
+      `|${JSON.stringify({ aiLanguage: 'en' })}`,
+    ]);
+    // The question is asked on the progress screen instead, and nothing is sent by showing it.
+    expect(await screen.findByRole('button', { name: 'Yes, ask Claude' })).toBeInTheDocument();
+    expect(calls(fetchMock, `/scans/${freeScan.id}/free-ai-preview`, 'POST')).toHaveLength(0);
+  });
+
+  it('opens the scan form with the reason when the free check is refused', async () => {
+    newVisitorApi({
+      [`/profiles/${profile.id}/free-check`]: () =>
+        failure(409, 'FREE_CHECK_DOMAIN_USED', 'already checked'),
+    });
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await checkSiteAndRegister();
+
+    await waitFor(() => expect(window.location.pathname).toBe('/scan'));
+    // The site stays in the address, so a reload reopens the form on it.
+    expect(new URLSearchParams(window.location.search).get('profile')).toBe(profile.id);
+    // The reason in the page's language, not the API's English message.
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      copy.en.newScan.freeCheckDomainUsedError,
+    );
+    errorLog.mockRestore();
+  });
+
+  // The free check is claimed the moment it starts and is never handed back: a
+  // typo must not be able to use it up.
+  it('starts nothing for a site that does not answer, and says why', async () => {
+    const fetchMock = newVisitorApi({
+      [`/profiles/${profile.id}/reachability`]: () =>
+        envelope({ state: 'unreachable', canPurchase: false, checkedAt: null }),
+    });
+    await checkSiteAndRegister();
+
+    await waitFor(() => expect(window.location.pathname).toBe('/scan'));
+    expect(calls(fetchMock, `/profiles/${profile.id}/free-check`, 'POST')).toHaveLength(0);
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      copy.en.reachability.states.unreachable.label,
+    );
+  });
+
+  it('falls back to the add-a-site form, address kept, when the site cannot be saved', async () => {
+    const fetchMock = newVisitorApi({
+      '/profiles/resolve': () => failure(503, 'UNAVAILABLE', 'try later'),
+      '/profiles': () => envelope([]),
+    });
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await checkSiteAndRegister();
 
     await waitFor(() => expect(window.location.pathname).toBe('/profiles'));
     expect(new URLSearchParams(window.location.search).get('add')).toBe('https://shop.example.com');
     expect(await screen.findByDisplayValue('https://shop.example.com')).toBeInTheDocument();
-    expect(calls(fetchMock, '/profiles/resolve', 'POST')).toHaveLength(0);
     expect(calls(fetchMock, `/profiles/${profile.id}/free-check`, 'POST')).toHaveLength(0);
+    errorLog.mockRestore();
+  });
+
+  it('says it is checking the site while the site is being asked', async () => {
+    newVisitorApi({
+      // The site takes its time: the window has to be there meanwhile.
+      [`/profiles/${profile.id}/reachability`]: () => {
+        throw new Error('never answered in this test');
+      },
+    });
+    let release: (value: Response) => void = () => {};
+    const slow = new Promise<Response>((resolve) => {
+      release = resolve;
+    });
+    const fetchMock = vi.mocked(fetch);
+    const answer = fetchMock.getMockImplementation();
+    fetchMock.mockImplementation((input, init) =>
+      new URL(String(input)).pathname === `/profiles/${profile.id}/reachability`
+        ? slow
+        : (answer as NonNullable<typeof answer>)(input, init),
+    );
+    await checkSiteAndRegister();
+
+    const status = await screen.findByRole('dialog', { name: 'Checking your site' });
+    expect(status).toHaveTextContent('shop.example.com');
+    // The focus is on it, not on the covered button that started it.
+    expect(within(status).getByRole('heading', { name: 'Checking your site' })).toHaveFocus();
+    release(envelope({ state: 'reachable', canPurchase: true, checkedAt: null }));
+    await waitFor(() => expect(window.location.pathname).toBe(`/scans/${freeScan.id}`));
+    expect(screen.queryByRole('dialog', { name: 'Checking your site' })).toBeNull();
   });
 
   it('refuses an address that is not a website before asking for an account', async () => {
@@ -155,6 +280,72 @@ describe('the home page carries what the visitor asked for through sign-up', () 
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Enter a public website address');
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  /** An owner already signed in, on the public home page. */
+  async function typeSiteAsOwner(owner: Record<string, unknown>) {
+    const fetchMock = stubApi((path, init) => {
+      if (path === '/auth/me') return envelope(owner);
+      if (path === '/profiles') return envelope([profile]);
+      if (path === '/profiles/resolve') return envelope({ profile, created: false });
+      if (path === `/profiles/${profile.id}/reachability`)
+        return envelope({ state: 'reachable', canPurchase: true, checkedAt: null });
+      if (path === `/profiles/${profile.id}/free-check`)
+        return envelope({ ...freeScan, status: 'Running', completedAt: null, modules: [] }, 201);
+      if (path === `/scans/${freeScan.id}` && init?.method === undefined)
+        return envelope({ ...freeScan, status: 'Running', completedAt: null, modules: [] });
+      return envelope(null);
+    });
+    window.history.replaceState(null, '', '/');
+    render(<App />);
+    const field = await screen.findByRole('textbox', { name: 'Your website address' });
+    fireEvent.change(field, { target: { value: 'shop.example.com' } });
+    return fetchMock;
+  }
+
+  // A returning owner whose free check is spent: a check that would only be
+  // refused is no reason to save a site behind their back.
+  it('gives a signed-in owner with a spent free check the form, and saves nothing', async () => {
+    const fetchMock = await typeSiteAsOwner({ ...account, freeCheckUsed: true });
+    fireEvent.click(screen.getByRole('button', { name: 'Check my site' }));
+
+    await waitFor(() => expect(window.location.pathname).toBe('/profiles'));
+    expect(new URLSearchParams(window.location.search).get('add')).toBe('https://shop.example.com');
+    expect(postedPaths(fetchMock)).toEqual([]);
+  });
+
+  // The free check used in another tab since this one read the account.
+  it('asks the server, not its own old copy, whether the free check is still unused', async () => {
+    let reads = 0;
+    const fetchMock = stubApi((path) => {
+      if (path === '/auth/me') {
+        reads += 1;
+        return envelope(reads === 1 ? account : { ...account, freeCheckUsed: true });
+      }
+      if (path === '/profiles') return envelope([profile]);
+      return envelope(null);
+    });
+    window.history.replaceState(null, '', '/');
+    render(<App />);
+    fireEvent.change(await screen.findByRole('textbox', { name: 'Your website address' }), {
+      target: { value: 'shop.example.com' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Check my site' }));
+
+    await waitFor(() => expect(window.location.pathname).toBe('/profiles'));
+    expect(postedPaths(fetchMock)).toEqual([]);
+  });
+
+  it('starts one check however often a signed-in owner presses the button', async () => {
+    const fetchMock = await typeSiteAsOwner(account);
+    const button = screen.getByRole('button', { name: 'Check my site' });
+    fireEvent.click(button);
+    fireEvent.click(button);
+    fireEvent.click(button);
+
+    await waitFor(() => expect(window.location.pathname).toBe(`/scans/${freeScan.id}`));
+    expect(calls(fetchMock, '/profiles/resolve', 'POST')).toHaveLength(1);
+    expect(calls(fetchMock, `/profiles/${profile.id}/free-check`, 'POST')).toHaveLength(1);
   });
 
   it('opens the scan form on the plan picked on the pricing cards', async () => {

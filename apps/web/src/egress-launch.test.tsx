@@ -14,7 +14,12 @@ const internalAccount = {
   email: 'operator@example.com',
   internalFreeAccess: true,
 };
-const profile = { id: 'profile-1', name: 'My Site', domain: 'https://example.com' };
+const profile = {
+  id: 'profile-1',
+  name: 'My Site',
+  domain: 'https://example.com',
+  industry: 'Dental clinic',
+};
 const scan = {
   id: 'scan-1',
   profileId: profile.id,

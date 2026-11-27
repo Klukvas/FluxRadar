@@ -53,10 +53,40 @@ export interface FreePreviewCopy {
     /** The same, when robots.txt keeps the homepage closed: fix that first. */
     readonly oneAttemptLeftRobots: string;
   };
+  /**
+   * The question a running Free check asks when it was started without its AI
+   * box — from the address on the public page, which shows no scan form. The
+   * disclosure beside its button is `consent.body`, the same text as everywhere.
+   */
+  readonly ask: {
+    readonly heading: string;
+    /** One question, one model — and what a paid check asks instead. */
+    readonly oneModel: string;
+    readonly yes: string;
+    readonly no: string;
+    /**
+     * Agreed while the check is still running: it is sent when the check ends,
+     * by this screen — so it says the screen has to stay open.
+     */
+    readonly queued: string;
+    /** The request is on its way. */
+    readonly sending: string;
+    /** The request was accepted: the report shows the answer when it lands. */
+    readonly requested: string;
+    /** The request did not go through: the report says whether it can still be added. */
+    readonly failed: string;
+    /** The owner said no: nothing is sent, and the report may still offer it. */
+    readonly declined: string;
+  };
   readonly preview: {
     readonly heading: string;
     /** What was done, without the question or the model: the brand, when one was saved. */
     readonly answerLead: (brand: string | null) => string;
+    /**
+     * Added to the lead unless the AI did not know the business: there, "for
+     * information only" would talk down the one finding the block has.
+     */
+    readonly scoreNote: string;
     /**
      * Added to the lead only when the question was asked in a language other
      * than the one the report is read in: the language's name, never the question.
@@ -64,6 +94,21 @@ export interface FreePreviewCopy {
     readonly askedIn: (asked: AiLanguage) => string;
     /** One plain sentence leading the block: the verdict, before any detail. */
     readonly headline: Readonly<Record<FreeGeoHeadline, string>>;
+    /**
+     * The locked line under the answer: the market questions only a paid check
+     * asks, with an example built from the profile, and how many questions each
+     * plan asks.
+     */
+    readonly market: {
+      readonly title: string;
+      /** Where the line is unlocked, beside the lock. */
+      readonly lockedIn: string;
+      /** `example` is the profile's own "service, place", or null when it has none. */
+      readonly body: (example: string | null) => string;
+      /** One question to one model, against what Basic asks. */
+      readonly scale: string;
+      readonly action: (price: string) => string;
+    };
     /** A claim's state, in the chips and in the count row (the words carry it, not colour). */
     readonly claimStatus: Readonly<Record<GeoClaimVerdict, string>>;
     /** Accessible names of the count row and the claim list. */
@@ -125,10 +170,26 @@ export const freePreviewCopy: Readonly<Record<Language, FreePreviewCopy>> = {
       oneAttemptLeftRobots:
         'One attempt is left for this check, so fix robots.txt before you press the button.',
     },
+    ask: {
+      heading: 'Ask an AI what it knows about your business?',
+      oneModel:
+        'The free check asks one model, Claude, one question. Basic asks up to 6 questions to each of two models from different companies, Claude and ChatGPT, about your brand and your market.',
+      yes: 'Yes, ask Claude',
+      no: 'No, thanks',
+      queued:
+        'Got it. We send the question as soon as the homepage check finishes — keep this page open until then.',
+      sending: 'Sending the question…',
+      requested: 'The question has been sent. The answer appears in your report in about a minute.',
+      failed:
+        'The question could not be sent just now. Your report shows whether the AI answer can still be added.',
+      declined:
+        'No question will be sent. If you change your mind, the report may still let you add the AI answer.',
+    },
     preview: {
       heading: 'What AI says about your business',
       answerLead: (brand) =>
-        `One answer from one AI assistant, asked without web search what it knows about ${brand ?? 'your business'}. For information only — it does not change your homepage score.`,
+        `One answer from one AI assistant, asked without web search what it knows about ${brand ?? 'your business'}.`,
+      scoreNote: 'For information only: it does not change your homepage score.',
       askedIn: (asked) =>
         `It was asked in ${asked === 'uk' ? 'Ukrainian' : asked === 'ru' ? 'Russian' : 'English'}.`,
       headline: {
@@ -136,8 +197,19 @@ export const freePreviewCopy: Readonly<Record<Language, FreePreviewCopy>> = {
         confirmed: 'What the AI says about you matches your site.',
         partial: 'Some of what the AI says matches your site; the rest could not be confirmed.',
         unconfirmed: 'Your site neither confirms nor contradicts what the AI says.',
+        'not-described':
+          'Claude does not know your business: if a customer asks it about you by name, it has nothing to tell them.',
         'nothing-checkable': 'The AI’s answer said nothing about you that could be checked.',
         'not-checked': 'This answer was not checked against your site.',
+      },
+      market: {
+        title: 'Who AI recommends instead of you',
+        lockedIn: 'In Basic',
+        body: (example) =>
+          `Basic asks Claude and ChatGPT what your customers ask${example === null ? '' : `, for example “${example}”`}, with web search, and shows which businesses and sources they name instead of you.`,
+        scale:
+          'Free check: one question to one model, Claude. Basic: up to 6 questions to each of two models from different companies, Claude and ChatGPT, 2 to 4 of them about your market and asked with web search.',
+        action: (price) => `See who AI recommends instead of you: ${price}`,
       },
       claimStatus: {
         contradicted: 'Contradicts',
@@ -200,10 +272,26 @@ export const freePreviewCopy: Readonly<Record<Language, FreePreviewCopy>> = {
       oneAttemptLeftRobots:
         'Для цієї перевірки лишилася одна спроба, тож спершу виправте robots.txt, а потім натискайте кнопку.',
     },
+    ask: {
+      heading: 'Запитати ШІ, що він знає про ваш бізнес?',
+      oneModel:
+        'Безкоштовна перевірка ставить одне питання одній моделі, Claude. Basic ставить до 6 питань кожній із двох моделей від різних компаній, Claude і ChatGPT, про ваш бренд і ваш ринок.',
+      yes: 'Так, запитати Claude',
+      no: 'Ні, дякую',
+      queued:
+        'Добре. Питання надішлемо, щойно завершиться перевірка головної сторінки, — доти не закривайте цю сторінку.',
+      sending: 'Надсилаємо питання…',
+      requested: 'Питання надіслано. Відповідь зʼявиться у звіті приблизно за хвилину.',
+      failed:
+        'Зараз не вдалося надіслати питання. У звіті буде видно, чи можна ще додати відповідь ШІ.',
+      declined:
+        'Питання не надсилаємо. Якщо передумаєте, відповідь ШІ, можливо, ще вдасться додати у звіті.',
+    },
     preview: {
       heading: 'Що ШІ каже про ваш бізнес',
       answerLead: (brand) =>
-        `Одна відповідь одного ШІ-помічника, якого без пошуку в інтернеті запитали, що він знає про ${brand === null ? 'ваш бізнес' : `«${brand}»`}. Лише для інформації — на оцінку головної сторінки це не впливає.`,
+        `Одна відповідь одного ШІ-помічника, якого без пошуку в інтернеті запитали, що він знає про ${brand === null ? 'ваш бізнес' : `«${brand}»`}.`,
+      scoreNote: 'Лише для інформації: на оцінку головної сторінки це не впливає.',
       askedIn: (asked) =>
         `Запитали ${asked === 'uk' ? 'українською' : asked === 'ru' ? 'російською' : 'англійською'}.`,
       headline: {
@@ -211,8 +299,19 @@ export const freePreviewCopy: Readonly<Record<Language, FreePreviewCopy>> = {
         confirmed: 'Те, що ШІ каже про вас, збігається з вашим сайтом.',
         partial: 'Частина сказаного ШІ збігається з вашим сайтом, решту підтвердити не вдалося.',
         unconfirmed: 'Ваш сайт не підтверджує й не спростовує того, що каже ШІ.',
+        'not-described':
+          'Claude не знає про ваш бізнес: якщо клієнт запитає його про вас за назвою, він нічого не зможе розповісти.',
         'nothing-checkable': 'У відповіді ШІ немає нічого про вас, що можна було б перевірити.',
         'not-checked': 'Цю відповідь не звіряли з вашим сайтом.',
+      },
+      market: {
+        title: 'Кого ШІ радить замість вас',
+        lockedIn: 'У Basic',
+        body: (example) =>
+          `Basic запитає Claude і ChatGPT те, що питають ваші клієнти${example === null ? '' : `, наприклад «${example}»`}, з пошуком в інтернеті, і покаже, кого вони радять замість вас і на які джерела спираються.`,
+        scale:
+          'Безкоштовна перевірка: одне питання одній моделі, Claude. Basic: до 6 питань кожній із двох моделей від різних компаній, Claude і ChatGPT, з них від 2 до 4 про ваш ринок, з пошуком в інтернеті.',
+        action: (price) => `Дізнатися, кого ШІ радить замість вас: ${price}`,
       },
       claimStatus: {
         contradicted: 'Суперечить',
@@ -276,10 +375,26 @@ export const freePreviewCopy: Readonly<Record<Language, FreePreviewCopy>> = {
       oneAttemptLeftRobots:
         'Для этой проверки осталась одна попытка, поэтому сначала исправьте robots.txt, а потом нажимайте кнопку.',
     },
+    ask: {
+      heading: 'Спросить ИИ, что он знает о вашем бизнесе?',
+      oneModel:
+        'Бесплатная проверка задаёт один вопрос одной модели, Claude. Basic задаёт до 6 вопросов каждой из двух моделей от разных компаний, Claude и ChatGPT, о вашем бренде и вашем рынке.',
+      yes: 'Да, спросить Claude',
+      no: 'Нет, спасибо',
+      queued:
+        'Хорошо. Вопрос отправим, как только закончится проверка главной страницы. До тех пор не закрывайте эту страницу.',
+      sending: 'Отправляем вопрос…',
+      requested: 'Вопрос отправлен. Ответ появится в отчёте примерно через минуту.',
+      failed:
+        'Сейчас не удалось отправить вопрос. В отчёте будет видно, можно ли ещё добавить ответ ИИ.',
+      declined:
+        'Вопрос не отправляем. Если передумаете, ответ ИИ, возможно, ещё получится добавить в отчёте.',
+    },
     preview: {
       heading: 'Что ИИ говорит о вашем бизнесе',
       answerLead: (brand) =>
-        `Один ответ одного ИИ-помощника, которого без поиска в интернете спросили, что он знает о ${brand === null ? 'вашем бизнесе' : `«${brand}»`}. Только для информации: на оценку главной страницы это не влияет.`,
+        `Один ответ одного ИИ-помощника, которого без поиска в интернете спросили, что он знает о ${brand === null ? 'вашем бизнесе' : `«${brand}»`}.`,
+      scoreNote: 'Только для информации: на оценку главной страницы это не влияет.',
       askedIn: (asked) =>
         `Спрашивали ${asked === 'uk' ? 'по-украински' : asked === 'ru' ? 'по-русски' : 'по-английски'}.`,
       headline: {
@@ -287,8 +402,19 @@ export const freePreviewCopy: Readonly<Record<Language, FreePreviewCopy>> = {
         confirmed: 'То, что ИИ говорит о вас, совпадает с вашим сайтом.',
         partial: 'Часть сказанного ИИ совпадает с вашим сайтом, остальное подтвердить не удалось.',
         unconfirmed: 'Ваш сайт не подтверждает и не опровергает то, что говорит ИИ.',
+        'not-described':
+          'Claude не знает о вашем бизнесе: если клиент спросит его о вас по названию, он ничего не сможет рассказать.',
         'nothing-checkable': 'В ответе ИИ нет ничего о вас, что можно было бы проверить.',
         'not-checked': 'Этот ответ не сверяли с вашим сайтом.',
+      },
+      market: {
+        title: 'Кого ИИ советует вместо вас',
+        lockedIn: 'В Basic',
+        body: (example) =>
+          `Basic спросит Claude и ChatGPT то, что спрашивают ваши клиенты${example === null ? '' : `, например «${example}»`}, с поиском в интернете, и покажет, кого они советуют вместо вас и на какие источники опираются.`,
+        scale:
+          'Бесплатная проверка: один вопрос одной модели, Claude. Basic: до 6 вопросов каждой из двух моделей от разных компаний, Claude и ChatGPT, из них от 2 до 4 о вашем рынке, с поиском в интернете.',
+        action: (price) => `Узнать, кого ИИ советует вместо вас: ${price}`,
       },
       claimStatus: {
         contradicted: 'Противоречит',

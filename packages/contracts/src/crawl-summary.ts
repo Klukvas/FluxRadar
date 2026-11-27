@@ -73,6 +73,28 @@ export const crawlSummarySchema = z.object({
   limitedBy: z.enum(CRAWL_LIMITED_BY).nullable(),
   /** The page limit actually applied to this crawl. */
   maxPages: z.number().int().min(1),
+  /**
+   * What the site's own sitemap lists, against what this crawl fetched.
+   *
+   * The only measure of the site's size a depth-limited crawl has: the Free
+   * check reads the homepage and nothing else, so `urlsDiscovered` is 1 however
+   * large the site is. `capped` means the sitemap was cut at the crawler's
+   * ceiling and both counts are floors.
+   *
+   * Absent when the sitemap lists nothing in scope, and on scans from before
+   * it was recorded — "not known", never a site of zero pages.
+   */
+  sitemap: z
+    .object({
+      urls: z.number().int().min(0),
+      unread: z.number().int().min(0),
+      capped: z.boolean(),
+    })
+    .refine((figure) => figure.unread <= figure.urls)
+    .optional()
+    // A damaged figure is dropped on its own. The rest of the summary decides
+    // refunds and the coverage line, and must not be lost with it.
+    .catch(undefined),
 });
 export type CrawlSummary = z.infer<typeof crawlSummarySchema>;
 

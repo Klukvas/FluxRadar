@@ -227,8 +227,13 @@ jobs:
         run: |
           set -euo pipefail
           # BUILD_ARGS is deliberately unquoted: it is zero or more flags.
+          #
+          # --provenance=false: since 2026-11-19 the runner's BuildKit attaches a
+          # provenance attestation by default, so `docker save` wrote a manifest
+          # list with two entries and deploy/image-space.py refused it ("only a
+          # single-image OCI graph is supported"). Nothing reads the attestation.
           # shellcheck disable=SC2086
-          docker build --file "Dockerfile.$SERVICE" $BUILD_ARGS --tag "fluxradar-$SERVICE:$RELEASE_ID" .
+          docker build --provenance=false --file "Dockerfile.$SERVICE" $BUILD_ARGS --tag "fluxradar-$SERVICE:$RELEASE_ID" .
           docker save --output "$RUNNER_TEMP/fluxradar-$SERVICE.tar" "fluxradar-$SERVICE:$RELEASE_ID"
 
       # Straight from this runner to the server. The obvious alternative — a

@@ -75,7 +75,12 @@ function scanOf(plan: Scan['plan'], overrides: Partial<Scan> = {}): Scan {
   } as Scan;
 }
 
-const profile: SiteProfile = { id: 'profile-1', name: 'Dental Smile', domain: SITE };
+const profile: SiteProfile = {
+  id: 'profile-1',
+  name: 'Dental Smile',
+  domain: SITE,
+  industry: 'Dental clinic',
+};
 
 const liveConfig: CheckoutConfig = {
   provider: 'creem',

@@ -164,9 +164,11 @@ function RussianTerms(): JSX.Element {
           бизнес или домен, в режиме closed-book, без просмотра веба и инструментов. Затем Anthropic
           отдельным запросом сверяет этот ответ с ограниченным снимком этой проверки: полями
           профиля, которые вы сохранили, и текстом вашей главной страницы. Снимите галочку, и ни
-          один ИИ-сервис ничего не получит. Ни один другой ИИ-провайдер ничего не получает. ИИ может
-          ошибаться или не упомянуть вас. Данные аккаунта, оплаты и доступы Google или Bing никогда
-          не отправляются.
+          один ИИ-сервис ничего не получит. Проверка, запущенная сразу из поля адреса на главной
+          странице FluxRadar, идёт без этого вопроса: он уходит, только если вы нажмёте кнопку на
+          экране проверки или в готовом отчёте. Ни один другой ИИ-провайдер ничего не получает. ИИ
+          может ошибаться или не упомянуть вас. Данные аккаунта, оплаты и доступы Google или Bing
+          никогда не отправляются.
         </p>
         <PaidProcessingTerms language="ru" />
         <p>
@@ -351,9 +353,11 @@ function UkrainianTerms(): JSX.Element {
           або домен, у режимі closed-book — без перегляду вебу та інструментів. Потім Anthropic
           окремим запитом перевіряє цю відповідь за обмеженим знімком цієї перевірки: полями
           профілю, які ви зберегли, і текстом вашої головної сторінки. Зніміть галочку — і жоден
-          ШІ-сервіс нічого не отримає. Жоден інший ШІ-провайдер нічого не отримує. ШІ може
-          помилятися або не згадати вас. Дані акаунта, оплати та доступи Google чи Bing ніколи не
-          надсилаються.
+          ШІ-сервіс нічого не отримає. Перевірка, запущена одразу з поля адреси на головній сторінці
+          FluxRadar, проходить без цього питання: воно надсилається, лише якщо ви натиснете кнопку
+          на екрані перевірки або в готовому звіті. Жоден інший ШІ-провайдер нічого не отримує. ШІ
+          може помилятися або не згадати вас. Дані акаунта, оплати та доступи Google чи Bing ніколи
+          не надсилаються.
         </p>
         <PaidProcessingTerms language="uk" />
         <p>
@@ -530,9 +534,11 @@ function EnglishTerms(): JSX.Element {
           it stays ticked, FluxRadar asks Anthropic (Claude) one question that names your business
           or domain, closed-book, without browsing or tools. Anthropic then checks that answer, in a
           separate request, against a bounded snapshot of this check: the profile fields you saved
-          and text from your homepage. Untick the box and nothing is sent to any AI service. No
-          other AI provider receives anything. AI can be wrong or omit a mention. Your account,
-          payment details and Google or Bing access are never sent.
+          and text from your homepage. Untick the box and nothing is sent to any AI service. A check
+          started straight from the address field on FluxRadar’s home page runs without this
+          question: it is sent only if you press the button on the progress screen or in the
+          finished report. No other AI provider receives anything. AI can be wrong or omit a
+          mention. Your account, payment details and Google or Bing access are never sent.
         </p>
         <PaidProcessingTerms language="en" />
         <p>

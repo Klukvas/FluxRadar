@@ -215,7 +215,7 @@ function Body(props: { language: Language; state: PanelState }) {
 
   const { result } = props.state;
   const expired = result.expired === true;
-  const verdict = expired ? t.states.expired : stateCopy(props.language, result.state);
+  const verdict = expired ? t.states.expired : reachVerdictCopy(props.language, result.state);
   // A refusal is the one thing on this form that stops the purchase, so it is
   // drawn as a verdict box the reader cannot scroll past, not as a chip and a
   // grey line. `canPurchase` is the API's word; the colour only repeats it.
@@ -250,8 +250,12 @@ function Body(props: { language: Language; state: PanelState }) {
   );
 }
 
-/** The sentence for one reach verdict; an unknown state gets the neutral one. */
-function stateCopy(
+/**
+ * The sentence for one reach verdict; an unknown state gets the neutral one.
+ * Also read by the automatic free check (auto-free-check.ts), which says why it
+ * did not start in the same words this panel would.
+ */
+export function reachVerdictCopy(
   language: Language,
   state: SiteReachability['state'],
 ): { label: string; body: string } {

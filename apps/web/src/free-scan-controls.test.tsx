@@ -21,7 +21,12 @@ import { DEFAULT_SCOPE_FORM, profileScanConfigFromForm } from './scan-scope';
 
 const account = { accountId: 'account-1', email: 'operator@example.com' };
 const internalAccount = { ...account, internalFreeAccess: true };
-const profile = { id: 'profile-1', name: 'My Site', domain: 'https://example.com' };
+const profile = {
+  id: 'profile-1',
+  name: 'My Site',
+  domain: 'https://example.com',
+  industry: 'Dental clinic',
+};
 
 const scan = {
   id: 'scan-1',
@@ -510,6 +515,7 @@ describe('advanced crawl rules', () => {
       id: 'profile-2',
       name: 'Other Site',
       domain: 'https://other.example',
+      industry: 'Dental clinic',
       scanConfig: { plan: 'Complete', scope: { ...defaultScope, excludePatterns: ['/private/*'] } },
     };
     renderNewScan(internalAccount, 'en', [

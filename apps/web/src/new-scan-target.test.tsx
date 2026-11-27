@@ -6,7 +6,12 @@ import { NewScanScreen } from './NewScanScreen';
 import { choosePlanCard } from './new-scan-test-support';
 
 const account = { accountId: 'account-1', email: 'operator@example.com' };
-const profile = { id: 'profile-1', name: 'My Site', domain: 'https://example.com' };
+const profile = {
+  id: 'profile-1',
+  name: 'My Site',
+  domain: 'https://example.com',
+  industry: 'Dental clinic',
+};
 const configuredProfile = {
   ...profile,
   scanConfigVersion: 3,
@@ -141,7 +146,12 @@ describe('new scan requires a saved profile', () => {
   // Owner walkthrough: "New scan" on the salon's row opened the form on another
   // site's saved settings. The row the owner pressed is the site being checked.
   it('opens on the site whose row "New scan" was pressed, not the first saved one', async () => {
-    const salon = { id: 'profile-salon', name: 'Eva Grace', domain: 'https://evagrace.example' };
+    const salon = {
+      id: 'profile-salon',
+      name: 'Eva Grace',
+      domain: 'https://evagrace.example',
+      industry: 'Dental clinic',
+    };
     const handler = workspace([configuredProfile, salon]);
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) =>
       Promise.resolve(handler(pathOf(input), init)),
@@ -161,7 +171,12 @@ describe('new scan requires a saved profile', () => {
   });
 
   it('keeps the order summary in step with the site and the plan', async () => {
-    const salon = { id: 'profile-salon', name: 'Eva Grace', domain: 'https://evagrace.example' };
+    const salon = {
+      id: 'profile-salon',
+      name: 'Eva Grace',
+      domain: 'https://evagrace.example',
+      industry: 'Dental clinic',
+    };
     renderNewScan((path, init) =>
       path === '/auth/me'
         ? envelope({ ...account, internalFreeAccess: true })
@@ -231,6 +246,7 @@ describe('a robots.txt override restored from saved settings', () => {
     id: 'profile-plain',
     name: 'Plain Site',
     domain: 'https://plain.example',
+    industry: 'Dental clinic',
     scanConfigVersion: 1,
     scanConfig: {
       plan: 'Complete' as const,
@@ -606,7 +622,12 @@ describe('the site the form is opened on', () => {
   // once at mount stayed on whichever site it picked first when the selection
   // (or the profile list) arrived a render later.
   it("follows a selection made after the form mounted, and keeps the owner's own pick", async () => {
-    const salon = { id: 'profile-salon', name: 'Eva Grace', domain: 'https://evagrace.example' };
+    const salon = {
+      id: 'profile-salon',
+      name: 'Eva Grace',
+      domain: 'https://evagrace.example',
+      industry: 'Dental clinic',
+    };
     const handler = workspace([profile, salon]);
     vi.stubGlobal(
       'fetch',
@@ -648,7 +669,12 @@ describe('the site the form is opened on', () => {
 
 describe('"New scan" from a site\'s report list', () => {
   it('opens on the site whose reports were listed, not the last site a scan was opened for', async () => {
-    const salon = { id: 'profile-salon', name: 'Eva Grace', domain: 'https://evagrace.example' };
+    const salon = {
+      id: 'profile-salon',
+      name: 'Eva Grace',
+      domain: 'https://evagrace.example',
+      industry: 'Dental clinic',
+    };
     const base = workspace([profile, salon]);
     // Every report list is empty: the list's own "start a check" is the way in.
     const handler = (path: string, init?: RequestInit): Response =>

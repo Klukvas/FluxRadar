@@ -29,6 +29,7 @@ import {
 import { CheckoutRecovery } from './Checkout';
 import { OfflineBanner } from './OfflineBanner';
 import { Styleguide } from './Styleguide';
+import { StartingFreeCheck } from './StartingFreeCheck';
 import { SupportWidget } from './SupportWidget';
 import { AppFrame, VerifyBanner, WorkspaceFooter, WorkspaceHeader } from './WorkspaceChrome';
 import './styles/base.css';
@@ -140,6 +141,7 @@ function SessionScreen({ app }: { readonly app: AppModel }) {
           />
         ) : null}
         <HomeRoute app={app} />
+        <StartingFreeCheck site={app.startingCheckFor} language={language} />
       </>
     );
   }
@@ -192,6 +194,7 @@ function SessionScreen({ app }: { readonly app: AppModel }) {
       <>
         <OfflineBanner language={language} />
         <HomeRoute app={app} />
+        <StartingFreeCheck site={app.startingCheckFor} language={language} />
       </>
     );
 
@@ -235,6 +238,18 @@ function Workspace({ app, account, noticeElement }: WorkspaceProps) {
     tourOpen,
   } = app;
   const { finishOnboarding, selectedScan, setError, skipOnboarding, verifyBannerHidden } = app;
+  // While a free check is being started, no screen is drawn under its window:
+  // the add-a-site form a new account opens by itself would sit there usable,
+  // and could restore an old draft nobody can see.
+  if (app.startingCheckFor !== null) {
+    return (
+      <>
+        <WorkspaceHeader app={app} account={account} />
+        <StartingFreeCheck site={app.startingCheckFor} language={language} />
+        <WorkspaceFooter language={language} />
+      </>
+    );
+  }
   return (
     <>
       <WorkspaceHeader app={app} account={account} />

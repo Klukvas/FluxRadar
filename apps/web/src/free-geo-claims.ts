@@ -28,7 +28,13 @@ export type ClaimCounts = Readonly<Record<GeoClaimVerdict, number>>;
 
 /** The headline the block leads with — one per state, never more than the list says. */
 export type FreeGeoHeadline =
-  'mismatch' | 'confirmed' | 'partial' | 'unconfirmed' | 'nothing-checkable' | 'not-checked';
+  | 'mismatch'
+  | 'confirmed'
+  | 'partial'
+  | 'unconfirmed'
+  | 'not-described'
+  | 'nothing-checkable'
+  | 'not-checked';
 
 export function claimCounts(claims: readonly GeoEvaluatedClaim[]): ClaimCounts {
   return {
@@ -50,7 +56,13 @@ export function orderedClaims(claims: readonly GeoEvaluatedClaim[]): GeoEvaluate
 export function freeGeoHeadline(evaluation: GeoEvaluation | null): FreeGeoHeadline {
   if (evaluation === null || evaluation.status === 'Unavailable') return 'not-checked';
   const counts = claimCounts(evaluation.claims);
-  if (evaluation.claims.length === 0) return 'nothing-checkable';
+  if (evaluation.claims.length === 0) {
+    // The evaluator's own finding that the answer never described the business
+    // — the model said it has no information, or spoke of something else. That
+    // is the result of the question, not an absence of one, and it is said as
+    // plainly as a contradiction would be.
+    return evaluation.answerDescribesSubject === false ? 'not-described' : 'nothing-checkable';
+  }
   if (counts.contradicted > 0) return 'mismatch';
   if (counts.matched === evaluation.claims.length) return 'confirmed';
   return counts.matched > 0 ? 'partial' : 'unconfirmed';

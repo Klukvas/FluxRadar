@@ -282,6 +282,23 @@ export function ResultsScreen(props: {
           )}
         </div>
         {unscoredPlan ? <p className="muted">{t.unscoredLead}</p> : null}
+        {/* Directly under the score, above the next steps: what an AI assistant
+            says about the business is the one finding on a Free report that is
+            about the owner rather than about six homepage tags, and the upsell
+            below it reads differently once it has been seen. */}
+        {scan.plan === 'Free' && siteFailure === null ? (
+          <FreeAiPreview
+            modules={dashboard.modules}
+            observations={geoObservations}
+            evidence={geoEvidence}
+            language={props.language}
+            scanId={scan.id}
+            onRefresh={refresh}
+            {...(props.onUpgrade === undefined
+              ? {}
+              : { onUpgrade: (plan: PaidPlan) => props.onUpgrade?.(scan, plan) })}
+          />
+        ) : null}
         <ReportNextStepsWithSummary
           scan={scan}
           freeChecks={freeCheckCountOf(dashboard.modules)}
@@ -429,16 +446,6 @@ export function ResultsScreen(props: {
             })}
           </div>
         )}
-        {scan.plan === 'Free' && siteFailure === null ? (
-          <FreeAiPreview
-            modules={dashboard.modules}
-            observations={geoObservations}
-            evidence={geoEvidence}
-            language={props.language}
-            scanId={scan.id}
-            onRefresh={refresh}
-          />
-        ) : null}
         {scan.plan === 'Free' && siteFailure === null && !checkedNothing ? (
           <CompleteCheckCatalog
             modules={dashboard.modules}

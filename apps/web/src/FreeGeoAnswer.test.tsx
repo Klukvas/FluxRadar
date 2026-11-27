@@ -10,11 +10,13 @@ import type {
   Scan,
   ScanModule,
 } from './api';
+import { FreeGeoAnswer } from './FreeGeoAnswer';
 import { freePreviewCopy } from './free-preview-copy';
 import { GeoObservationCard } from './GeoObservationCard';
 import { copy, type Language } from './i18n';
 import { PrintReport } from './PrintReport';
 import { ResultsScreen } from './Report';
+import { BASIC_PRICE } from './tariff-prices';
 
 // ─── The Free report's GEO block, verdict first (D-237) ──────────────────────
 //
@@ -667,5 +669,85 @@ describe('the language the AI question was asked in', () => {
         expect(line.querySelector('[lang]')).toBeNull();
       }
     }
+  });
+});
+
+describe('the Free answer that did not describe the business', () => {
+  const notDescribed = {
+    purpose: 'closed-book',
+    question: REAL_QUESTION,
+    status: 'answered',
+    reason: null,
+    provider: PROVIDER,
+    modelId: MODEL_ID,
+    answer: 'I have no information about Smile Clinic.',
+    citations: [],
+    mentions: null,
+    evaluation: {
+      status: 'Completed',
+      reason: null,
+      overall: 'no-description',
+      answerDescribesSubject: false,
+      claims: [],
+      provider: PROVIDER,
+      modelId: MODEL_ID,
+    },
+  } as unknown as GeoObservation;
+
+  it('says what a paid audit adds, but offers no button where there is nowhere to go', () => {
+    render(
+      <FreeGeoAnswer
+        observation={notDescribed}
+        evidence={null}
+        language="en"
+        answerLanguage={null}
+      />,
+    );
+    const t = freePreviewCopy.en.preview;
+
+    expect(screen.getByText(t.headline['not-described'])).toBeVisible();
+    // No service or industry saved: the line names no example rather than inventing one.
+    expect(screen.getByText(t.market.body(null))).toBeVisible();
+    expect(screen.queryByRole('button')).toBeNull();
+  });
+
+  it('shows the kind of question a customer types, built from the saved profile', () => {
+    const evidence: GeoEvidence = {
+      ...EVIDENCE,
+      sources: [
+        ...EVIDENCE.sources,
+        {
+          id: 'src-offerings',
+          kind: 'profile',
+          label: 'Services or products',
+          url: null,
+          excerpt: 'Dental implants, cleanings, emergency appointments',
+          provenance: 'owner-entered profile field',
+        },
+        {
+          id: 'src-region',
+          kind: 'profile',
+          label: 'Operating region',
+          url: null,
+          excerpt: 'Kyiv, Ukraine',
+          provenance: 'owner-entered profile field',
+        },
+      ],
+    };
+    const onUpgrade = vi.fn();
+    render(
+      <FreeGeoAnswer
+        observation={notDescribed}
+        evidence={evidence}
+        language="uk"
+        answerLanguage={null}
+        onUpgrade={onUpgrade}
+      />,
+    );
+    const t = freePreviewCopy.uk.preview.market;
+
+    expect(screen.getByText(t.body('Dental implants, Kyiv'))).toBeVisible();
+    fireEvent.click(screen.getByRole('button', { name: t.action(BASIC_PRICE) }));
+    expect(onUpgrade).toHaveBeenCalledWith('Basic');
   });
 });

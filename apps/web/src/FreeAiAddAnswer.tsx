@@ -86,6 +86,7 @@ export function FreeAiAddAnswer(props: {
     <div className="free-ai-add">
       <LastAttemptNote module={props.module} language={props.language} />
       <p className="free-ai-add__lead">{c.addAnswer.lead}</p>
+      <p className="free-ai-add__lead">{c.ask.oneModel}</p>
       <p id={DISCLOSURE_ID} className="free-ai-add__disclosure">
         {c.consent.body}{' '}
         <a href={publicPagePath('privacy', props.language)}>{links.aiConsentPrivacy}</a>

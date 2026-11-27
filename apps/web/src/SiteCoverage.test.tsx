@@ -212,3 +212,95 @@ describe('full coverage on a Free report', () => {
     expect(screen.getByText(sentence, { selector: 'p' })).toBeInTheDocument();
   });
 });
+
+// A Free check reads the homepage and nothing else, so its crawl "found" one
+// address on a site of any size. The owner of a fifteen-page site was shown
+// "We read 1 of the 1 addresses" under a full bar — a whole site checked.
+describe('a Free report of a site whose sitemap lists more than the homepage', () => {
+  function homepageOf(unread: number, capped = false): CrawlSummary {
+    return summary({
+      pagesRead: 1,
+      pagesFetched: 1,
+      urlsDiscovered: 1,
+      urlsOverLimit: 0,
+      limitedBy: null,
+      maxPages: 1,
+      sitemap: { urls: unread + 1, unread, capped },
+    });
+  }
+
+  it('counts the sitemap pages it did not read instead of saying 1 of 1', () => {
+    render(<SiteCoveragePanel summary={homepageOf(14)} language="en" homepageOnly />);
+
+    expect(
+      screen.getByText('The free check read one page of your site: the homepage.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('Your sitemap lists 14 more pages that this check did not read.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/We read 1 of the 1/)).toBeNull();
+  });
+
+  it('draws the bar against the sitemap, not against the one page it looked at', () => {
+    render(<SiteCoveragePanel summary={homepageOf(14)} language="en" homepageOnly />);
+
+    // 1 of 15.
+    expect(Number(screen.getByRole('meter').getAttribute('aria-valuenow'))).toBe(7);
+  });
+
+  it('says the count is a floor when the sitemap was cut at the crawler ceiling', () => {
+    render(<SiteCoveragePanel summary={homepageOf(999, true)} language="en" homepageOnly />);
+
+    expect(
+      screen.getByText('Your sitemap lists at least 999 more pages that this check did not read.'),
+    ).toBeInTheDocument();
+  });
+
+  it.each([
+    ['en', 1, 'Your sitemap lists 1 more page that this check did not read.'],
+    ['uk', 1, 'Ще 1 сторінку з вашого sitemap ця перевірка не прочитала.'],
+    ['uk', 3, 'Ще 3 сторінки з вашого sitemap ця перевірка не прочитала.'],
+    ['uk', 14, 'Ще 14 сторінок з вашого sitemap ця перевірка не прочитала.'],
+    ['ru', 21, 'Ещё 21 страницу из вашего sitemap эта проверка не прочитала.'],
+    ['ru', 14, 'Ещё 14 страниц из вашего sitemap эта проверка не прочитала.'],
+    ['en', 1500, 'Your sitemap lists 1,500 more pages that this check did not read.'],
+  ] as const)('declines the page count (%s, %d)', (language, unread, sentence) => {
+    render(<SiteCoveragePanel summary={homepageOf(unread)} language={language} homepageOnly />);
+
+    expect(screen.getByText(sentence)).toBeInTheDocument();
+  });
+
+  it('never draws 0% beside a page that was read', () => {
+    render(<SiteCoveragePanel summary={homepageOf(999)} language="en" homepageOnly />);
+
+    expect(Number(screen.getByRole('meter').getAttribute('aria-valuenow'))).toBe(1);
+  });
+
+  it('draws no share at all when the count is only a floor', () => {
+    render(<SiteCoveragePanel summary={homepageOf(999, true)} language="en" homepageOnly />);
+
+    expect(screen.queryByRole('meter')).toBeNull();
+  });
+
+  it('keeps the plain sentence when the sitemap lists nothing beyond the homepage', () => {
+    render(<SiteCoveragePanel summary={homepageOf(0)} language="en" homepageOnly />);
+
+    expect(
+      screen.getByText('We read 1 of the 1 addresses we found on your site.'),
+    ).toBeInTheDocument();
+  });
+
+  it('leaves a paid report on the addresses its own crawl found', () => {
+    render(
+      <SiteCoveragePanel
+        summary={summary({ sitemap: { urls: 400, unread: 385, capped: false } })}
+        language="en"
+      />,
+    );
+
+    expect(
+      screen.getByText('We read 15 of the 334 addresses we found on your site.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/sitemap/)).toBeNull();
+  });
+});
